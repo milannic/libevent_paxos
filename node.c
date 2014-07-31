@@ -17,7 +17,6 @@
  */
 #include "node.h"
 
-
 void connection_free(connection* con){
     if(NULL!=con){
         if(NULL!=con->my_buff_event){
@@ -31,3 +30,31 @@ void connection_free(connection* con){
         free(con);
     }
 }
+
+
+
+static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
+static void peer_node_on_event(struct bufferevent* bev,short what,void* arg){
+    peer* peer_node = (peer*)arg;
+    if(what&BEV_EVENT_CONNECTED){
+    }
+    return;
+};
+
+static void connect_peer(peer* peer_node){
+    connection* peer_connection = peer_node->peer_connection;
+    peer_connection->my_buff_event = bufferevent_socket_new(peer_node->base,-1,BEV_OPT_CLOSE_ON_FREE);
+    bufferevent_setcb(peer_connection->my_buff_event,peer_node_on_read,NULL,peer_node_on_event,peer_node);
+    bufferevent_enable(peer_connection->my_buff_event,EV_READ|EV_WRITE|EV_PERSIST);
+    bufferevent_socket_connect(peer_connection->my_buff_event,(struct sockaddr*)peer_connection->peer_address,peer_connection->sock_len);
+}
+
+
+void connect_peers(node* my_node){
+    for(int i=0;i<my_node->group_size;i++){
+        if(i!=my_node->node_id){
+            connect_peer(my_node->peer_pool+i);
+        }
+    }
+}
+

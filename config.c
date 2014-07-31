@@ -72,7 +72,10 @@ int read_configuration_file(node* cur_node,const char* config_file){
         if(!config_setting_lookup_int(node_address,"port",&my_port)){
             goto goto_config_error;
         }
-        cur_node->peer_pool[i].node_id = i;
+        cur_node->peer_pool[i].my_node = cur_node;
+        cur_node->peer_pool[i].peer_id = i;
+        cur_node->peer_pool[i].base = cur_node->base;
+        cur_node->peer_pool[i].reconnect = NULL;
         cur_node->peer_pool[i].peer_connection = (connection*) malloc(sizeof(connection));
         cur_node->peer_pool[i].peer_connection->sock_id = -1;
         cur_node->peer_pool[i].peer_connection->my_buff_event = NULL;

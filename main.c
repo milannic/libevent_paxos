@@ -1,6 +1,9 @@
 #include "common-header.h"
 #include "node.h"
 #include "config.h"
+#ifndef DEBUG
+#define DEBUG 1
+#endif
 
 int max_waiting_connections = MAX_ACCEPT_CONNECTIONS;
 
@@ -68,33 +71,46 @@ int main(int argc, char **argv) {
     // set up base
 	struct event_base* base = event_base_new();
 
+    if(NULL==base){
+        goto exit_error;
+    }
+
 	//int s_fd = socket(AF_INET,SOCK_STREAM,0);
 
     node my_node;
     my_node.base = base;
-    my_node.node_id = atoi("0");
+    my_node.node_id = atoi("1");
+
     if(read_configuration_file(&my_node,"./nodes.cfg")){
         goto exit_error;
     }
 
+#ifdef DEBUG
     char ipv4_address[INET_ADDRSTRLEN];
     inet_ntop(AF_INET,&my_node.my_address.sin_addr,ipv4_address,INET_ADDRSTRLEN);
 
-    fprintf(stderr,"current nodes group is %d\n",my_node.group_size);
+    paxos_log("current nodes group is %d\n",my_node.group_size);
 
-    fprintf(stderr,"current node's ip address is %s:%d\n",ipv4_address,ntohs(my_node.my_address.sin_port));
+    paxos_log("current node's ip address is %s:%d\n",ipv4_address,ntohs(my_node.my_address.sin_port));
+#endif
 
+    //connect_peers(&my_node);
+    
     struct evconnlistener* listener = evconnlistener_new_bind(base,on_accept,(void*)base,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,-1,(struct sockaddr*)&my_node.my_address,sizeof(my_node.my_address));
+
     if(!listener){
         fprintf(stderr, "cannot set up the listener\n");
         goto exit_error;
     }
 
+
 	event_base_dispatch(base);
 	event_base_free(base);
+
 exit_succ:
 	return EXIT_SUCCESS;
 exit_error:
     return EXIT_FAILURE;
+
 }
 

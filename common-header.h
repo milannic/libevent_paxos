@@ -34,5 +34,6 @@
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
 #include <libconfig.h>
+#include "debug.h"
 
 #endif

@@ -20,7 +20,7 @@
 #include "common-header.h"
 
 typedef struct connection_t{
-    // connection info
+// connection info
     int sock_id;
     struct sockaddr_in* peer_address;
     size_t sock_len;
@@ -32,8 +32,11 @@ typedef struct connection_t{
 void connection_free(connection* con);
 
 typedef struct peer_t{
-    int node_id;
+    int peer_id;
+    struct node_t* my_node;
     connection* peer_connection;
+    struct event_base* base;
+    struct event* reconnect;
 }peer;
 
 typedef struct view_t{
@@ -55,5 +58,8 @@ typedef struct node_t{
     struct event* ev_reconnect_node;
     //database* my_db
 }node;
+
+void connect_peers(node* my_node);
+
 
 #endif
