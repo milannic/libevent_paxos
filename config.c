@@ -37,7 +37,7 @@ int read_configuration_file(node* cur_node,const char* config_file){
     }
 
     if(group_size<=cur_node->node_id){
-        fprintf(stderr,"invalid node id\n");
+        paxos_log("invalid node id\n");
         goto goto_config_error;
     }
 
@@ -45,22 +45,23 @@ int read_configuration_file(node* cur_node,const char* config_file){
     nodes_setting = config_lookup(&node_config,"nodes_config");
 
     if(NULL==nodes_setting){
-        fprintf(stderr,"cannot find nodes settings \n");
+        paxos_log("cannot find nodes settings \n");
         goto goto_config_error;
     }    
 
     config_setting_t *net_address;
-    printf("the length is %d\n",config_setting_length(nodes_setting));
+    debug_log("the length is %d\n",config_setting_length(nodes_setting));
     net_address= config_setting_get_member(nodes_setting,"net_address");
 
     if(NULL==nodes_setting){
-        fprintf(stderr,"cannot find net address section \n");
+        paxos_log("cannot find net address section \n");
         goto goto_config_error;
     }
+    debug_log("the group size is %d\n",group_size);
     for(int i=0;i<group_size;i++){ 
         config_setting_t *node_address = config_setting_get_elem(net_address,i);
         if(NULL==node_address){
-            fprintf(stderr,"cannot find current node's address\n");
+            paxos_log("cannot find current node's address\n");
             goto goto_config_error;
         }
 
@@ -77,9 +78,9 @@ int read_configuration_file(node* cur_node,const char* config_file){
         cur_node->peer_pool[i].base = cur_node->base;
         cur_node->peer_pool[i].reconnect = NULL;
         cur_node->peer_pool[i].peer_connection = (connection*) malloc(sizeof(connection));
+        cur_node->peer_pool[i].peer_connection->base = cur_node->base;
         cur_node->peer_pool[i].peer_connection->sock_id = -1;
         cur_node->peer_pool[i].peer_connection->my_buff_event = NULL;
-        cur_node->peer_pool[i].peer_connection->base = cur_node->base;
         cur_node->peer_pool[i].peer_connection->peer_address = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
         cur_node->peer_pool[i].peer_connection->sock_len = sizeof(struct sockaddr_in);
         cur_node->peer_pool[i].peer_connection->peer_address->sin_family = AF_INET;
@@ -91,9 +92,8 @@ int read_configuration_file(node* cur_node,const char* config_file){
             cur_node->my_address.sin_family = AF_INET;
             inet_pton(AF_INET,my_ipaddr,&cur_node->my_address.sin_addr);
         }
-        printf("the group size is %d\n",group_size);
-        printf("the current node no is %d\n",i);
-        printf("the ip address is %s:%d\n",my_ipaddr,my_port);
+        debug_log("the current node no is %d\n",i);
+        debug_log("the ip address is %s:%d\n",my_ipaddr,my_port);
     }
 
 
@@ -101,7 +101,7 @@ int read_configuration_file(node* cur_node,const char* config_file){
     return 0;
 
 goto_config_error:
-    fprintf(stderr, "%s:%d - %s\n", config_error_file(&node_config), config_error_line(&node_config), config_error_text(&node_config));
+    paxos_log("%s:%d - %s\n", config_error_file(&node_config), config_error_line(&node_config), config_error_text(&node_config));
     config_destroy(&node_config);
     return -1;
 };

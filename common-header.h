@@ -17,8 +17,10 @@
  */
 #ifndef COMMON_HEADER_H
 #define COMMON_HEADER_H
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <error.h>

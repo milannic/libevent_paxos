@@ -19,14 +19,19 @@
 #define SERVER_H
 #include "common-header.h"
 
+
+extern struct timeval reconnect_timeval;
+
 typedef struct connection_t{
 // connection info
+
     int sock_id;
     struct sockaddr_in* peer_address;
     size_t sock_len;
 // libevent part
-    struct event_base* base;
     struct bufferevent* my_buff_event;
+    struct event_base* base;
+
 }connection;
 
 void connection_free(connection* con);
@@ -56,10 +61,12 @@ typedef struct node_t{
     struct event_base* base;
     struct event* ev_ping_leader;
     struct event* ev_reconnect_node;
+
     //database* my_db
 }node;
 
 void connect_peers(node* my_node);
+int initialize_node(node* my_node);
 
 
 #endif
