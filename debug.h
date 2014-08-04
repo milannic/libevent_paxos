@@ -13,6 +13,7 @@
 #define debug_log(args...) do{;}while(0);
 #endif
 
+
 #define paxos_log(args...) do { \
     struct timeval tv; \
     gettimeofday(&tv,0); \

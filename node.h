@@ -19,8 +19,9 @@
 #define SERVER_H
 #include "common-header.h"
 
-
 extern struct timeval reconnect_timeval;
+extern struct timeval ping_timeval;
+extern int heart_beat_threshold;
 
 typedef struct connection_t{
 // connection info
@@ -33,26 +34,28 @@ typedef struct connection_t{
     struct event_base* base;
 
 }connection;
-
 void connection_free(connection* con);
+
 
 typedef struct peer_t{
     int peer_id;
+    int active;
     struct node_t* my_node;
     connection* peer_connection;
     struct event_base* base;
     struct event* reconnect;
 }peer;
 
-typedef struct view_t{
-    long view_id;
-    int leader_id;
-}view;
+typedef enum node_state_code_t{
+    NODE_ACTIVE=0,
+    NODE_INACTIVE=1,
+}node_state_code;
 
 typedef struct node_t{
 
     int node_id;
     view cur_view;
+    node_state_code state;
     struct sockaddr_in my_address;
     int group_size;
     peer* peer_pool;
@@ -60,13 +63,13 @@ typedef struct node_t{
     // libevent part
     struct event_base* base;
     struct event* ev_ping_leader;
-    struct event* ev_reconnect_node;
 
+    char* db_name;
     //database* my_db
 }node;
 
+
 void connect_peers(node* my_node);
 int initialize_node(node* my_node);
-
 
 #endif

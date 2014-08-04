@@ -19,15 +19,14 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 #include "common-header.h"
+#include <libconfig.h>
 #include "node.h"
 
 
 extern int max_waiting_connections;
+
 #define MAX_ACCEPT_CONNECTIONS 500
 
 int read_configuration_file(node* cur_node,const char* config_file);
-
-
-
 
 #endif

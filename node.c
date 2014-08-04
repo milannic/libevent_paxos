@@ -15,8 +15,7 @@
  * =====================================================================================
  */
 #include "node.h"
-
-struct timeval reconnect_timeval = {2,0};
+#include "node_config.h"
 
 void connection_free(connection* con){
     if(NULL!=con){
@@ -38,13 +37,14 @@ static void peer_node_on_event(struct bufferevent* bev,short what,void* arg){
     peer* peer_node = (peer*)arg;
     if(what&BEV_EVENT_CONNECTED){
         paxos_log("Connected to Node %d\n",peer_node->peer_id);
+        peer_node->active = 1;
     }else if(what & BEV_EVENT_EOF || what & BEV_EVENT_ERROR){
         int err = EVUTIL_SOCKET_ERROR();
 		paxos_log("%s (%d)\n",evutil_socket_error_to_string(err),peer_node->peer_id);
         bufferevent_free(bev);
+        peer_node->active = 0;
         event_add(peer_node->reconnect,&reconnect_timeval);
     }
-    return;
 };
 
 

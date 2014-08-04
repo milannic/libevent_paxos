@@ -2,8 +2,7 @@
 #include "node.h"
 #include "config.h"
 
-int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; 
-static connection* peers_pool[MAX_ACCEPT_CONNECTIONS];
+int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; static connection* peers_pool[MAX_ACCEPT_CONNECTIONS];
 
 static unsigned current_connection = 3;
 
@@ -56,20 +55,26 @@ void on_read(struct bufferevent* bev,void* arg){
 
 
 void usage(){
-    paxos_log("Usage : -n NODE_ID -s [rb]\n");
+    paxos_log("Usage : -n NODE_ID\n");
+    paxos_log("        -s [rb] Start Option bootstrap or recovery\n");
+    paxos_log("        -c path path to configuration file\n");
 }
 
 
 int main(int argc, char **argv) {
 
     char* start_option = NULL;
+    char* config_path = NULL;
     int node_id = -1;
     int c;
 
-    while((c = getopt (argc,argv,"n:s:")) != -1){
+    while((c = getopt (argc,argv,"c:n:s:")) != -1){
         switch(c){
             case 'n':
                 node_id = atoi(optarg);
+                break;
+            case 'c':
+                config_path = optarg;
                 break;
             case 's':
                 start_option = optarg;
@@ -90,6 +95,11 @@ int main(int argc, char **argv) {
                     usage();
                     goto exit_error;
                 }
+                else if(optopt == 'c'){
+                    paxos_log("Option -c requires an argument");
+                    usage();
+                    goto exit_error;
+                }
                 break;
             default:
                 paxos_log("Unknown Option %d \n",c);
@@ -97,7 +107,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if(argc<5 || optind>argc){
+    if(argc<7 || optind>argc){
         usage();
         goto exit_error;
     }
@@ -114,8 +124,16 @@ int main(int argc, char **argv) {
     node my_node;
     my_node.base = base;
     my_node.node_id = node_id;
+    //bootstrap, currently the node is the leader
+    if(*start_option=='b'){
+        my_node.cur_view.view_id = 0;
+        my_node.cur_view.leader_id = my_node.node_id;
+    }else{
+        my_node.cur_view.view_id = -1;
+        my_node.cur_view.leader_id = -1;
+    }
 
-    if(read_configuration_file(&my_node,"./nodes.cfg")){
+    if(read_configuration_file(&my_node,config_path)){
         goto exit_error;
     }
     
@@ -123,12 +141,13 @@ int main(int argc, char **argv) {
     inet_ntop(AF_INET,&my_node.my_address.sin_addr,ipv4_address,INET_ADDRSTRLEN);
 
     debug_log("current node's ip address is %s:%d\n",ipv4_address,ntohs(my_node.my_address.sin_port));
+    debug_log("current node's db name is %s\n",my_node.db_name);
 
 
-    if(initialize_node(&my_node)){
-        paxos_log("cannot initialize node\n");
-        goto exit_error;
-    }
+//    if(initialize_node(&my_node)){
+//        paxos_log("cannot initialize node\n");
+//        goto exit_error;
+//    }
     struct evconnlistener* listener = evconnlistener_new_bind(base,on_accept,(void*)base,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,-1,(struct sockaddr*)&my_node.my_address,sizeof(my_node.my_address));
 
     if(!listener){
