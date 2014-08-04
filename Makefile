@@ -5,7 +5,7 @@ IPATH=.
 GCC=gcc
 
 
-PROGRAM=server
+PROGRAM=server.out
 
 SOURCE=$(shell ls *c)
 
@@ -20,7 +20,7 @@ default:$(PROGRAM)
 	$(GCC) -I $(IPATH)  $(CFLAGS) -o $@  $^
 
 
-server:$(OBJ)
+server.out:$(OBJ)
 	$(GCC) -I $(IPATH)  $(CFLAGS) -o $@  $^ $(LDFLAGS)
 
 .PHONY:clean
