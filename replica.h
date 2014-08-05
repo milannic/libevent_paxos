@@ -1,12 +1,12 @@
 /*
  * =====================================================================================
  *
- *       Filename:  node_config.h
+ *       Filename:  replica.h
  *
  *    Description:  
  *
  *        Version:  1.0
- *        Created:  08/04/2014 04:30:28 PM
+ *        Created:  08/05/2014 12:53:17 PM
  *       Revision:  none
  *       Compiler:  gcc
  *
@@ -15,10 +15,14 @@
  *
  * =====================================================================================
  */
-#ifndef NODE_CONFIG_H
-#define NODE_CONFIG_H
-#include <sys/time.h>
-struct timeval reconnect_timeval = {2,0};
-struct timeval ping_timeval = {10,0};
-int heart_beat_threshold = 4;
+#ifndef REPLICA_H
+#define REPLICA_H
+
+struct node_t;
+
+struct node_t* system_initialize(int argc,char** argv,void(*user_callback)(int data_size,void* data));
+
+void system_run(struct node_t* replica);
+void system_exit(struct node_t* replica);
+
 #endif
