@@ -108,7 +108,7 @@ int read_configuration_file(node* cur_node,const char* config_path){
             inet_pton(AF_INET,peer_ipaddr,&cur_node->my_address.sin_addr);
         }
         debug_log("the current node no is %d\n",i);
-        debug_log("the ip address is %s:%d\n",my_ipaddr,my_port);
+        debug_log("the ip address is %s:%d\n",peer_ipaddr,peer_port);
     }
 
 

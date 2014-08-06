@@ -11,7 +11,7 @@ int heart_beat_threshold = 4;
 
 void usage(){
     paxos_log("Usage : -n NODE_ID\n");
-    paxos_log("        -s [rb] Start Option bootstrap or recovery\n");
+    paxos_log("        -m [sr] Start Mode seed|recovery\n");
     paxos_log("        -c path path to configuration file\n");
 }
 
@@ -42,6 +42,10 @@ static void connect_peer(peer* peer_node){
 
 static void peer_node_on_timeout(int fd,short what,void* arg){
     connect_peer((peer*)arg);
+};
+
+static void ping_leader_timeout(int fd,short what,void* arg){
+    return;
 };
 
 void connect_peers(node* my_node){
@@ -133,8 +137,8 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
 
 
 
-node* system_initialize(int argc,char** argv,l_cb user_call_back){
-    char* start_option = NULL;
+node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* data)){
+    char* start_mode= NULL;
     char* config_path = NULL;
     int node_id = -1;
     int c;
@@ -146,10 +150,10 @@ node* system_initialize(int argc,char** argv,l_cb user_call_back){
             case 'c':
                 config_path = optarg;
                 break;
-            case 's':
-                start_option = optarg;
-                if(*start_option!='b' && *start_option!='r'){
-                    paxos_log("Unknown Start Option\n");
+            case 'm':
+                start_mode= optarg;
+                if(*start_mode!='s' && *start_mode!='r'){
+                    paxos_log("Unknown Start Mode\n");
                     usage();
                     goto exit_error;
                 }
@@ -160,8 +164,8 @@ node* system_initialize(int argc,char** argv,l_cb user_call_back){
                     usage();
                     goto exit_error;
                 }
-                else if(optopt == 's'){
-                    paxos_log("Option -s requires an argument");
+                else if(optopt == 'm'){
+                    paxos_log("Option -m requires an argument");
                     usage();
                     goto exit_error;
                 }
@@ -194,13 +198,16 @@ node* system_initialize(int argc,char** argv,l_cb user_call_back){
     node* my_node = (node*)malloc(sizeof(node));
     my_node->base = base;
     my_node->node_id = node_id;
-    //bootstrap, currently the node is the leader
-    if(*start_option=='b'){
+
+    //seed, currently the node is the leader
+    if(*start_mode=='s'){
         my_node->cur_view.view_id = 0;
         my_node->cur_view.leader_id = my_node->node_id;
+        my_node->ev_ping_leader = NULL;
     }else{
         my_node->cur_view.view_id = -1;
         my_node->cur_view.leader_id = -1;
+        my_node->ev_ping_leader = NULL;
     }
 
     if(read_configuration_file(my_node,config_path)){
@@ -219,19 +226,32 @@ node* system_initialize(int argc,char** argv,l_cb user_call_back){
 //        paxos_log("cannot initialize node\n");
 //        goto exit_error;
 //    }
-    struct evconnlistener* listener = evconnlistener_new_bind(base,replica_on_accept,(void*)my_node,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,-1,(struct sockaddr*)&my_node->my_address,sizeof(my_node->my_address));
 
-    if(!listener){
+    my_node->listener =
+        evconnlistener_new_bind(base,replica_on_accept,
+                (void*)my_node,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,-1,
+                (struct sockaddr*)&my_node->my_address,sizeof(my_node->my_address));
+
+    if(!my_node->listener){
         paxos_log("cannot set up the listener\n");
         goto exit_error;
     }
 
-	event_base_dispatch(base);
-	event_base_free(base);
-
 	return my_node;
-exit_error:
-    return NULL;
 
+exit_error:
+    free_node(my_node);
+    return NULL;
 }
 
+
+void system_run(struct node_t* replica){
+    event_base_dispatch(replica->base);
+}
+
+
+void system_exit(struct node_t* replica){
+    event_base_loopexit(replica->base,NULL);
+    event_base_free(replica->base);
+    free_node(replica);
+}
