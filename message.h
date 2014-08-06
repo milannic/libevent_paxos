@@ -26,10 +26,6 @@ typedef enum paxos_msg_code_t{
     // heart beat
         ping_req=0,
         ping_ack=1,
-    // normal case
-        accept_req=10,
-        accept_ack=11,
-
     // leader election
         l_prepare_req=20,
         l_prepare_ack=21,

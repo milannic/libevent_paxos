@@ -1,12 +1,12 @@
 /*
  * =====================================================================================
  *
- *       Filename:  replica.h
+ *       Filename:  consensus_msg.h
  *
  *    Description:  
  *
  *        Version:  1.0
- *        Created:  08/05/2014 12:53:17 PM
+ *        Created:  08/06/2014 03:13:37 PM
  *       Revision:  none
  *       Compiler:  gcc
  *
@@ -15,13 +15,22 @@
  *
  * =====================================================================================
  */
-#ifndef REPLICA_H
-#define REPLICA_H
 
-struct node_t;
+#ifndef CONSENSUS_MSG_H
+#define CONSENSUS_MSG_H
 
-struct node_t* system_initialize(int argc,char** argv,void(*user_callback)(int data_size,void* data));
-void system_run(struct node_t* replica);
-void system_exit(struct node_t* replica);
+#include "common-header.h"
+
+typedef struct accept_req_t{
+}accept_req;
+
+typedef struct accept_ack_t{
+}accept_ack;
+
+typedef struct missing_req_t{
+}missing_req;
+
+typedef struct missing_ack_t{
+}missing_ack;
 
 #endif

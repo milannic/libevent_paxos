@@ -1,12 +1,12 @@
 /*
  * =====================================================================================
  *
- *       Filename:  replica.h
+ *       Filename:  consensus.c
  *
  *    Description:  
  *
  *        Version:  1.0
- *        Created:  08/05/2014 12:53:17 PM
+ *        Created:  08/06/2014 02:13:09 PM
  *       Revision:  none
  *       Compiler:  gcc
  *
@@ -15,13 +15,19 @@
  *
  * =====================================================================================
  */
-#ifndef REPLICA_H
-#define REPLICA_H
 
-struct node_t;
+#include "common-header.h"
+#include "consensus.h"
+#include "leader.h"
+#include "learner.h"
 
-struct node_t* system_initialize(int argc,char** argv,void(*user_callback)(int data_size,void* data));
-void system_run(struct node_t* replica);
-void system_exit(struct node_t* replica);
+typedef struct consensus_component_t{
+    con_role my_role;
+    // use up call to transfer message to other replicas
+    net_up_call net_cb;
+    leader* p_leader;
+    learner* p_learner;
+}consensus_component;
 
-#endif
+
+

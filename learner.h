@@ -21,24 +21,35 @@
 
 #include "common-header.h"
 
-struct node_t;
-typedef void(*l_callback)(int data_size,void*data);
 
-typedef void(*req_missing_record)(struct node_t* l_node,view_stamp missing_id);
+struct consensus_component_t;
+
+typedef void(*learner_deliever_callback)(int,void*);
+
+typedef void(*learner_missing_req_callback)(struct consensus_component_t*,view_stamp);
+
+typedef void(*learner_missing_ack_callback)(struct consensus_component_t*,view_stamp,size_t,void*);
 
 typedef struct learner_t{
 
     view_stamp cur_view_stamp;
     view_stamp highest_committed_view_stamp;
+
+    view* cur_view;
     struct node_t* l_node;    
-    // callback function, one is to deliver committed record to the user application
-    l_callback l_cb;
-    // one is to let its replica node to request missing records from other nodes;
-    req_missing_record l_missing_cb;
+    learner_deliever_callback l_d_cb;
+    learner_missing_req_callback l_m_r_cb;
+    learner_missing_ack_callback l_m_a_cb;
     // database
     const char* db_name;
     //database_db interface
-    
 }learner;
+
+learner* initialize_learner(view*,view_stamp*,const
+        char*,learner_deliever_callback,learner_missing_req_callback,
+        learner_missing_ack_callback);
+
+void learner_handle_accept_req(learner*,view_stamp,size_t,void*);
+void learner_handle_missing_req(learner*,view_stamp);
 
 #endif

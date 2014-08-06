@@ -56,6 +56,7 @@ int read_configuration_file(node* cur_node,const char* config_path){
         goto goto_config_error;
     }
     debug_log("the group size is %d\n",group_size);
+    peer* peer_pool = cur_node->peer_pool;
     for(int i=0;i<group_size;i++){ 
         config_setting_t *node_config = config_setting_get_elem(nodes_config,i);
         if(NULL==node_config){
@@ -63,28 +64,27 @@ int read_configuration_file(node* cur_node,const char* config_path){
             goto goto_config_error;
         }
 
-        const char* my_ipaddr;
-        int my_port;
-        if(!config_setting_lookup_string(node_config,"ip_address",&my_ipaddr)){
+        const char* peer_ipaddr;
+        int peer_port;
+        if(!config_setting_lookup_string(node_config,"ip_address",&peer_ipaddr)){
             goto goto_config_error;
         }
-        if(!config_setting_lookup_int(node_config,"port",&my_port)){
+        if(!config_setting_lookup_int(node_config,"port",&peer_port)){
             goto goto_config_error;
         }
-        cur_node->peer_pool[i].my_node = cur_node;
-        cur_node->peer_pool[i].peer_id = i;
-        cur_node->peer_pool[i].base = cur_node->base;
-        cur_node->peer_pool[i].reconnect = NULL;
-        cur_node->peer_pool[i].active = 0;
-        cur_node->peer_pool[i].peer_connection = (connection*) malloc(sizeof(connection));
-        cur_node->peer_pool[i].peer_connection->base = cur_node->base;
-        cur_node->peer_pool[i].peer_connection->sock_id = -1;
-        cur_node->peer_pool[i].peer_connection->my_buff_event = NULL;
-        cur_node->peer_pool[i].peer_connection->peer_address = (struct sockaddr_in*)malloc(sizeof(struct sockaddr_in));
-        cur_node->peer_pool[i].peer_connection->sock_len = sizeof(struct sockaddr_in);
-        cur_node->peer_pool[i].peer_connection->peer_address->sin_family = AF_INET;
-        inet_pton(AF_INET,my_ipaddr,&cur_node->peer_pool[i].peer_connection->peer_address->sin_addr);
-        cur_node->peer_pool[i].peer_connection->peer_address->sin_port = htons(my_port);
+        peer_pool[i].my_node = cur_node;
+        peer_pool[i].peer_id = i; 
+        peer_pool[i].base = cur_node->base; 
+        peer_pool[i].reconnect = NULL;
+        peer_pool[i].active = 0;
+        peer_pool[i].my_buff_event = NULL;
+        peer_pool[i].sock_id = -1;
+        peer_pool[i].peer_address = (struct sockaddr_in*)malloc(sizeof(struct
+                    sockaddr_in));
+        peer_pool[i].sock_len = sizeof(struct sockaddr_in);
+        peer_pool[i].peer_address->sin_family =AF_INET;
+        inet_pton(AF_INET,peer_ipaddr,&peer_pool[i].peer_address->sin_addr);
+        peer_pool[i].peer_address->sin_port = htons(peer_port);
 
         if(i==cur_node->node_id){
             const char* db_name;
@@ -100,11 +100,12 @@ int read_configuration_file(node* cur_node,const char* config_path){
                 free(cur_node->db_name);
                 goto goto_config_error;
             }
+
             cur_node->db_name[db_name_len] = '\0';
             //debug_log("current node's db name is %s\n",cur_node->db_name);
-            cur_node->my_address.sin_port = htons(my_port);
+            cur_node->my_address.sin_port = htons(peer_port);
             cur_node->my_address.sin_family = AF_INET;
-            inet_pton(AF_INET,my_ipaddr,&cur_node->my_address.sin_addr);
+            inet_pton(AF_INET,peer_ipaddr,&cur_node->my_address.sin_addr);
         }
         debug_log("the current node no is %d\n",i);
         debug_log("the ip address is %s:%d\n",my_ipaddr,my_port);
@@ -115,7 +116,8 @@ int read_configuration_file(node* cur_node,const char* config_path){
     return 0;
 
 goto_config_error:
-    paxos_log("%s:%d - %s\n", config_error_file(&config_file), config_error_line(&config_file), config_error_text(&config_file));
+    paxos_log("%s:%d - %s\n", config_error_file(&config_file),
+            config_error_line(&config_file), config_error_text(&config_file));
     config_destroy(&config_file);
     return -1;
 };

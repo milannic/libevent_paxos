@@ -1,7 +1,7 @@
 /*
  * =====================================================================================
  *
- *       Filename:  primary.h
+ *       Filename:  leader.h
  *
  *    Description:  
  *
@@ -17,14 +17,17 @@
  */
 #ifndef LEADER_H 
 #define LEADER_H
+
 #include "common-header.h"
 #include "message.h"
 
-struct node_t;
-typedef void (*req_send_callback)(struct node_t* my_node,view_stamp req_id,size_t data_size,void* data);
+struct consensus_component_t;
+
+typedef void (*req_send_callback)(struct consensus_component_t,view_stamp,size_t,void*);
 
 typedef struct leader_t{
     req_send_callback local_cb;
+    view* cur_view;
     view_stamp next_stamp;
     view_stamp previous_commited_stamp;
     // hashtable

@@ -1,12 +1,12 @@
 /*
  * =====================================================================================
  *
- *       Filename:  replica.h
+ *       Filename:  learner.c
  *
  *    Description:  
  *
  *        Version:  1.0
- *        Created:  08/05/2014 12:53:17 PM
+ *        Created:  08/06/2014 03:11:02 PM
  *       Revision:  none
  *       Compiler:  gcc
  *
@@ -15,13 +15,17 @@
  *
  * =====================================================================================
  */
-#ifndef REPLICA_H
-#define REPLICA_H
+#include "common-header.h"
+#include "learner.h"
 
-struct node_t;
+void try_to_deliever(learner* l){
+    return;
+}
 
-struct node_t* system_initialize(int argc,char** argv,void(*user_callback)(int data_size,void* data));
-void system_run(struct node_t* replica);
-void system_exit(struct node_t* replica);
+void update_record(learner* l,view_stamp cur,size_t data_size,void* data,view_stamp can_committed){
+    try_to_deliever(l);
+    return;
+}
 
-#endif
+
+

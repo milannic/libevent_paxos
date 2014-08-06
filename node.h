@@ -18,28 +18,21 @@
 #ifndef SERVER_H
 #define SERVER_H
 #include "common-header.h"
-#include "learner.h"
-
-typedef struct connection_t{
-// connection info
-    int sock_id;
-    struct sockaddr_in* peer_address;
-    size_t sock_len;
-
-// libevent part
-
-    struct bufferevent* my_buff_event;
-    struct event_base* base;
-
-}connection;
+#include "consensus.h"
 
 typedef struct peer_t{
     int peer_id;
     int active;
+
+    int sock_id;
+    struct sockaddr_in* peer_address;
+    size_t sock_len;
+
     struct node_t* my_node;
-    connection* peer_connection;
+
+    struct bufferevent* my_buff_event;
     struct event_base* base;
-    struct event* reconnect;
+    struct event* reconnect; // reconnect the peer
 }peer;
 
 typedef enum node_state_code_t{
@@ -58,17 +51,19 @@ typedef struct node_config_t{
 typedef struct node_t{
 
     int node_id;
+
     view cur_view;
+    view_stamp highest_committed_view_stamp;
+
     node_state_code state;
     struct sockaddr_in my_address;
     int group_size;
     peer* peer_pool;
 
-    learner my_learner;
+    struct consensus_component_t* consensus_comp;
 
     //config
     node_config config;
-
     // libevent part
     struct evconnlistener* listener;
     struct event_base* base;
