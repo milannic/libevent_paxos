@@ -24,10 +24,13 @@ static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg){
         paxos_log("Connected to Node %d\n",peer_node->peer_id);
         peer_node->active = 1;
     }else if((ev & BEV_EVENT_EOF )||(ev&BEV_EVENT_ERROR)){
+        if(peer_node->active){
+            peer_node->active = 0;
+            paxos_log("Lost Connection With Node %d \n",peer_node->peer_id);
+        }
         int err = EVUTIL_SOCKET_ERROR();
 		paxos_log("%s (%d)\n",evutil_socket_error_to_string(err),peer_node->peer_id);
         bufferevent_free(bev);
-        peer_node->active = 0;
         event_add(peer_node->reconnect,&reconnect_timeval);
     }
 };
@@ -223,10 +226,10 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
 #endif
 
 
-//    if(initialize_node(&my_node)){
-//        paxos_log("cannot initialize node\n");
-//        goto exit_error;
-//    }
+    if(initialize_node(my_node)){
+        paxos_log("cannot initialize node\n");
+        goto exit_error;
+    }
 
     my_node->listener =
         evconnlistener_new_bind(base,replica_on_accept,
