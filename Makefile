@@ -21,7 +21,7 @@ default:$(PROGRAM)
 
 
 server.out:$(OBJ)
-	$(GCC) -I $(IPATH)  $(CFLAGS) -o $@  $^ common-structure.o $(LDFLAGS) 
+	$(GCC) -I $(IPATH)  $(CFLAGS) -o $@  $^ $(LDFLAGS) 
 
 .PHONY:clean
 clean:

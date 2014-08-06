@@ -31,7 +31,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include "commnon-structure.h"
+#include "common-structure.h"
 #include "net-communication.h"
 #include "debug.h"
 

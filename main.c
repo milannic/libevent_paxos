@@ -10,7 +10,7 @@
  *       Revision:  none
  *       Compiler:  gcc
  *
- *         Author:  Milannic (), mNULLilannic.cheng.liu@gmail.com
+ *         Author:  Milannic (), milannic.cheng.liu@gmail.com
  *   Organization:  
  *
  * =====================================================================================
@@ -22,5 +22,7 @@ static void(*pseudo_cb)(int data_size,void* data) = (void*)0;
 
 int main(int argc,char** argv){
     struct node_t* my_node = system_initialize(argc,argv,pseudo_cb);
-    system_run(my_node);
+    if(my_node){
+        system_run(my_node);
+    }
 }

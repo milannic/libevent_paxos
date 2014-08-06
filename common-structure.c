@@ -16,7 +16,7 @@
  * =====================================================================================
  */
 
-#include "commnon-structure.h"
+#include "common-structure.h"
 
 uint64_t vstol(view_stamp* vs){
     uint64_t result = vs->req_id;

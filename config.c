@@ -49,7 +49,8 @@ int read_configuration_file(node* cur_node,const char* config_path){
         goto goto_config_error;
     }    
 
-    debug_log("the length is %d\n",config_setting_length(nodes_config));
+    debug_log("the length is %d\n",
+            config_setting_length(nodes_config));
 
     if(NULL==nodes_config){
         paxos_log("cannot find net address section \n");
