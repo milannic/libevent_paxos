@@ -142,7 +142,8 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
     char* config_path = NULL;
     int node_id = -1;
     int c;
-    while((c = getopt (argc,argv,"c:n:s:")) != -1){
+
+    while((c = getopt (argc,argv,"c:n:m:")) != -1){
         switch(c){
             case 'n':
                 node_id = atoi(optarg);
@@ -160,17 +161,17 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
                 break;
             case '?':
                 if(optopt == 'n'){
-                    paxos_log("Option -n requires an argument");
+                    paxos_log("Option -n requires an argument\n");
                     usage();
                     goto exit_error;
                 }
                 else if(optopt == 'm'){
-                    paxos_log("Option -m requires an argument");
+                    paxos_log("Option -m requires an argument\n");
                     usage();
                     goto exit_error;
                 }
                 else if(optopt == 'c'){
-                    paxos_log("Option -c requires an argument");
+                    paxos_log("Option -c requires an argument\n");
                     usage();
                     goto exit_error;
                 }
