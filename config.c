@@ -25,8 +25,8 @@ int read_configuration_file(node* cur_node,const char* config_path){
     if(!config_read_file(&config_file,config_path)){
         goto goto_config_error;
     }
-    int group_size;
-    if(!config_lookup_int(&config_file,"group_size",&group_size)){
+    uint32_t group_size;
+    if(!config_lookup_int(&config_file,"group_size",(int*)&group_size)){
         goto goto_config_error;
     }
 
@@ -58,7 +58,7 @@ int read_configuration_file(node* cur_node,const char* config_path){
     }
     debug_log("the group size is %d\n",group_size);
     peer* peer_pool = cur_node->peer_pool;
-    for(int i=0;i<group_size;i++){ 
+    for(uint32_t i=0;i<group_size;i++){ 
         config_setting_t *node_config = config_setting_get_elem(nodes_config,i);
         if(NULL==node_config){
             paxos_log("cannot find current node's address\n");
