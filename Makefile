@@ -15,9 +15,8 @@ OBJ=$(SOURCE:.c=.o)
 .PHONY:default
 default:$(PROGRAM)
 
-
-%.o:%.c %h
-	$(GCC) -I $(IPATH)  $(CFLAGS) -o $@  $^
+%.o: %.c
+	$(GCC) -I $(IPATH) $(CFLAGS) -c -o $@ $^
 
 
 server.out:$(OBJ)

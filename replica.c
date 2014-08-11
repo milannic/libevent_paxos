@@ -6,7 +6,8 @@
 int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; 
 static unsigned current_connection = 3;
 struct timeval reconnect_timeval = {2,0};
-struct timeval ping_timeval = {10,0};
+struct timeval ping_timeval = {6,0};
+struct timeval expect_ping_timeval = {18,0};
 int heart_beat_threshold = 4;
 
 void usage(){
@@ -16,8 +17,41 @@ void usage(){
 }
 
 
-static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
 
+//msg handler
+static void replica_on_read(struct bufferevent* bev,void* arg);
+static void replica_on_error_cb(struct bufferevent* bev,short ev,void* arg);
+
+//listener
+static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t
+        fd,struct sockaddr *address,int socklen,void *arg);
+
+//peer connection
+static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg);
+static void peer_node_on_read(struct bufferevent* bev,void* arg);
+static void connect_peer(peer* peer_node);
+static void peer_node_on_timeout(int fd,short what,void* arg);
+static void connect_peers(node* my_node);
+
+
+//ping part
+static void leader_ping_period(int fd,short what,void* arg);
+static void expected_leader_ping_period(int fd,short wat,void* arg);
+static int initialize_leader_ping(node* my_node);
+static int initialize_expect_ping(node* my_node);
+
+//view change
+static void update_view(node* my_node,view* new_view);
+static void become_leader(node* my_node);
+static void replica_sync(node* my_node);
+
+//free related function
+static void free_peers(node* my_node);
+static int free_node(node* my_node);
+
+
+
+static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
 static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg){
     peer* peer_node = (peer*)arg;
     if(ev&BEV_EVENT_CONNECTED){
@@ -47,12 +81,9 @@ static void peer_node_on_timeout(int fd,short what,void* arg){
     connect_peer((peer*)arg);
 };
 
-static void ping_leader_timeout(int fd,short what,void* arg){
-    return;
-};
 
-void connect_peers(node* my_node){
-    for(int i=0;i<my_node->group_size;i++){
+static void connect_peers(node* my_node){
+    for(uint32_t i=0;i<my_node->group_size;i++){
         if(i!=my_node->node_id){
             peer* peer_node = my_node->peer_pool+i;
             peer_node->reconnect = evtimer_new(peer_node->base,peer_node_on_timeout,peer_node);
@@ -61,16 +92,93 @@ void connect_peers(node* my_node){
     }
 }
 
-int initialize_node(node* my_node){
-    int flag = 0;
-    connect_peers(my_node);
-    goto initialize_node_exit;
-initialize_node_exit:
-        return flag;
+
+static void lost_connection_with_leader(node* my_node){
+}
+
+static void expected_leader_ping_period(int fd,short wat,void* arg){
+    node* my_node = arg;
+    if(my_node->node_id==my_node->cur_view.leader_id){
+        event_free(my_node->ev_leader_ping);
+
+    }else{
+        struct timeval* last = &my_node->last_ping_msg;
+        struct timeval cur;
+        gettimeofday(&cur,NULL);
+        if(((last->tv_sec+expect_ping_timeval.tv_sec) > cur.tv_usec) ||
+            (((last->tv_sec+expect_ping_timeval.tv_sec)==cur.tv_usec)&&
+             (last->tv_usec+expect_ping_timeval.tv_usec>cur.tv_usec))){
+            event_add(my_node->ev_leader_ping,&expect_ping_timeval);
+        }else{
+            debug_log(
+                    "Node %d haven't heard from the leader",
+                    my_node->node_id);
+            lost_connection_with_leader(my_node);
+        }
+    }
+}
+
+static void leader_ping_period(int fd,short what,void* arg){
+    node* my_node = arg; 
+    // at first check whether I am the leader
+    if(my_node->cur_view.leader_id!=my_node->node_id){
+        if(my_node->ev_leader_ping!=NULL){
+            //event_del(my_node->ev_leader_ping);
+            event_free(my_node->ev_leader_ping);
+        }
+        return;
+    }else{
+        sys_msg* ping_req = build_ping_req(my_node->node_id,&my_node->cur_view);
+        if(NULL==ping_req){
+            goto add_ping_event;
+        }
+        for(uint32_t i=0;i<my_node->group_size;i++){
+            if(i!=my_node->node_id && my_node->peer_pool[i].active){
+                struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
+                bufferevent_write(buff,ping_req,SYS_MSG_SIZE((ping_req->data_size)));
+                debug_log(
+                        "Send Ping Msg To Node %u\n",i);
+            }
+        }
+    }
+add_ping_event:
+    if(NULL!=my_node->ev_leader_ping){
+        event_add(my_node->ev_leader_ping,&ping_timeval);
+    }
+};
+
+static int initialize_leader_ping(node* my_node){
+    if(NULL!=my_node->ev_leader_ping){
+        my_node->ev_leader_ping = evtimer_new(my_node->base,leader_ping_period,(void*)my_node);
+        if(my_node->ev_leader_ping==NULL){
+            return 1;
+        }
+    }
+    event_add(my_node->ev_leader_ping,&ping_timeval);
+    return 0;
+}
+
+static int initialize_expect_ping(node* my_node){
+    if(NULL!=my_node->ev_leader_ping){
+        my_node->ev_leader_ping = evtimer_new(my_node->base,expected_leader_ping_period,(void*)my_node);
+        if(my_node->ev_leader_ping==NULL){
+            return 1;
+        }
+    }
+    event_add(my_node->ev_leader_ping,&expect_ping_timeval);
+    return 0;
 }
 
 
-
+static void update_view(node* my_node,view* new_view){
+    return;
+}
+static void become_leader(node* my_node){
+    return;
+}
+static void replica_sync(node* my_node){
+    return;
+}
 
 static void free_peer(peer* peer_node){
     if(NULL!=peer_node){
@@ -88,7 +196,7 @@ static void free_peer(peer* peer_node){
 }
 
 static void free_peers(node* my_node){
-    for(int i=0;i<my_node->group_size;i++){
+    for(uint32_t i=0;i<my_node->group_size;i++){
         free_peer(my_node->peer_pool+i);
     }
 }
@@ -99,9 +207,6 @@ static int free_node(node* my_node){
     return 0;
 }
 
-static void replica_on_read(struct bufferevent* bev,void* arg);
-static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd,struct sockaddr *address,int socklen,void *arg);
-static void replica_on_error_cb(struct bufferevent* bev,short ev,void* arg);
 
 static void replica_on_error_cb(struct bufferevent* bev,short ev,void *arg){
     if(ev&BEV_EVENT_EOF){
@@ -125,19 +230,46 @@ static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd
     }
 };
 
+
+static void handle_msg(node* my_node){
+}
+
+//general data handler by the user, test if there is enough data to read
 static void replica_on_read(struct bufferevent* bev,void* arg){
-//	connection* my_con = arg;
-    char buf[1024];
+
+    char* buf = NULL;
     int n;
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = evbuffer_get_length(input);
-    paxos_log("there is %u bytes data in the buffer in total\n",(unsigned)len);
-    while((n=evbuffer_remove(input,buf,sizeof(buf)))>0){
-        printf("%s\n",buf);
+    debug_log("there is %u bytes data in the buffer in total\n",
+            (unsigned)len);
+    if(len>sizeof(sys_msg)){
     }
+
 }
 
 
+int initialize_node(node* my_node){
+    int flag = 0;
+    // I am the current leader
+    if(my_node->cur_view.leader_id==my_node->node_id){
+        if(initialize_leader_ping(my_node)){
+            flag = 1;
+            goto initialize_node_exit;
+        }
+    }else{
+        if(initialize_expect_ping(my_node)){
+            flag = 1;
+            goto initialize_node_exit;
+        }
+    }
+    my_node->state = NODE_ACTIVE;
+    my_node->msg_cb = handle_msg;
+    connect_peers(my_node);
+    goto initialize_node_exit;
+initialize_node_exit:
+        return flag;
+}
 
 
 node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* data)){
@@ -145,6 +277,11 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
     char* config_path = NULL;
     int node_id = -1;
     int c;
+
+    node* my_node = (node*)malloc(sizeof(node));
+    if(NULL==my_node){
+        goto exit_error;
+    }
 
     while((c = getopt (argc,argv,"c:n:m:")) != -1){
         switch(c){
@@ -199,7 +336,6 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
 
 	//int s_fd = socket(AF_INET,SOCK_STREAM,0);
 
-    node* my_node = (node*)malloc(sizeof(node));
     my_node->base = base;
     my_node->node_id = node_id;
 
@@ -207,11 +343,11 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
     if(*start_mode=='s'){
         my_node->cur_view.view_id = 0;
         my_node->cur_view.leader_id = my_node->node_id;
-        my_node->ev_ping_leader = NULL;
+        my_node->ev_leader_ping = NULL;
     }else{
         my_node->cur_view.view_id = -1;
         my_node->cur_view.leader_id = -1;
-        my_node->ev_ping_leader = NULL;
+        my_node->ev_leader_ping = NULL;
     }
 
     if(read_configuration_file(my_node,config_path)){
@@ -244,7 +380,9 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
 	return my_node;
 
 exit_error:
-    free_node(my_node);
+    if(NULL!=my_node){
+        free_node(my_node);
+    }
     return NULL;
 }
 

@@ -19,6 +19,7 @@
 #define SERVER_H
 #include "common-header.h"
 #include "consensus.h"
+#include "message.h"
 
 typedef struct peer_t{
     int peer_id;
@@ -48,31 +49,34 @@ typedef struct node_config_t{
 }node_config;
 
 
+typedef void (*msg_handler)(struct node_t*);
+
 typedef struct node_t{
 
-    int node_id;
+    uint32_t node_id;
 
     view cur_view;
     view_stamp highest_committed_view_stamp;
 
     node_state_code state;
     struct sockaddr_in my_address;
-    int group_size;
+    uint32_t group_size;
     peer* peer_pool;
 
-    struct consensus_component_t* consensus_comp;
+    //struct consensus_component_t* consensus_comp;
 
     //config
     node_config config;
     // libevent part
     struct evconnlistener* listener;
     struct event_base* base;
-    struct event* ev_ping_leader;
+    msg_handler msg_cb;
+    struct event* ev_leader_ping;
+    struct timeval last_ping_msg;
 
     //databse part
     char* db_name;
     //database* my_db
-    
 }node;
 
 #endif

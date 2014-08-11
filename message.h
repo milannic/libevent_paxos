@@ -21,36 +21,39 @@
 #include "common-header.h"
 
 
-typedef enum paxos_msg_code_t{
-    // for future usage, we reserve some numbers.
-    // heart beat
-        ping_req=0,
-        ping_ack=1,
-    // leader election
-        l_prepare_req=20,
-        l_prepare_ack=21,
-        l_accept_req=22,
-        l_accept_ack=23,
-        l_commit_req=24, //used when there is a final leader
-        l_commit_ack=25, // used when
-    // client communication with 
-        c_request_submit_req = 40,
-        c_request_submit_ack = 41,
-}paxos_msg_code;
+typedef enum sys_msg_code_t{
+    ping_req = 0,
+    ping_ack = 1,
+    request_submit_req = 2,
+    request_submit_ack = 3,
+    app_comm_msg = 5,
+}sys_msg_code;
 
-typedef struct paxos_msg_t{
+typedef struct sys_msg_t{
+    sys_msg_code type;
     size_t data_size;
-    paxos_msg_code msg_code;
     char data[0];
-}paxos_msg;
-#define PAXOS_MSG_SIZE(M) (M->data_size+sizeof(paxos_msg))
+}__attribute__((packed))sys_msg;
+#define SYS_MSG_SIZE(size) ((size) + sizeof(sys_msg))
 
-typedef struct ping_msg_t{
+
+typedef struct ping_req_msg_t{
     int node_id;
-    view node_view;
+    view view;
     struct timeval timestamp;
-}ping_msg;
-#define PING_REQ_MSG(M) (sizeof(ping_req_msg))
+}__attribute__((packed))ping_req_msg;
+#define PING_REQ_SIZE(M) (sizeof(ping_req_msg))
+
+typedef struct ping_ack_msg_t{
+    int node_id;
+    view view;
+    struct timeval timestamp;
+}__attribute__((packed))ping_ack_msg;
+#define PING_ACK_SIZE(M) (sizeof(ping_ack_msg))
+
+sys_msg* package_sys_msg(sys_msg_code,int,void*);
+sys_msg* build_ping_req(int,view*);
+sys_msg* build_ping_ack(int,view*);
 
 
 #endif
