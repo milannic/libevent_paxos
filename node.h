@@ -49,7 +49,7 @@ typedef struct node_config_t{
 }node_config;
 
 
-typedef void (*msg_handler)(struct node_t*);
+typedef void (*msg_handler)(struct node_t*,struct evbuffer*);
 
 typedef struct node_t{
 

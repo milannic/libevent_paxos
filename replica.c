@@ -22,6 +22,11 @@ void usage(){
 static void replica_on_read(struct bufferevent* bev,void* arg);
 static void replica_on_error_cb(struct bufferevent* bev,short ev,void* arg);
 
+//concrete message
+static void handle_ping_ack(node* my_node,ping_ack_msg* msg);
+static void handle_ping_req(node* my_node,ping_req_msg* msg);
+
+
 //listener
 static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t
         fd,struct sockaddr *address,int socklen,void *arg);
@@ -104,8 +109,10 @@ static void lost_connection_with_leader(node* my_node){
 static void expected_leader_ping_period(int fd,short what,void* arg){
     node* my_node = arg;
     if(my_node->node_id==my_node->cur_view.leader_id){
-        event_free(my_node->ev_leader_ping);
-
+        if(NULL!=my_node->ev_leader_ping){
+            event_free(my_node->ev_leader_ping);
+            initialize_leader_ping(my_node);
+        }
     }else{
         struct timeval* last = &my_node->last_ping_msg;
         struct timeval cur;
@@ -129,8 +136,8 @@ static void leader_ping_period(int fd,short what,void* arg){
     // at first check whether I am the leader
     if(my_node->cur_view.leader_id!=my_node->node_id){
         if(my_node->ev_leader_ping!=NULL){
-            //event_del(my_node->ev_leader_ping);
             event_free(my_node->ev_leader_ping);
+            initialize_expect_ping(my_node);
         }
         return;
     }else{
@@ -146,10 +153,13 @@ static void leader_ping_period(int fd,short what,void* arg){
                         "Send Ping Msg To Node %u\n",i);
             }
         }
-    }
-add_ping_event:
-    if(NULL!=my_node->ev_leader_ping){
-        event_add(my_node->ev_leader_ping,&ping_timeval);
+        if(NULL!=ping_req){
+            free(ping_req);
+        }
+    add_ping_event:
+        if(NULL!=my_node->ev_leader_ping){
+            event_add(my_node->ev_leader_ping,&ping_timeval);
+        }
     }
 };
 
@@ -237,21 +247,81 @@ static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd
 };
 
 
-static void handle_msg(node* my_node){
+
+static void handle_ping_ack(node* my_node,ping_ack_msg* msg){
+    if(my_node->cur_view.view_id < msg->view.view_id){
+        update_view(my_node,&msg->view);
+    }else{
+        debug_log("ignore ping ack from node %u \n",msg->node_id);
+    }
+}
+
+static void handle_ping_req(node* my_node,ping_req_msg* msg){
+    if(my_node->cur_view.view_id < msg->view.view_id){
+        update_view(my_node,&msg->view);
+    }else if(my_node->cur_view.view_id > msg->view.view_id){
+        if(my_node->peer_pool[msg->node_id].active){
+            sys_msg* ping_ack = build_ping_ack(my_node->node_id,&my_node->cur_view);
+            if(NULL!=ping_ack){
+                struct bufferevent* buff = my_node->peer_pool[msg->node_id].my_buff_event;
+                bufferevent_write(buff,ping_ack,SYS_MSG_SIZE((ping_ack->data_size)));
+                debug_log(
+                    "Send Ping Ack To Lagged Node %u\n",i);
+                free(ping_ack);
+            }
+        } 
+    }else{
+        
+
+    }
+}
+
+
+static void handle_msg(node* my_node,struct evbuffer* evb){
+    debug_log("there is enough data to read\n,actual data handler is called");
+    char* under_msg_buf=NULL;
+    char* sys_msg_buf=(char*)malloc(sizeof(sys_msg));
+    if(NULL==sys_msg_buf){return;}
+    evbuffer_remove(evb,sys_msg_buf,sizeof(sys_msg));
+    under_msg_buf = (char*)malloc(sizeof(sys_msg));
+    assert((under_msg_buf!=NULL)&&
+            "cannot allocate memory space for the new received data,the program will exit");
+    evbuffer_remove(evb,under_msg_buf,((sys_msg*)sys_msg_buf)->data_size);
+    switch(((sys_msg*)sys_msg_buf)->type){
+        case ping_ack:
+            handle_ping_ack(my_node,under_msg_buf);
+            break;
+        case ping_req:
+            handle_ping_req(my_node,under_msg_buf);
+            break;
+        default:
+            debug_log("unknown msg type %d\n",
+                    ((sys_msg*)sys_msg_buf)->type);
+    }
+    if(NULL!=sys_msg_buf){free(sys_msg_buf);}
+    if(NULL!=under_msg_buf){free(under_msg_buf);}
+    return;
 }
 
 //general data handler by the user, test if there is enough data to read
 static void replica_on_read(struct bufferevent* bev,void* arg){
-
-    char* buf = NULL;
+    node* my_node = arg;
+    char* buf = NULL;;
     int n;
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = evbuffer_get_length(input);
     debug_log("there is %u bytes data in the buffer in total\n",
             (unsigned)len);
     if(len>sizeof(sys_msg)){
+        buf = (char*)malloc(sizeof(sys_msg));
+        if(NULL==buf){return;}
+        evbuffer_copyout(input,buf,sizeof(sys_msg));
+        data_len = ((sys_msg*)buf)->data_size;
+        if(len>sizeof(sys_msg)+data_len){
+           my_node->msg_cb(my_node,input); 
+        }
+        free(buf);
     }
-
 }
 
 
@@ -263,12 +333,12 @@ int initialize_node(node* my_node){
             goto initialize_node_exit;
         }
     }
-//    else{
-//        if(initialize_expect_ping(my_node)){
-//            flag = 1;
-//            goto initialize_node_exit;
-//        }
-//    }
+    else{
+        if(initialize_expect_ping(my_node)){
+            flag = 1;
+            goto initialize_node_exit;
+        }
+    }
     my_node->state = NODE_ACTIVE;
     my_node->msg_cb = handle_msg;
     connect_peers(my_node);
@@ -347,12 +417,12 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
 
     //seed, currently the node is the leader
     if(*start_mode=='s'){
-        my_node->cur_view.view_id = 0;
+        my_node->cur_view.view_id = 1;
         my_node->cur_view.leader_id = my_node->node_id;
         my_node->ev_leader_ping = NULL;
     }else{
-        my_node->cur_view.view_id = -1;
-        my_node->cur_view.leader_id = -1;
+        my_node->cur_view.view_id = 0;
+        my_node->cur_view.leader_id = 9999;
         my_node->ev_leader_ping = NULL;
     }
 
