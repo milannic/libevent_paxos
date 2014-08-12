@@ -6,8 +6,8 @@
 int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; 
 static unsigned current_connection = 3;
 struct timeval reconnect_timeval = {2,0};
-struct timeval ping_timeval = {6,0};
-struct timeval expect_ping_timeval = {18,0};
+struct timeval ping_timeval = {2,0};
+struct timeval expect_ping_timeval = {4,0};
 int heart_beat_threshold = 4;
 
 void usage(){
@@ -94,9 +94,14 @@ static void connect_peers(node* my_node){
 
 
 static void lost_connection_with_leader(node* my_node){
+    paxos_log("Node %u Lost Connection With The Leader\n",
+            my_node->node_id);
+    paxos_log("Node %u Will Start A Leader Election\n",
+            my_node->node_id);
+    return;
 }
 
-static void expected_leader_ping_period(int fd,short wat,void* arg){
+static void expected_leader_ping_period(int fd,short what,void* arg){
     node* my_node = arg;
     if(my_node->node_id==my_node->cur_view.leader_id){
         event_free(my_node->ev_leader_ping);
@@ -119,6 +124,7 @@ static void expected_leader_ping_period(int fd,short wat,void* arg){
 }
 
 static void leader_ping_period(int fd,short what,void* arg){
+    paxos_log("Leader Tries To Ping Other Nodes\n");
     node* my_node = arg; 
     // at first check whether I am the leader
     if(my_node->cur_view.leader_id!=my_node->node_id){
@@ -148,7 +154,7 @@ add_ping_event:
 };
 
 static int initialize_leader_ping(node* my_node){
-    if(NULL!=my_node->ev_leader_ping){
+    if(NULL==my_node->ev_leader_ping){
         my_node->ev_leader_ping = evtimer_new(my_node->base,leader_ping_period,(void*)my_node);
         if(my_node->ev_leader_ping==NULL){
             return 1;
@@ -159,7 +165,7 @@ static int initialize_leader_ping(node* my_node){
 }
 
 static int initialize_expect_ping(node* my_node){
-    if(NULL!=my_node->ev_leader_ping){
+    if(NULL==my_node->ev_leader_ping){
         my_node->ev_leader_ping = evtimer_new(my_node->base,expected_leader_ping_period,(void*)my_node);
         if(my_node->ev_leader_ping==NULL){
             return 1;
@@ -251,18 +257,18 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
 
 int initialize_node(node* my_node){
     int flag = 0;
-    // I am the current leader
     if(my_node->cur_view.leader_id==my_node->node_id){
         if(initialize_leader_ping(my_node)){
             flag = 1;
             goto initialize_node_exit;
         }
-    }else{
-        if(initialize_expect_ping(my_node)){
-            flag = 1;
-            goto initialize_node_exit;
-        }
     }
+//    else{
+//        if(initialize_expect_ping(my_node)){
+//            flag = 1;
+//            goto initialize_node_exit;
+//        }
+//    }
     my_node->state = NODE_ACTIVE;
     my_node->msg_cb = handle_msg;
     connect_peers(my_node);

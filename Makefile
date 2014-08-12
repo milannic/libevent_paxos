@@ -2,8 +2,8 @@ LDFLAGS=-levent -lconfig
 CFLAGS=-Wall -g -std=c99 $(OTHEROPT)
 OTHEROPT= -D DEBUG=1
 IPATH=.
+LPATH=$(HOME)/.local/lib
 GCC=gcc
-
 
 PROGRAM=server.out
 
@@ -16,11 +16,11 @@ OBJ=$(SOURCE:.c=.o)
 default:$(PROGRAM)
 
 %.o: %.c
-	$(GCC) -I $(IPATH) $(CFLAGS) -c -o $@ $^
+	$(GCC) -L$(LPATH) -I$(IPATH) $(CFLAGS) -c -o $@ $^
 
 
 server.out:$(OBJ)
-	$(GCC) -I $(IPATH)  $(CFLAGS) -o $@  $^ $(LDFLAGS) 
+	$(GCC) -L$(LPATH) -I$(IPATH)  $(CFLAGS) -o $@  $^ $(LDFLAGS) 
 
 .PHONY:clean
 clean:
@@ -30,3 +30,4 @@ clean:
 .PHONY:display
 display:
 	@echo $(OBJ)
+	@echo $(LPATH)
