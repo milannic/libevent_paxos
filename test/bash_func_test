@@ -1,0 +1,24 @@
+#!/bin/bash
+
+for i in $(seq 6);do
+    declare var_${i}=${i}
+    export var_${i}=${i}
+done
+
+
+
+for i in $(echo ${!var*});do
+    eval j=\$${i}
+    echo ${j}
+done
+    
+for i in $(echo ${!var*});do
+    echo "${!i}"
+done
+
+:<<'END'
+VAR='1 2 3'
+REF=VAR
+eval "echo \"\$${REF}\""
+echo "${!REF}"
+END

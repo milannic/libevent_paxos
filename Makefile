@@ -1,5 +1,5 @@
 LDFLAGS=-levent -lconfig
-CFLAGS=-Wall -g -std=c99 $(OTHEROPT)
+CFLAGS=-Wall -g -std=gnu11 $(OTHEROPT)
 OTHEROPT= -D DEBUG=1
 IPATH=.
 LPATH=$(HOME)/.local/lib

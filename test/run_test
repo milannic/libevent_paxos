@@ -1,0 +1,42 @@
+#! /bin/bash
+#run some test for the program
+#to be added
+
+cd ..
+make clean 
+make
+cd test
+
+if [ ! -d "Log" ];then
+    mkdir Log
+fi
+
+SLEEP_TIME=10
+
+export LD_LIBRARY_PATH=$HOME/.local/lib
+../server.out -n 0 -m s -c ../nodes.cfg 2>./Log/$(date +"%F-%H-%M")-0 &
+
+PRIMARY_PID=$!
+
+echo ${PRIMARY_PID}
+
+for i in $(seq 1);do
+    ../server.out -n ${i} -m r -c ../nodes.cfg 2>./Log/$(date +"%F-%H-%M")-${i} &
+    declare NODE_${i}=$!
+done
+
+for i in $(echo ${!NODE*});do
+    echo "${!i}"
+done
+
+sleep ${SLEEP_TIME}
+
+kill ${PRIMARY_PID}
+
+sleep ${SLEEP_TIME}
+
+for i in $(echo ${!NODE*});do
+    kill ${!i}
+done
+
+

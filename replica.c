@@ -7,10 +7,10 @@ int max_waiting_connections = MAX_ACCEPT_CONNECTIONS;
 static unsigned current_connection = 3;
 struct timeval reconnect_timeval = {2,0};
 struct timeval ping_timeval = {2,0};
-struct timeval expect_ping_timeval = {4,0};
+struct timeval expect_ping_timeval = {10,0};
 int heart_beat_threshold = 4;
 
-void usage(){
+static void usage(){
     paxos_log("Usage : -n NODE_ID\n");
     paxos_log("        -m [sr] Start Mode seed|recovery\n");
     paxos_log("        -c path path to configuration file\n");
@@ -48,12 +48,15 @@ static int initialize_expect_ping(node* my_node);
 //view change
 static void update_view(node* my_node,view* new_view);
 static void become_leader(node* my_node);
+static void giveup_leader(node* my_node);
 static void replica_sync(node* my_node);
 
 //free related function
 static void free_peers(node* my_node);
 static int free_node(node* my_node);
 
+//helper function
+static int isLeader(node* node);
 
 
 static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
@@ -117,18 +120,19 @@ static void expected_leader_ping_period(int fd,short what,void* arg){
         struct timeval* last = &my_node->last_ping_msg;
         struct timeval cur;
         gettimeofday(&cur,NULL);
-        if(((last->tv_sec+expect_ping_timeval.tv_sec) > cur.tv_usec) ||
-            (((last->tv_sec+expect_ping_timeval.tv_sec)==cur.tv_usec)&&
-             (last->tv_usec+expect_ping_timeval.tv_usec>cur.tv_usec))){
+        struct timeval temp;
+        timeval_add(last,&expect_ping_timeval,&temp);
+        if(timeval_comp(&temp,&cur)>=0){
             event_add(my_node->ev_leader_ping,&expect_ping_timeval);
         }else{
             debug_log(
-                    "Node %d haven't heard from the leader",
+                    "Node %d haven't heard from the leader\n",
                     my_node->node_id);
             lost_connection_with_leader(my_node);
         }
     }
 }
+
 
 static void leader_ping_period(int fd,short what,void* arg){
     paxos_log("Leader Tries To Ping Other Nodes\n");
@@ -187,10 +191,24 @@ static int initialize_expect_ping(node* my_node){
 
 
 static void update_view(node* my_node,view* new_view){
+    debug_log("entered update view\n");
+    int old_leader = isLeader(my_node);
+    memcpy(&my_node->cur_view,new_view,sizeof(view));
+    int new_leader = isLeader(my_node);
+    if(old_leader!=new_leader){
+        if(new_leader){
+            become_leader(my_node);
+        }else{
+            giveup_leader(my_node);
+        }
+    }
+    debug_log("leave update view\n");
     return;
 }
 static void become_leader(node* my_node){
     return;
+}
+static void giveup_leader(node* my_node){
 }
 static void replica_sync(node* my_node){
     return;
@@ -217,6 +235,9 @@ static void free_peers(node* my_node){
     }
 }
 
+static int isLeader(node* my_node){
+    return my_node->cur_view.leader_id==my_node->node_id;
+}
 
 static int free_node(node* my_node){
     //to-do
@@ -266,33 +287,48 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
                 struct bufferevent* buff = my_node->peer_pool[msg->node_id].my_buff_event;
                 bufferevent_write(buff,ping_ack,SYS_MSG_SIZE((ping_ack->data_size)));
                 debug_log(
-                    "Send Ping Ack To Lagged Node %u\n",i);
+                    "Send Ping Ack To Lagged Node %u\n",msg->node_id);
                 free(ping_ack);
             }
         } 
     }else{
-        
-
+        if(!isLeader(my_node)){
+            if(timeval_comp(&my_node->last_ping_msg,&msg->timestamp)<0){
+                memcpy(&my_node->last_ping_msg,&msg->timestamp,
+                        sizeof(struct timeval));
+            }
+            if(NULL!=my_node->ev_leader_ping){
+                evtimer_del(my_node->ev_leader_ping);
+                evtimer_add(my_node->ev_leader_ping,&expect_ping_timeval);
+            }
+        }else{
+            // leader should not receive the ping req, otherwise the sender is
+            // lagged behind,otherwise the leader is outdated which will be
+            // treated as a smaller cur view than what in the msg but when they have 
+            // the same view id, which can be ignored
+            debug_log("Received Ping Req From %u in view %u\n",
+                    msg->node_id,msg->view.view_id);
+        }
     }
 }
 
 
 static void handle_msg(node* my_node,struct evbuffer* evb){
-    debug_log("there is enough data to read\n,actual data handler is called");
+    debug_log("there is enough data to read,actual data handler is called\n");
     char* under_msg_buf=NULL;
     char* sys_msg_buf=(char*)malloc(sizeof(sys_msg));
     if(NULL==sys_msg_buf){return;}
     evbuffer_remove(evb,sys_msg_buf,sizeof(sys_msg));
-    under_msg_buf = (char*)malloc(sizeof(sys_msg));
+    under_msg_buf = (char*)malloc(((sys_msg*)sys_msg_buf)->data_size);
     assert((under_msg_buf!=NULL)&&
             "cannot allocate memory space for the new received data,the program will exit");
     evbuffer_remove(evb,under_msg_buf,((sys_msg*)sys_msg_buf)->data_size);
     switch(((sys_msg*)sys_msg_buf)->type){
         case ping_ack:
-            handle_ping_ack(my_node,under_msg_buf);
+            handle_ping_ack(my_node,(ping_ack_msg*)under_msg_buf);
             break;
         case ping_req:
-            handle_ping_req(my_node,under_msg_buf);
+            handle_ping_req(my_node,(ping_req_msg*)under_msg_buf);
             break;
         default:
             debug_log("unknown msg type %d\n",
@@ -307,7 +343,6 @@ static void handle_msg(node* my_node,struct evbuffer* evb){
 static void replica_on_read(struct bufferevent* bev,void* arg){
     node* my_node = arg;
     char* buf = NULL;;
-    int n;
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = evbuffer_get_length(input);
     debug_log("there is %u bytes data in the buffer in total\n",
@@ -316,7 +351,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
         buf = (char*)malloc(sizeof(sys_msg));
         if(NULL==buf){return;}
         evbuffer_copyout(input,buf,sizeof(sys_msg));
-        data_len = ((sys_msg*)buf)->data_size;
+        int data_len = ((sys_msg*)buf)->data_size;
         if(len>sizeof(sys_msg)+data_len){
            my_node->msg_cb(my_node,input); 
         }
@@ -327,6 +362,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
 
 int initialize_node(node* my_node){
     int flag = 0;
+    gettimeofday(&my_node->last_ping_msg,NULL);
     if(my_node->cur_view.leader_id==my_node->node_id){
         if(initialize_leader_ping(my_node)){
             flag = 1;

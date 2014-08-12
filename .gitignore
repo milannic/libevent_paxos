@@ -3,3 +3,4 @@ Debug
 *.o
 *.out
 Lib
+test/Log

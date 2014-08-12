@@ -18,6 +18,7 @@
 #ifndef COMMON_STRUCTURE_H
 #define COMMON_STRUCTURE_H
 #include <stdint.h>
+#include <sys/time.h>
 
 typedef struct view_t{
     uint32_t view_id;
@@ -30,5 +31,8 @@ typedef struct view_stamp_t{
 }view_stamp;
 
 uint64_t vstol(view_stamp* vs);
+
+int timeval_comp(struct timeval *op1,struct timeval *op2);
+void timeval_add(struct timeval*op1,struct timeval* op2,struct timeval* res);
 
 #endif 
