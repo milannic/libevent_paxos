@@ -4,7 +4,10 @@
 
 
 TEST_NAME=ping_test
-CUR_DIR=${1}
+
+echo "==========Ping Test =========="
+
+CUR_DIR=$(pwd)
 SLEEP_TIME=8
 SECONDARIES_SIZE=1
 
@@ -74,11 +77,7 @@ LOG_NAME=${FILEPATH}/Log/${TEST_NAME}_1
 RESULT=$(grep "Lost.*Leader" ${LOG_NAME} | wc -l)
 
 if [ "${RESULT}" -eq "0"];then
-    echo "Test Failed"
-    echo "Test Finished"
     exit 1
 else
-    echo "Test Passed"
-    echo "Test Finished"
     exit 0
 fi

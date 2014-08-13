@@ -35,6 +35,5 @@ display:
 
 .PHONY:test
 test:
-	@echo "============Ping Test============="
-	@./Test/ping_test $(CUR_DIR)
+	@python ./Test/run_test.py -p ${CUR_DIR}/Test
 
