@@ -3,4 +3,6 @@ Debug
 *.o
 *.out
 Lib
-test/Log
+Test/Log
+.local
+

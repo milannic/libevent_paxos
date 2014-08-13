@@ -205,6 +205,7 @@ static void update_view(node* my_node,view* new_view){
     debug_log("leave update view\n");
     return;
 }
+
 static void become_leader(node* my_node){
     return;
 }
@@ -266,7 +267,6 @@ static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd
         current_connection++;
     }
 };
-
 
 
 static void handle_ping_ack(node* my_node,ping_ack_msg* msg){

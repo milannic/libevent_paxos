@@ -1,0 +1,58 @@
+#! /bin/bash
+#run some test for the program
+#to be added
+
+TEST_NAME=ping_test
+
+CUR_DIR=$(pwd)
+
+:<<'END'
+cd ..
+make clean 
+make
+cd ${CUR_DIR}
+END
+
+if [ ! -d "Log" ];then
+    mkdir Log
+fi
+
+SLEEP_TIME=10
+
+export LD_LIBRARY_PATH=${CUR_DIR}/../.local/lib
+
+echo "Now We Start The Leader"
+echo "The Log File Will Be Stored In ./Log/${TEST_NAME}_0"
+../server.out -n 0 -m s -c ../nodes.cfg 2>./Log/${TEST_NAME}_0  &
+
+PRIMARY_PID=$!
+
+
+echo "Now We Start Other Nodes"
+
+for i in $(seq 1);do
+    ../server.out -n ${i} -m r -c ../nodes.cfg 2>./Log/${TEST_NAME}_${i} &
+    declare NODE_${i}=$!
+done
+
+:<<'DEBUG'
+for i in $(echo ${!NODE*});do
+    echo "${!i}"
+done
+DEBUG
+
+echo "Sleep Some Time"
+sleep ${SLEEP_TIME}
+
+echo "Kill The Leader"
+kill ${PRIMARY_PID} &>/dev/null
+
+echo "Sleep Some Time"
+sleep ${SLEEP_TIME}
+
+echo "Finish Test"
+for i in $(echo ${!NODE*});do
+    kill ${!i} &>/dev/null
+done
+
+

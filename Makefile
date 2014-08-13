@@ -1,9 +1,9 @@
-LDFLAGS=-levent -lconfig
-CFLAGS=-Wall -g -std=gnu11 $(OTHEROPT)
+CUR_DIR=$(shell pwd)
+LPATH=$(CUR_DIR)/.local/lib
+LDFLAGS= -L$(LPATH) -levent -lconfig
 OTHEROPT= -D DEBUG=1
-IPATH=.
-ILIBPATH=$(HOME)/.local/include
-LPATH=$(HOME)/.local/lib
+IPATH=-I. -I$(CUR_DIR)/.local/include
+CFLAGS=-Wall -g -std=gnu11 $(OTHEROPT) $(IPATH)
 GCC=gcc
 
 PROGRAM=server.out
@@ -17,11 +17,11 @@ OBJ=$(SOURCE:.c=.o)
 default:$(PROGRAM)
 
 %.o: %.c
-	$(GCC) -L$(LPATH) -I$(IPATH) -I$(ILIBPATH) $(CFLAGS) -c -o $@ $^
+	$(GCC) $(CFLAGS) -c -o $@ $^
 
 
 server.out:$(OBJ)
-	$(GCC) -L$(LPATH) -I$(IPATH) -I$(ILIBPATH) $(CFLAGS) -o $@  $^ $(LDFLAGS) 
+	$(GCC) $(CFLAGS) -o $@  $^ $(LDFLAGS) 
 
 .PHONY:clean
 clean:
@@ -32,3 +32,8 @@ clean:
 display:
 	@echo $(OBJ)
 	@echo $(LPATH)
+
+.PHONY:test
+test:
+	$(shell cd Test;bash ./ping_test;cd ..)
+

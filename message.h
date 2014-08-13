@@ -55,5 +55,4 @@ sys_msg* package_sys_msg(sys_msg_code,int,void*);
 sys_msg* build_ping_req(int,view*);
 sys_msg* build_ping_ack(int,view*);
 
-
 #endif

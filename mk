@@ -4,7 +4,8 @@
 # build dep
 # sudo apt-get install libtool
 
-LIB_PREFIX=${HOME}/.local/
+CUR_DIR=$(pwd)
+LIB_PREFIX=${CUR_DIR}/.local/
 
 mkdir -p ${LIB_PREFIX}
 
