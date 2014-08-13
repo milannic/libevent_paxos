@@ -23,16 +23,16 @@
 struct node_t;
 struct consensus_component_t;
 
-typedef void (*net_up_call)(struct node_t,size_t,void*);
+typedef void (*up_call)(struct node_t*,size_t,void*);
+typedef void (*user_cb)(size_t data_size,void* data);
 
 typedef enum con_role_t{
     LEADER = 0,
     SECONDARY = 1,
 }con_role;
 
-struct consensus_component_t* initialize_consensus_comp(void(*user_cb)(int
-            data_size,void* data),net_up_call up_cb,const char* db_name,int
-        group_size,view*,view_stamp*);
+struct consensus_component_t* initialize_consensus_comp(struct node_t*,struct event_base*,
+        const char*,int group_size,view*,view_stamp*,user_cb,up_call);
 void update_role(struct consensus_component_t*,con_role,view);
 void deliever_msg(struct consensus_component_t*,size_t,void*);
 
