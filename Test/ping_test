@@ -2,10 +2,13 @@
 #run some test for the program
 #to be added
 
+
 TEST_NAME=ping_test
+CUR_DIR=${1}
+SLEEP_TIME=8
+SECONDARIES_SIZE=1
 
-CUR_DIR=$(pwd)
-
+#do not re-compile
 :<<'END'
 cd ..
 make clean 
@@ -13,25 +16,37 @@ make
 cd ${CUR_DIR}
 END
 
-if [ ! -d "Log" ];then
+if [ ! -e ${CUR_DIR}/${TEST_NAME} ];then
+    FILEPATH=${CUR_DIR}/Test
+else
+    FILEPATH=${CUR_DIR}
+fi
+
+if [ ! -e ${FILEPATH}/${TEST_NAME} ];then
+    echo ${CUR_DIR}
+    echo ${FILEPATH}
+    echo "Script Execution Path Error"
+    exit 1
+fi
+
+exec 2>${FILEPATH}/Log/ping_test_err
+
+if [ ! -d ${FILEPATH}/Log ];then
     mkdir Log
 fi
 
-SLEEP_TIME=10
 
-export LD_LIBRARY_PATH=${CUR_DIR}/../.local/lib
+export LD_LIBRARY_PATH=${FILEPATH}/../.local/lib
 
-echo "Now We Start The Leader"
-echo "The Log File Will Be Stored In ./Log/${TEST_NAME}_0"
-../server.out -n 0 -m s -c ../nodes.cfg 2>./Log/${TEST_NAME}_0  &
-
+echo "The Log File Will Be Stored In ${FILEPATH}/Log/${TEST_NAME}_*"
+#echo "Now We Start The Leader"
+${FILEPATH}/../server.out -n 0 -m s -c ${FILEPATH}/../nodes.cfg &>${FILEPATH}/Log/${TEST_NAME}_0  &
 PRIMARY_PID=$!
 
+#echo "Now We Start Other Nodes"
 
-echo "Now We Start Other Nodes"
-
-for i in $(seq 1);do
-    ../server.out -n ${i} -m r -c ../nodes.cfg 2>./Log/${TEST_NAME}_${i} &
+for i in $(seq ${SECONDARIES_SIZE});do
+    ${FILEPATH}/../server.out -n ${i} -m r -c ${FILEPATH}/../nodes.cfg &>${FILEPATH}/Log/${TEST_NAME}_${i} &
     declare NODE_${i}=$!
 done
 
@@ -41,18 +56,29 @@ for i in $(echo ${!NODE*});do
 done
 DEBUG
 
-echo "Sleep Some Time"
+#echo "Sleep Some Time"
 sleep ${SLEEP_TIME}
 
-echo "Kill The Leader"
+#echo "Kill The Leader"
 kill ${PRIMARY_PID} &>/dev/null
 
-echo "Sleep Some Time"
+#echo "Sleep Some Time"
 sleep ${SLEEP_TIME}
 
-echo "Finish Test"
 for i in $(echo ${!NODE*});do
     kill ${!i} &>/dev/null
 done
 
+LOG_NAME=${FILEPATH}/Log/${TEST_NAME}_1
 
+RESULT=$(grep "Lost.*Leader" ${LOG_NAME} | wc -l)
+
+if [ "${RESULT}" -eq "0"];then
+    echo "Test Failed"
+    echo "Test Finished"
+    exit 1
+else
+    echo "Test Passed"
+    echo "Test Finished"
+    exit 0
+fi

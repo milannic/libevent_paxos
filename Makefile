@@ -35,5 +35,6 @@ display:
 
 .PHONY:test
 test:
-	$(shell cd Test;bash ./ping_test;cd ..)
+	@echo "============Ping Test============="
+	@./Test/ping_test $(CUR_DIR)
 
