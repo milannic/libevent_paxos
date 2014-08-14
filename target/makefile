@@ -4,8 +4,6 @@
 
 -include ../makefile.init
 
--include variable.mk
-
 RM := rm -rf
 
 # All of the sources participating in the build are defined here
