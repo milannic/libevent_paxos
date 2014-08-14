@@ -1,12 +1,12 @@
 /*
  * =====================================================================================
  *
- *       Filename:  main.c
+ *       Filename:  consensus.c
  *
  *    Description:  
  *
  *        Version:  1.0
- *        Created:  08/06/2014 04:31:43 PM
+ *        Created:  08/06/2014 02:13:09 PM
  *       Revision:  none
  *       Compiler:  gcc
  *
@@ -16,13 +16,14 @@
  * =====================================================================================
  */
 
-#include "replica.h"
+#include "../include/consensus/consensus.h"
 
-static void(*pseudo_cb)(int data_size,void* data) = (void*)0;
+typedef struct consensus_component_t{
+    con_role my_role;
+    // use up call to transfer message to other replicas
+    up_call uc;
+    user_cb ucb;
+}consensus_component;
 
-int main(int argc,char** argv){
-    struct node_t* my_node = system_initialize(argc,argv,pseudo_cb);
-    if(my_node){
-        system_run(my_node);
-    }
-}
+
+

@@ -18,8 +18,8 @@
 #ifndef LEADER_H 
 #define LEADER_H
 
-#include "common-header.h"
-#include "message.h"
+#include "../util/common-header.h"
+#include "consensus_msg.h"
 
 struct consensus_component_t;
 

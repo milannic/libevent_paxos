@@ -1,12 +1,12 @@
 /*
  * =====================================================================================
  *
- *       Filename:  learner.c
+ *       Filename:  main.c
  *
  *    Description:  
  *
  *        Version:  1.0
- *        Created:  08/06/2014 03:11:02 PM
+ *        Created:  08/06/2014 04:31:43 PM
  *       Revision:  none
  *       Compiler:  gcc
  *
@@ -15,17 +15,14 @@
  *
  * =====================================================================================
  */
-#include "common-header.h"
-#include "learner.h"
 
-void try_to_deliever(learner* l){
-    return;
+#include "include/replica-sys/replica.h"
+
+static void(*pseudo_cb)(int data_size,void* data) = (void*)0;
+
+int main(int argc,char** argv){
+    struct node_t* my_node = system_initialize(argc,argv,pseudo_cb);
+    if(my_node){
+        system_run(my_node);
+    }
 }
-
-void update_record(learner* l,view_stamp cur,size_t data_size,void* data,view_stamp can_committed){
-    try_to_deliever(l);
-    return;
-}
-
-
-

@@ -16,7 +16,7 @@
  * =====================================================================================
  */
 
-#include "config-comp.h"
+#include "../include/config-comp/config-comp.h"
 
 int read_configuration_file(node* cur_node,const char* config_path){
     config_t config_file;

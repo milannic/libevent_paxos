@@ -18,7 +18,7 @@
 #ifndef CONSENSUS_H
 
 #define CONSENSUS_H
-#include "common-header.h"
+#include "../util/common-header.h"
 
 struct node_t;
 struct consensus_component_t;

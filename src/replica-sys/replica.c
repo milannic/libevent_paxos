@@ -1,7 +1,7 @@
-#include "common-header.h"
-#include "node.h"
-#include "config-comp.h"
-#include "replica.h"
+#include "../include/util/common-header.h"
+#include "../include/replica-sys/node.h"
+#include "../include/config-comp/config-comp.h"
+#include "../include/replica-sys/replica.h"
 
 int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; 
 static unsigned current_connection = 3;

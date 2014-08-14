@@ -1,40 +1,13 @@
-CUR_DIR=$(shell pwd)
-LPATH=$(CUR_DIR)/.local/lib
-LDFLAGS=-L$(LPATH) -levent -lconfig
-OTHEROPT=-D DEBUG=1
-IPATH=-I. -I$(CUR_DIR)/.local/include
-CFLAGS=-Wall -g -std=gnu11 $(OTHEROPT) $(IPATH)
-GCC=gcc
+.PHONY: default clean test 
 
-PROGRAM=server.out
+CUR_DIR := $(shell pwd)
 
-SOURCE=$(shell ls *c)
-OBJ = $(SOURCE:.c=.o)
-DEPFILES = $(OBJ:.o=.d)
+default:
+	cd target;$(MAKE);cd ..;
 
-default:$(PROGRAM)
-
--include ${DEPFILES}
-
-%.o:%.c
-	$(GCC) $(CFLAGS) -MM -MF $(patsubst %.o,%.d,$@) $^
-	$(GCC) $(CFLAGS) -c -o $@ $^ 
-
-server.out:$(OBJ)
-	$(GCC) $(CFLAGS) -o $@  $^ $(LDFLAGS)
-
-
-.PHONY: clean
 clean:
-	rm -rf $(PROGRAM)
-	rm -rf $(OBJ)
-	rm -rf $(DEPFILES)
+	cd target;$(MAKE) clean;cd ..;
 
-.PHONY: display
-display:
-	@echo $(OBJ)
-	@echo $(LPATH)
-.PHONY: test
 test:
 	@python ./test/run_test.py -p ${CUR_DIR}/test
 

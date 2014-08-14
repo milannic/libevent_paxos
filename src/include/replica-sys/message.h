@@ -18,8 +18,7 @@
 #ifndef MESSAGE_H
 #define MESSAGE_H
 
-#include "common-header.h"
-
+#include "../util/common-header.h"
 
 typedef enum sys_msg_code_t{
     ping_req = 0,

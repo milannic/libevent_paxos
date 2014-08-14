@@ -43,13 +43,13 @@ export LD_LIBRARY_PATH=${FILEPATH}/../.local/lib
 
 echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*"
 #echo "Now We Start The Leader"
-${FILEPATH}/../server.out -n 0 -m s -c ${FILEPATH}/../nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_0  &
+${FILEPATH}/../target/server.out -n 0 -m s -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_0  &
 PRIMARY_PID=$!
 
 #echo "Now We Start Other Nodes"
 
 for i in $(seq ${SECONDARIES_SIZE});do
-    ${FILEPATH}/../server.out -n ${i} -m r -c ${FILEPATH}/../nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_${i} &
+    ${FILEPATH}/../target/server.out -n ${i} -m r -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_${i} &
     declare NODE_${i}=$!
 done
 

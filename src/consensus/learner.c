@@ -1,12 +1,12 @@
 /*
  * =====================================================================================
  *
- *       Filename:  consensus.c
+ *       Filename:  learner.c
  *
  *    Description:  
  *
  *        Version:  1.0
- *        Created:  08/06/2014 02:13:09 PM
+ *        Created:  08/06/2014 03:11:02 PM
  *       Revision:  none
  *       Compiler:  gcc
  *
@@ -15,16 +15,16 @@
  *
  * =====================================================================================
  */
+#include "../include/consensus/learner.h"
 
-#include "common-header.h"
-#include "consensus.h"
+void try_to_deliever(learner* l){
+    return;
+}
 
-typedef struct consensus_component_t{
-    con_role my_role;
-    // use up call to transfer message to other replicas
-    up_call uc;
-    user_cb ucb;
-}consensus_component;
+void update_record(learner* l,view_stamp cur,size_t data_size,void* data,view_stamp can_committed){
+    try_to_deliever(l);
+    return;
+}
 
 
 

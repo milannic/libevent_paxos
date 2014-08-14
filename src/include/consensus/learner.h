@@ -19,8 +19,7 @@
 #ifndef LEARNER_H
 #define LEARNER_H
 
-#include "common-header.h"
-
+#include "../util/common-header.h"
 
 struct consensus_component_t;
 

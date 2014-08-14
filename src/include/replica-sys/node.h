@@ -17,8 +17,8 @@
  */
 #ifndef SERVER_H
 #define SERVER_H
-#include "common-header.h"
-#include "consensus.h"
+#include "../util/common-header.h"
+#include "../consensus/consensus.h"
 #include "message.h"
 
 typedef struct peer_t{

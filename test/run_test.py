@@ -11,6 +11,12 @@ def run_test(path):
     total_passed_tests=0
     total_tests=0
 
+    if os.path.exists(cur_dir+"/log"):
+        for i in os.listdir(cur_dir+"/log"):
+            os.remove(cur_dir+"/log/"+i)
+    else:
+        os.mkdir(cur_dir+"/log")
+
     for i in os.listdir(path):
         if None!=re.match(r'.*test.*(?<!swp)$',i) and None==re.match(r'.*\.py$',i):
             total_tests = total_tests+1

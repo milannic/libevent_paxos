@@ -17,9 +17,9 @@
 
 #ifndef CONFIG_COMP_H
 #define CONFIG_COMP_H
-#include "common-header.h"
+#include "../util/common-header.h"
+#include "../replica-sys/node.h"
 #include <libconfig.h>
-#include "node.h"
 
 
 extern int max_waiting_connections;

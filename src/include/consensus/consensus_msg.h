@@ -19,7 +19,7 @@
 #ifndef CONSENSUS_MSG_H
 #define CONSENSUS_MSG_H
 
-#include "common-header.h"
+#include "../util/common-header.h"
 
 typedef struct accept_req_t{
 }accept_req;

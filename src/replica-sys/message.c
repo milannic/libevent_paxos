@@ -16,7 +16,7 @@
  * =====================================================================================
  */
 
-#include "message.h"
+#include "../include/replica-sys/message.h"
 
 sys_msg* package_sys_msg(sys_msg_code type,int data_size,void* data){
     sys_msg* msg = (sys_msg*)malloc(SYS_MSG_SIZE(data_size));
