@@ -14,10 +14,10 @@ DEPFILES = $(OBJ:.o=.d)
 
 default:$(PROGRAM)
 
-#-include ${DEPFILES}
+-include ${DEPFILES}
 
 %.o:%.c
-	#$(GCC) $(CFLAGS) -MM -MF $(patsubst %.o,%.d,$@) $^
+	$(GCC) $(CFLAGS) -MM -MF $(patsubst %.o,%.d,$@) $^
 	$(GCC) $(CFLAGS) -c -o $@ $^ 
 
 server.out:$(OBJ)
@@ -29,6 +29,7 @@ clean:
 	rm -rf $(PROGRAM)
 	rm -rf $(OBJ)
 	rm -rf $(DEPFILES)
+
 .PHONY: display
 display:
 	@echo $(OBJ)
