@@ -3,7 +3,7 @@
 #to be added
 
 
-TEST_NAME=ping_test
+TEST_NAME=1_ping_test
 
 echo "==========Ping Test =========="
 
