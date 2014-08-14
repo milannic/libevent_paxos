@@ -18,11 +18,11 @@ LIBEVENT_NAME=libevent-release-${LIBEVENT_VER}-stable
 BDB_VER=5.1.29
 BDB_NAME=db-${BDB_VER}
 
-if [ ! -d "Lib" ];then
-    mkdir Lib
+if [ ! -d "dep-lib" ];then
+    mkdir dep-lib
     .
 fi
-cd Lib
+cd dep-lib
 
 if [ ! -f "${LIBCONFIG_NAME}.tar.gz" ];then
     wget http://www.hyperrealm.com/libconfig/${LIBCONFIG_NAME}.tar.gz
