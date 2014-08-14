@@ -1,6 +1,6 @@
 #include "common-header.h"
 #include "node.h"
-#include "config.h"
+#include "config-comp.h"
 #include "replica.h"
 
 int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; 

@@ -15,8 +15,8 @@
  * =====================================================================================
  */
 
-#ifndef CONFIG_H
-#define CONFIG_H
+#ifndef CONFIG_COMP_H
+#define CONFIG_COMP_H
 #include "common-header.h"
 #include <libconfig.h>
 #include "node.h"
