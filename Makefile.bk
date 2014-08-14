@@ -1,11 +1,11 @@
 
-CUR_DIR=$(shell pwd)
-LPATH=$(CUR_DIR)/.local/lib
-LDFLAGS=-L$(LPATH) -levent -lconfig
-OTHEROPT=-D DEBUG=1
-IPATH=-I. -I$(CUR_DIR)/.local/include
-CFLAGS=-Wall -g -std=gnu11 $(OTHEROPT) $(IPATH)
-GCC=gcc
+CUR_DIR  = $(shell pwd)
+LPATH    = $(CUR_DIR)/.local/lib
+LDFLAGS  = -L$(LPATH) -levent -lconfig
+OTHEROPT = -D DEBUG=1
+IPATH    = -I. -I$(CUR_DIR)/.local/include
+CFLAGS   = -Wall -g -std = gnu11 $(OTHEROPT) $(IPATH)
+GCC      = gcc
 
 PROGRAM=server.out
 
