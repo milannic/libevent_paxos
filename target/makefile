@@ -4,8 +4,9 @@
 
 -include ../makefile.init
 
+-include variable.mk
+
 RM := rm -rf
-ROOT_DIR := $(shell pwd)
 
 # All of the sources participating in the build are defined here
 -include sources.mk
