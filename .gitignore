@@ -2,7 +2,8 @@ Debug
 *.swp
 *.o
 *.out
-lib
+*.d
+dep-lib
 test/log
 .local
 
