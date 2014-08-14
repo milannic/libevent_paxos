@@ -6,3 +6,7 @@ Debug
 dep-lib
 test/log
 .local
+.cproject
+.project
+.cppproject
+.settings
