@@ -5,6 +5,7 @@
 -include ../makefile.init
 
 RM := rm -rf
+ROOT_DIR := $(shell pwd)
 
 # All of the sources participating in the build are defined here
 -include sources.mk
@@ -33,7 +34,7 @@ all: server.out
 server.out: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
-	gcc -pthread -o server.out $(OBJS) $(USER_OBJS) $(LIBS)
+	gcc  -o   "server.out"  -L"$(ROOT_DIR)/../.local/lib" -pthread  $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
