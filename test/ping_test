@@ -2,13 +2,29 @@
 #run some test for the program
 #to be added
 
+#start two replicas,one is leader,the leader should ping others periodically and then we kill the leader, the other node should notice the loss of connection with the leader and initial a leader election
 
-TEST_NAME=1_ping_test
+check_output(){
+    
+    LOG_NAME=${FILEPATH}/log/${TEST_NAME}_1_${NO}
+    RESULT=$(grep "Lost.*Leader" ${LOG_NAME} | wc -l)
 
-echo "==========Ping Test =========="
+    if [ "${RESULT}" -eq "0"];then
+        exit 1
+    else
+        exit 0
+    fi
+}
+
+TEST_NAME=$(basename $0)
+NO=${1}
+
+#echo "==========Ping Test =========="
 
 CUR_DIR=$(pwd)
-SLEEP_TIME=8
+
+SLEEP_TIME=4
+
 SECONDARIES_SIZE=1
 
 #do not re-compile
@@ -37,19 +53,19 @@ if [ ! -d ${FILEPATH}/log ];then
     mkdir ${FILEPATH}/log
 fi
 
-exec 2>${FILEPATH}/log/ping_test_err
+exec 2>${FILEPATH}/log/ping_test_err_${NO}
 
 export LD_LIBRARY_PATH=${FILEPATH}/../.local/lib
 
-echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*"
+#echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
 #echo "Now We Start The Leader"
-${FILEPATH}/../target/server.out -n 0 -m s -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_0  &
+${FILEPATH}/../target/server.out -n 0 -m s -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_0_${NO}  &
 PRIMARY_PID=$!
 
 #echo "Now We Start Other Nodes"
 
 for i in $(seq ${SECONDARIES_SIZE});do
-    ${FILEPATH}/../target/server.out -n ${i} -m r -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_${i} &
+    ${FILEPATH}/../target/server.out -n ${i} -m r -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_${i}_${NO} &
     declare NODE_${i}=$!
 done
 
@@ -72,12 +88,5 @@ for i in $(echo ${!NODE*});do
     kill ${!i} &>/dev/null
 done
 
-LOG_NAME=${FILEPATH}/log/${TEST_NAME}_1
+check_output
 
-RESULT=$(grep "Lost.*Leader" ${LOG_NAME} | wc -l)
-
-if [ "${RESULT}" -eq "0"];then
-    exit 1
-else
-    exit 0
-fi

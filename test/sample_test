@@ -1,6 +1,5 @@
 #!/bin/bash
 
-echo "==========Sample Test=========="
 
 :<<'END'
 FILEPATH=$(pwd)

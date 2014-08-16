@@ -19,10 +19,14 @@ def run_test(path):
 
     for i in os.listdir(path):
         if None!=re.match(r'.*test.*(?<!swp)$',i) and None==re.match(r'.*\.py$',i):
+            ret = 0
             total_tests = total_tests+1
-            print "==========Test No %d=========="%(total_tests)
+            print "==========Test %d : %s =========="%(total_tests,i)
             print "==========Test Start=========="
-            ret=subprocess.call(path+"/"+i,shell=True)
+            for j in xrange(10):
+                ret= (ret or subprocess.call("%s %s"%(path+"/"+i,str(j)),shell=True))
+                if ret:
+                    break
             print "\n"
             if ret:
                 print "Test Failed"
