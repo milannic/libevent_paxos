@@ -8,8 +8,7 @@ check_output(){
     
     LOG_NAME=${FILEPATH}/log/${TEST_NAME}_1_${NO}
     RESULT=$(grep "Lost.*Leader" ${LOG_NAME} | wc -l)
-
-    if [ "${RESULT}" -eq "0"];then
+    if [ "${RESULT}" -eq "0" ];then
         exit 1
     else
         exit 0

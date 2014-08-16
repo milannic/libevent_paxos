@@ -33,7 +33,7 @@ all: server.out
 server.out: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
-	gcc-4.8  -o   "server.out"  -L"$(ROOT_DIR)/../.local/lib" -pthread  $(OBJS) $(USER_OBJS) $(LIBS)
+	gcc-4.8  -o   "server.out" -DDEBUG=1 -L"$(ROOT_DIR)/../.local/lib" -pthread  $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 

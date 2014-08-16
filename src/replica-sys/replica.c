@@ -6,8 +6,8 @@
 int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; 
 static unsigned current_connection = 3;
 struct timeval reconnect_timeval = {2,0};
-struct timeval ping_timeval = {2,0};
-struct timeval expect_ping_timeval = {10,0};
+struct timeval ping_timeval = {1,0};
+struct timeval expect_ping_timeval = {2,0};
 int heart_beat_threshold = 4;
 
 static void usage(){
