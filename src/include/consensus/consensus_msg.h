@@ -43,5 +43,4 @@ typedef enum paxos_msg_code_t{
         l_commit_ack=25, // used when
 }paxos_msg_code;
 
-
 #endif

@@ -323,7 +323,7 @@ static void handle_msg(node* my_node,struct evbuffer* evb){
     assert((under_msg_buf!=NULL)&&
             "cannot allocate memory space for the new received data,the program will exit");
     evbuffer_remove(evb,under_msg_buf,((sys_msg*)sys_msg_buf)->data_size);
-    switch(((sys_msg*)sys_msg_buf)->type){
+    switch(((sys_msg*)sys_msg_buf)->code){
         case ping_ack:
             handle_ping_ack(my_node,(ping_ack_msg*)under_msg_buf);
             break;
@@ -332,7 +332,7 @@ static void handle_msg(node* my_node,struct evbuffer* evb){
             break;
         default:
             debug_log("unknown msg type %d\n",
-                    ((sys_msg*)sys_msg_buf)->type);
+                    ((sys_msg*)sys_msg_buf)->code);
     }
     if(NULL!=sys_msg_buf){free(sys_msg_buf);}
     if(NULL!=under_msg_buf){free(under_msg_buf);}

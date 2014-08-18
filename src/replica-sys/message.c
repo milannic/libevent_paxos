@@ -18,10 +18,10 @@
 
 #include "../include/replica-sys/message.h"
 
-sys_msg* package_sys_msg(sys_msg_code type,int data_size,void* data){
+sys_msg* package_sys_msg(sys_msg_code code,int data_size,void* data){
     sys_msg* msg = (sys_msg*)malloc(SYS_MSG_SIZE(data_size));
     if(NULL!=msg){
-        msg->type = type; 
+        msg->code= code; 
         msg->data_size = data_size;
         memcpy(msg->data,data,data_size);
     }
@@ -54,4 +54,3 @@ sys_msg* build_ping_ack(int node_id,view* cur_view){
     free(ping_msg);
     return msg;
 }
-
