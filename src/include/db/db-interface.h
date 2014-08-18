@@ -20,18 +20,16 @@
 #define DB_INTERFACE_H
 #include <stdint.h>
 
-struct db_t;
-typedef struct db_t* dbptr;
+typedef struct db_t db;
 
-typedef struct db_record_t{
-    uint64_t record_no;
-    uint32_t data_size;
-    char data[0];
-}__attribute__((packed))db_record;
+db* initialize_db(const char* db_name,uint32_t flag);
 
-typedef db_record* db_record_ptr;
+void close_db(db*,uint32_t);
 
-void* store_record(db_record_ptr,void*);
-db_record_ptr retrive_record(uint64_t);
+int store_record(db*,uint64_t,uint32_t,void*);
+
+// the caller is responsible to release the memory
+
+void* retrieve_record(db*,uint64_t);
 
 #endif

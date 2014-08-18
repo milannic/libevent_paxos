@@ -10,6 +10,7 @@ RM := rm -rf
 -include sources.mk
 -include src/util/subdir.mk
 -include src/replica-sys/subdir.mk
+-include src/db/subdir.mk
 -include src/consensus/subdir.mk
 -include src/config-comp/subdir.mk
 -include src/subdir.mk
@@ -33,7 +34,7 @@ all: server.out
 server.out: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: GCC C Linker'
-	gcc-4.8  -o   "server.out" -DDEBUG=1 -L"$(ROOT_DIR)/../.local/lib" -pthread  $(OBJS) $(USER_OBJS) $(LIBS)
+	gcc-4.8  -o   "server.out"  -L"$(ROOT_DIR)/../.local/lib" -pthread  $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 

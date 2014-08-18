@@ -16,9 +16,14 @@
  * =====================================================================================
  */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include "include/replica-sys/replica.h"
 
-static void(*pseudo_cb)(int data_size,void* data) = (void*)0;
+static void pseudo_cb(int data_size,void* data){
+    printf("%d\n",(*(int*)data));
+    free(data);
+}
 
 int main(int argc,char** argv){
     struct node_t* my_node = system_initialize(argc,argv,pseudo_cb);

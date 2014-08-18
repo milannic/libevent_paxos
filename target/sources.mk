@@ -16,6 +16,7 @@ SUBDIRS := \
 src/util \
 src/replica-sys \
 src \
+src/db \
 src/consensus \
 src/config-comp \
 
