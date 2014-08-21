@@ -42,7 +42,7 @@ typedef struct accept_req_t{
     size_t data_size;
     char data[0];
 }__attribute__((packed))accept_req;
-#define ACCEPT_REQ_SIZE(M) (sizeof(accept_req)+(M->data_size));
+#define ACCEPT_REQ_SIZE(M) (sizeof(accept_req)+(M->data_size))
 
 typedef struct accept_ack_t{
     consensus_msg_head head;

@@ -99,7 +99,7 @@ int store_record(db* db_p,uint64_t record_no,uint32_t data_size,void* data){
     key.size = sizeof(record_no);
     db_data.data = data;
     db_data.size = data_size;
-    if ((ret=b_db->put(b_db,NULL,&key,&db_data,0))==0){
+    if ((ret=b_db->put(b_db,NULL,&key,&db_data,DB_AUTO_COMMIT))==0){
         debug_log("db : %ld record stored. \n",record_no);
         b_db->sync(b_db,0);
     }

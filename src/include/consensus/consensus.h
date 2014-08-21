@@ -35,6 +35,8 @@ struct consensus_component_t* init_consensus_comp(struct node_t*,uint32_t,
         const char*,int,
         view*,user_cb,up_call);
 
+void consensus_handle_msg(struct consensus_component_t*,size_t,void*);
+
 int submit_request(struct consensus_component_t*,size_t,void*,view_stamp*);
 
 int make_progress(struct consensus_component_t*);

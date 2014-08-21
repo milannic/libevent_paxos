@@ -17,6 +17,7 @@
  */
 
 #include "../include/consensus/consensus.h"
+#include "../include/consensus/consensus-msg.h"
 #include "../include/db/db-interface.h"
 
 static struct timeval request_repeat_timeout = {2,0};
@@ -47,17 +48,60 @@ typedef struct consensus_component_t{
     user_cb ucb;
 }consensus_component;
 
+
+//static function declaration
+//
+
+static view_stamp get_next_view_stamp(consensus_component*);
+
 static int leader_handle_submit_req(struct consensus_component_t*,
         size_t,void*,view_stamp*);
 
-static view_stamp get_next_view_stamp(consensus_component*);
+static void handle_accept_req(consensus_component* ,size_t ,void* );
+static void handle_accept_ack(consensus_component* ,size_t ,void* );
+static void handle_missing_req(consensus_component* ,size_t ,void* );
+static void handle_missing_ack(consensus_component* ,size_t ,void* );
+static void handle_force_exec(consensus_component* ,size_t ,void* );
+
+static void* build_accept_req(consensus_component* ,size_t ,void*, view_stamp*);
+static void* build_accept_ack(consensus_component* ,size_t ,void* );
+static void* build_missing_req(consensus_component* ,size_t ,void* );
+static void* build_missing_ack(consensus_component* ,size_t ,void* );
+static void* build_force_exec(consensus_component* ,size_t ,void* );
 
 
 //public interface method
 
-view_stamp get_higghest_seen_req(struct consensus_component_t* comp){
+view_stamp get_higghest_seen_req(consensus_component* comp){
     return comp->highest_seen_vs;
 }
+
+void consensus_handle_msg(struct consensus_component_t* comp,
+        size_t data_size,void* data){
+    consensus_msg_head *head = data;
+    switch(head->msg_type){
+        case ACCEPT_REQ:
+            handle_accept_req(comp,data_size,data);
+            break;
+        case ACCEPT_ACK:
+            handle_accept_ack(comp,data_size,data);
+            break;
+        case MISSING_REQ:
+            handle_missing_req(comp,data_size,data);
+            break;
+        case MISSING_ACK:
+            handle_missing_ack(comp,data_size,data);
+            break;
+        case FORCE_EXEC:
+            handle_force_exec(comp,data_size,data);
+            break;
+        default:
+            paxos_log("Unknown Type of Message %d\n",
+                    head->msg_type);
+            break;
+    }
+
+};
 
 consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
         const char* db_name,int group_size,
@@ -127,10 +171,13 @@ void update_role(struct consensus_component_t* comp){
 static view_stamp get_next_view_stamp(consensus_component* comp){
     view_stamp next_vs;
     next_vs.view_id = comp->highest_seen_vs.view_id;
-    next_vs.req_id = (++comp->highest_seen_vs.req_id);
+    next_vs.req_id = (comp->highest_seen_vs.req_id+1);
     return next_vs;
 };
-
+static void view_stamp_inc(consensus_component* comp){
+    comp->highest_seen_vs.req_id++;
+    return;
+};
 
 static int leader_handle_submit_req(struct consensus_component_t* comp,
         size_t data_size,void* data,view_stamp* vs){
@@ -147,8 +194,14 @@ static int leader_handle_submit_req(struct consensus_component_t* comp,
     if(store_record(comp->db_ptr,recordno,data_size,data)){
         goto handle_submit_req_exit;
     }    
+    accept_req* msg = build_accept_req(comp,data_size,data,vs);
+    if(msg)
+    comp->uc(comp->my_node,ACCEPT_REQ_SIZE(msg),msg,-1);
+    free(msg);
+    view_stamp_inc(comp);
     ret = 0;
 handle_submit_req_exit: 
+    // no need to care about database, every time we will override it.
     if(record_data!=NULL){
         free(record_data);
     }
@@ -170,4 +223,37 @@ static int reached_quorum(request_record* record,int group_size){
 }
 
 
+static void handle_accept_req(consensus_component* comp,size_t data_size,void* data){
+    return;
+};
+static void handle_accept_ack(consensus_component* comp,size_t data_size,void* data){
+    return;
+};
+static void handle_missing_req(consensus_component* comp,size_t data_size,void* data){
+    return;
+};
+static void handle_missing_ack(consensus_component* comp,size_t data_size,void* data){
+    return;
+};
+static void handle_force_exec(consensus_component* comp,size_t data_size,void* data){
+    return;
+};
+
+static void* build_accept_req(consensus_component* comp,
+        size_t data_size,void* data,view_stamp* vs){
+    accept_req* msg = (accept_req*)malloc()
+    return NULL;
+};
+static void* build_accept_ack(consensus_component* comp,size_t data_size,void* data){
+    return NULL;
+};
+static void* build_missing_req(consensus_component* comp,size_t data_size,void* data){
+    return NULL;
+};
+static void* build_missing_ack(consensus_component* comp,size_t data_size,void* data){
+    return NULL;
+};
+static void* build_force_exec(consensus_component* comp,size_t data_size,void* data){
+    return NULL;
+};
 
