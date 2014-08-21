@@ -110,7 +110,6 @@ db_store_return:
     return ret;
 }
 
-
 void* retrieve_record(db* db_p,uint64_t record_no){
     void* ret_p=NULL;
     int ret=1;

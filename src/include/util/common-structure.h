@@ -26,7 +26,7 @@ typedef struct view_t{
 }view;
 
 typedef struct view_stamp_t{
-    view view_id;
+    uint32_t view_id;
     uint32_t req_id;
 }view_stamp;
 

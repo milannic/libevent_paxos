@@ -4,16 +4,13 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../src/consensus/consensus.c \
-../src/consensus/learner.c 
+../src/consensus/consensus.c 
 
 OBJS += \
-./src/consensus/consensus.o \
-./src/consensus/learner.o 
+./src/consensus/consensus.o 
 
 C_DEPS += \
-./src/consensus/consensus.d \
-./src/consensus/learner.d 
+./src/consensus/consensus.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

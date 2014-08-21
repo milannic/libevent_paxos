@@ -21,26 +21,54 @@
 
 #include "../util/common-header.h"
 
+typedef enum consensus_msg_code_t{
+        // leader election
+        ACCEPT_REQ=0,
+        ACCEPT_ACK=1,
+        MISSING_REQ=2,
+        MISSING_ACK=3,
+        FORCE_EXEC=4,
+}con_code;
+
+typedef struct consensus_msg_head_t{
+    con_code msg_type;
+}consensus_msg_head;
+
 typedef struct accept_req_t{
-}accept_req;
+    consensus_msg_head head;
+    view_stamp msg_vs;
+    view_stamp req_canbe_exed;
+    uint32_t node_id;
+    size_t data_size;
+    char data[0];
+}__attribute__((packed))accept_req;
+#define ACCEPT_REQ_SIZE(M) (sizeof(accept_req)+(M->data_size));
 
 typedef struct accept_ack_t{
+    consensus_msg_head head;
+    view_stamp msg_vs;
+    uint32_t node_id;
 }accept_ack;
+#define ACCEPT_ACK_SIZE(M) (sizeof(accept_ack))
 
 typedef struct missing_req_t{
+    consensus_msg_head head;
+    view_stamp missing_vs;
 }missing_req;
+#define MISSING_REQ_SIZE(M) (sizeof(missing_req))
 
 typedef struct missing_ack_t{
-}missing_ack;
+    consensus_msg_head head;
+    view_stamp missing_vs;
+    size_t data_size;
+    char data[0];
+}__attribute__((packed))missing_ack;
+#define MISSING_ACK_SIZE(M) (sizeof(missing_ack)+(M->data_size))
 
-typedef enum paxos_msg_code_t{
-    // leader election
-        l_prepare_req=20,
-        l_prepare_ack=21,
-        l_accept_req=22,
-        l_accept_ack=23,
-        l_commit_req=24, //used when there is a final leader
-        l_commit_ack=25, // used when
-}paxos_msg_code;
+typedef struct force_exec_t{
+    consensus_msg_head head;
+    view_stamp missing_vs;
+}force_exec;
+#define FORCE_EXEC_SIZE(M) (sizeof(force_exec))
 
 #endif

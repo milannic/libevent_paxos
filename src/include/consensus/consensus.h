@@ -23,7 +23,7 @@
 struct node_t;
 struct consensus_component_t;
 
-typedef void (*up_call)(struct node_t*,size_t,void*);
+typedef void (*up_call)(struct node_t*,size_t,void*,int);
 typedef void (*user_cb)(size_t data_size,void* data);
 
 typedef enum con_role_t{
@@ -31,9 +31,18 @@ typedef enum con_role_t{
     SECONDARY = 1,
 }con_role;
 
-struct consensus_component_t* initialize_consensus_comp(struct node_t*,struct event_base*,
-        const char*,int group_size,view*,view_stamp*,user_cb,up_call);
-void update_role(struct consensus_component_t*,con_role,view);
-void deliever_msg(struct consensus_component_t*,size_t,void*);
+struct consensus_component_t* init_consensus_comp(struct node_t*,uint32_t,
+        const char*,int,
+        view*,user_cb,up_call);
+
+int submit_request(struct consensus_component_t*,size_t,void*,view_stamp*);
+
+int make_progress(struct consensus_component_t*);
+
+int look_up_request(struct consensus_component_t*,view_stamp);
+
+view_stamp get_higghest_seen_req(struct consensus_component_t*);
+
+void update_role(struct consensus_component_t*);
 
 #endif

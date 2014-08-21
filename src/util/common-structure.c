@@ -20,7 +20,7 @@
 
 uint64_t vstol(view_stamp* vs){
     uint64_t result = vs->req_id;
-    result += (vs->view_id.view_id)<<31;
+    result += (vs->view_id)<<31;
     return result;
 };
 
