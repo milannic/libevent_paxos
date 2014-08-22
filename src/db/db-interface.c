@@ -71,6 +71,10 @@ db_init_return:
     if(full_path!=NULL){
         free(full_path);
     }
+    if(db_ptr!=NULL){
+        debug_log("DB Initialization Finished\n");
+        ;
+    }
     return db_ptr;
 }
 

@@ -3,6 +3,7 @@
 #include "../include/config-comp/config-comp.h"
 #include "../include/replica-sys/replica.h"
 
+
 int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; 
 static unsigned current_connection = 3;
 struct timeval reconnect_timeval = {2,0};
@@ -16,15 +17,17 @@ static void usage(){
     paxos_log("        -c path path to configuration file\n");
 }
 
-
-
 //msg handler
-static void replica_on_read(struct bufferevent* bev,void* arg);
-static void replica_on_error_cb(struct bufferevent* bev,short ev,void* arg);
+static void replica_on_read(struct bufferevent*,void*);
+static void replica_on_error_cb(struct bufferevent*,short,void*);
+
+// consensus part
+static void send_for_consensus_comp(node*,size_t,void*,int);
+
 
 //concrete message
-static void handle_ping_ack(node* my_node,ping_ack_msg* msg);
-static void handle_ping_req(node* my_node,ping_req_msg* msg);
+static void handle_ping_ack(node* ,ping_ack_msg* );
+static void handle_ping_req(node* ,ping_req_msg* );
 
 
 //listener
@@ -33,30 +36,30 @@ static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t
 
 //peer connection
 static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg);
-static void peer_node_on_read(struct bufferevent* bev,void* arg);
-static void connect_peer(peer* peer_node);
+static void peer_node_on_read(struct bufferevent*,void*);
+static void connect_peer(peer*);
 static void peer_node_on_timeout(int fd,short what,void* arg);
-static void connect_peers(node* my_node);
+static void connect_peers(node*);
 
 
 //ping part
 static void leader_ping_period(int fd,short what,void* arg);
 static void expected_leader_ping_period(int fd,short wat,void* arg);
-static int initialize_leader_ping(node* my_node);
-static int initialize_expect_ping(node* my_node);
+static int initialize_leader_ping(node*);
+static int initialize_expect_ping(node*);
 
 //view change
-static void update_view(node* my_node,view* new_view);
-static void become_leader(node* my_node);
-static void giveup_leader(node* my_node);
-static void replica_sync(node* my_node);
+static void update_view(node*,view*);
+static void become_leader(node*);
+static void giveup_leader(node*);
+static void replica_sync(node*);
 
 //free related function
-static void free_peers(node* my_node);
-static int free_node(node* my_node);
+static void free_peers(node*);
+static int free_node(node*);
 
 //helper function
-static int isLeader(node* node);
+static int isLeader(node*);
 
 
 static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
@@ -268,6 +271,36 @@ static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd
     }
 };
 
+// consensus part
+static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,int target){
+    consensus_msg* msg = build_consensus_msg(data_size,data);
+    if(NULL==msg){
+        goto send_for_consensus_comp_exit;
+    }
+    // means send to every node except me
+    if(target<0){
+        for(uint32_t i=0;i<my_node->group_size;i++){
+            if(i!=my_node->node_id && my_node->peer_pool[i].active){
+                struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
+                bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg->header.data_size));
+                debug_log(
+                        "Send Consensus Msg To Node %u\n",i);
+            }
+        }
+    }else{
+        if(target!=(int)my_node->node_id&&my_node->peer_pool[target].active){
+            struct bufferevent* buff = my_node->peer_pool[target].my_buff_event;
+            bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg->header.data_size));
+            debug_log(
+                    "Send Consensus Msg To Node %u\n",target);
+        }
+    }
+send_for_consensus_comp_exit:
+    if(msg!=NULL){
+        free(msg);
+    }
+    return;
+}
 
 static void handle_ping_ack(node* my_node,ping_ack_msg* msg){
     if(my_node->cur_view.view_id < msg->view.view_id){
@@ -364,28 +397,38 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
 
 
 int initialize_node(node* my_node){
-    int flag = 0;
+    int flag = 1;
     gettimeofday(&my_node->last_ping_msg,NULL);
     if(my_node->cur_view.leader_id==my_node->node_id){
         if(initialize_leader_ping(my_node)){
-            flag = 1;
             goto initialize_node_exit;
         }
     }
     else{
         if(initialize_expect_ping(my_node)){
-            flag = 1;
             goto initialize_node_exit;
         }
     }
     my_node->state = NODE_ACTIVE;
     my_node->msg_cb = handle_msg;
     connect_peers(my_node);
-    goto initialize_node_exit;
+    my_node->consensus_comp = NULL;
+
+//consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
+//
+//consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
+//        const char* db_name,int group_size,
+//        view* cur_view,user_cb u_cb,up_call uc){
+    my_node->consensus_comp = init_consensus_comp(my_node,
+            my_node->node_id,my_node->db_name,my_node->group_size,
+            &my_node->cur_view,NULL,send_for_consensus_comp);
+    if(NULL==my_node->consensus_comp){
+        goto initialize_node_exit;
+    }
+    flag = 0;
 initialize_node_exit:
         return flag;
 }
-
 
 node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* data)){
     char* start_mode= NULL;
@@ -394,6 +437,7 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
     int c;
 
     node* my_node = (node*)malloc(sizeof(node));
+    memset(my_node,0,sizeof(node));
     if(NULL==my_node){
         goto exit_error;
     }
@@ -476,7 +520,6 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
     debug_log("current node's db name is %s\n",my_node->db_name);
 #endif
 
-
     if(initialize_node(my_node)){
         paxos_log("cannot initialize node\n");
         goto exit_error;
@@ -503,6 +546,8 @@ exit_error:
 
 
 void system_run(struct node_t* replica){
+    debug_log("Node %u Starts Running\n",
+            replica->node_id);
     event_base_dispatch(replica->base);
 }
 

@@ -63,7 +63,7 @@ typedef struct node_t{
     uint32_t group_size;
     peer* peer_pool;
 
-    //struct consensus_component_t* consensus_comp;
+    struct consensus_component_t* consensus_comp;
 
     //config
     node_config config;
