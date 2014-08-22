@@ -2,7 +2,7 @@
 
 
 CUR_DIR := $(shell pwd)
-FILELIST:=$(shell find ./src -type f)
+SOURCES:=$(shell find ./src -type f)
 
 default:
 	cd target;$(MAKE);cd ..;
@@ -15,5 +15,5 @@ test:
 	@python ./test/run_test.py -p ${CUR_DIR}/test -r 1
 
 count:
-	@wc -l ${FILELIST} 
+	@wc -l ${SOURCES} 
 
