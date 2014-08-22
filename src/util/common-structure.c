@@ -18,6 +18,22 @@
 
 #include "../include/util/common-structure.h"
 
+int view_stamp_comp(view_stamp* op1,view_stamp* op2){
+    if(op1->view_id<op2->view_id){
+        return -1;
+    }else if(op1->view_id>op2->view_id){
+        return 1;
+    }else{
+        if(op1->req_id>op2->req_id){
+            return 1;
+        }else if(op1->req_id<op2->req_id){
+            return -1;
+        }else{
+            return 0;
+        }
+    }
+}
+
 uint64_t vstol(view_stamp* vs){
     uint64_t result = vs->req_id;
     result += (vs->view_id)<<31;

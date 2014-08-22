@@ -30,12 +30,13 @@ typedef enum consensus_msg_code_t{
         FORCE_EXEC=4,
 }con_code;
 
-typedef struct consensus_msg_head_t{
+typedef struct consensus_msg_header_t{
     con_code msg_type;
-}consensus_msg_head;
+}consensus_msg_header;
+#define CONSENSUS_MSG_HEADER_SIZE (sizeof(consensus_msg_header))
 
 typedef struct accept_req_t{
-    consensus_msg_head head;
+    consensus_msg_header header;
     view_stamp msg_vs;
     view_stamp req_canbe_exed;
     uint32_t node_id;
@@ -45,30 +46,33 @@ typedef struct accept_req_t{
 #define ACCEPT_REQ_SIZE(M) (sizeof(accept_req)+(M->data_size))
 
 typedef struct accept_ack_t{
-    consensus_msg_head head;
+    consensus_msg_header header;
     view_stamp msg_vs;
     uint32_t node_id;
 }accept_ack;
-#define ACCEPT_ACK_SIZE(M) (sizeof(accept_ack))
+#define ACCEPT_ACK_SIZE (sizeof(accept_ack))
 
 typedef struct missing_req_t{
-    consensus_msg_head head;
-    view_stamp missing_vs;
+    consensus_msg_header header;
+    uint64_t record_no;
+    uint32_t node_id;
 }missing_req;
-#define MISSING_REQ_SIZE(M) (sizeof(missing_req))
+#define MISSING_REQ_SIZE (sizeof(missing_req))
 
 typedef struct missing_ack_t{
-    consensus_msg_head head;
-    view_stamp missing_vs;
+    consensus_msg_header header;
+    uint64_t missing_req;
+    uint32_t node_id;
     size_t data_size;
     char data[0];
 }__attribute__((packed))missing_ack;
 #define MISSING_ACK_SIZE(M) (sizeof(missing_ack)+(M->data_size))
 
 typedef struct force_exec_t{
-    consensus_msg_head head;
-    view_stamp missing_vs;
+    consensus_msg_header header;
+    uint32_t node_id;
+    view_stamp highest_committed_op;
 }force_exec;
-#define FORCE_EXEC_SIZE(M) (sizeof(force_exec))
+#define FORCE_EXEC_SIZE (sizeof(force_exec))
 
 #endif

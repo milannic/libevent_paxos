@@ -347,6 +347,12 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
     }
 }
 
+static void handle_consensus_msg(node* my_node,consensus_msg* msg){
+    if(NULL!=my_node->consensus_comp){
+        consensus_handle_msg(my_node->consensus_comp,msg->header.data_size,(void*)msg+SYS_MSG_HEADER_SIZE);
+    }
+    return;
+}
 
 static void handle_msg(node* my_node,struct evbuffer* evb,size_t data_size){
     debug_log("there is enough data to read,actual data handler is called\n");
@@ -363,8 +369,11 @@ static void handle_msg(node* my_node,struct evbuffer* evb,size_t data_size){
         case PING_REQ:
             handle_ping_req(my_node,(ping_req_msg*)msg_buf);
             break;
+        case CONSENSUS_MSG:
+            handle_consensus_msg(my_node,(consensus_msg*)msg_buf);
+            break;
         default:
-            debug_log("unknown msg type %d\n",
+            paxos_log("unknown msg type %d\n",
                     msg_header->type);
             goto handle_msg_exit;
     }
@@ -414,11 +423,6 @@ int initialize_node(node* my_node){
     connect_peers(my_node);
     my_node->consensus_comp = NULL;
 
-//consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
-//
-//consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
-//        const char* db_name,int group_size,
-//        view* cur_view,user_cb u_cb,up_call uc){
     my_node->consensus_comp = init_consensus_comp(my_node,
             my_node->node_id,my_node->db_name,my_node->group_size,
             &my_node->cur_view,NULL,send_for_consensus_comp);
