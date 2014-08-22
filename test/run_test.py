@@ -5,7 +5,7 @@ import subprocess
 import argparse
 
 
-def run_test(path):
+def run_test(path,rep_times):
     cur_dir=path
 
     total_passed_tests=0
@@ -23,7 +23,7 @@ def run_test(path):
             total_tests = total_tests+1
             print "==========Test %d : %s =========="%(total_tests,i)
             print "==========Test Start=========="
-            for j in xrange(10):
+            for j in xrange(rep_times):
                 ret= (ret or subprocess.call("%s %s"%(path+"/"+i,str(j)),shell=True))
                 if ret:
                     break
@@ -42,8 +42,10 @@ def main():
     parser = argparse.ArgumentParser("Run All The Tests Scripts In The Folder");
     parser.add_argument("-p","--path",dest="path",type=str,help="Path For Test \
             Script Folder",required=True)
+    parser.add_argument("-r","--rep",dest="rep",type=int,help="Repeat Times For A Single Test",
+            required=True)
     para_sets=parser.parse_args();
-    run_test(para_sets.path)
+    run_test(para_sets.path,para_sets.rep)
 
 if __name__=="__main__":
     main()

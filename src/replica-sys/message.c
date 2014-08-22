@@ -18,39 +18,43 @@
 
 #include "../include/replica-sys/message.h"
 
-sys_msg* package_sys_msg(sys_msg_code code,int data_size,void* data){
-    sys_msg* msg = (sys_msg*)malloc(SYS_MSG_SIZE(data_size));
-    if(NULL!=msg){
-        msg->code= code; 
-        msg->data_size = data_size;
-        memcpy(msg->data,data,data_size);
+void* build_ping_req(int node_id, view* cur_view){
+    ping_req_msg* ping_msg = (ping_req_msg*)malloc(PING_REQ_SIZE);
+    if(NULL==ping_msg){
+        goto build_ping_req_exit;
     }
-    return msg;
+    ping_msg->header.type = PING_REQ;
+    ping_msg->header.data_size = PING_REQ_SIZE-SYS_MSG_HEADER_SIZE;
+    ping_msg->node_id = node_id;
+    ping_msg->view.view_id = cur_view->view_id;
+    ping_msg->view.leader_id = cur_view->leader_id;
+    gettimeofday(&ping_msg->timestamp,NULL);
+build_ping_req_exit:
+    return ping_msg;
+}
+void* build_ping_ack(int node_id,view* cur_view){
+    ping_ack_msg* ping_msg = (ping_ack_msg*)malloc(PING_ACK_SIZE);
+    if(NULL==ping_msg){
+        goto build_ping_ack_exit;
+    }
+    ping_msg->header.type = PING_ACK;
+    ping_msg->header.data_size = PING_REQ_SIZE-SYS_MSG_HEADER_SIZE;
+    ping_msg->node_id = node_id;
+    ping_msg->view.view_id = cur_view->view_id;
+    ping_msg->view.leader_id = cur_view->leader_id;
+    gettimeofday(&ping_msg->timestamp,NULL);
+build_ping_ack_exit:
+    return ping_msg;
 }
 
-sys_msg* build_ping_req(int node_id, view* cur_view){
-    ping_req_msg* ping_msg = (ping_req_msg*)malloc(PING_REQ_SIZE(ping_msg));
-    if(NULL==ping_msg){
-        return NULL;
+void* build_consensus_msg(uint32_t data_size,void* data){
+    consensus_msg* con_msg = (consensus_msg*)(malloc(CONSENSUS_MSG_SIZE(data_size)));
+    if(NULL==con_msg){
+        goto build_consensus_msg_exit;
     }
-    ping_msg->node_id = node_id;
-    ping_msg->view.view_id = cur_view->view_id;
-    ping_msg->view.leader_id = cur_view->leader_id;
-    gettimeofday(&ping_msg->timestamp,NULL);
-    sys_msg* msg=package_sys_msg(ping_req,PING_REQ_SIZE(ping_msg),ping_msg);
-    free(ping_msg);
-    return msg;
-}
-sys_msg* build_ping_ack(int node_id,view* cur_view){
-    ping_ack_msg* ping_msg = (ping_ack_msg*)malloc(PING_ACK_SIZE(ping_msg));
-    if(NULL==ping_msg){
-        return NULL;
-    }
-    ping_msg->node_id = node_id;
-    ping_msg->view.view_id = cur_view->view_id;
-    ping_msg->view.leader_id = cur_view->leader_id;
-    gettimeofday(&ping_msg->timestamp,NULL);
-    sys_msg* msg=package_sys_msg(ping_ack,PING_ACK_SIZE(ping_msg),ping_msg);
-    free(ping_msg);
-    return msg;
+    con_msg->header.type = CONSENSUS_MSG;
+    con_msg->header.data_size = data_size;
+    memcpy(con_msg->data,data,data_size);
+build_consensus_msg_exit:
+    return con_msg;
 }

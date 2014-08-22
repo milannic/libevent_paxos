@@ -7,7 +7,7 @@ int max_waiting_connections = MAX_ACCEPT_CONNECTIONS;
 static unsigned current_connection = 3;
 struct timeval reconnect_timeval = {2,0};
 struct timeval ping_timeval = {1,0};
-struct timeval expect_ping_timeval = {2,0};
+struct timeval expect_ping_timeval = {5,0};
 int heart_beat_threshold = 4;
 
 static void usage(){
@@ -145,14 +145,14 @@ static void leader_ping_period(int fd,short what,void* arg){
         }
         return;
     }else{
-        sys_msg* ping_req = build_ping_req(my_node->node_id,&my_node->cur_view);
+        void* ping_req = build_ping_req(my_node->node_id,&my_node->cur_view);
         if(NULL==ping_req){
             goto add_ping_event;
         }
         for(uint32_t i=0;i<my_node->group_size;i++){
             if(i!=my_node->node_id && my_node->peer_pool[i].active){
                 struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
-                bufferevent_write(buff,ping_req,SYS_MSG_SIZE((ping_req->data_size)));
+                bufferevent_write(buff,ping_req,PING_REQ_SIZE);
                 debug_log(
                         "Send Ping Msg To Node %u\n",i);
             }
@@ -278,14 +278,16 @@ static void handle_ping_ack(node* my_node,ping_ack_msg* msg){
 }
 
 static void handle_ping_req(node* my_node,ping_req_msg* msg){
+    debug_log("Received Ping Req Msg in node %d\n",
+            my_node->node_id);
     if(my_node->cur_view.view_id < msg->view.view_id){
         update_view(my_node,&msg->view);
     }else if(my_node->cur_view.view_id > msg->view.view_id){
         if(my_node->peer_pool[msg->node_id].active){
-            sys_msg* ping_ack = build_ping_ack(my_node->node_id,&my_node->cur_view);
+            void* ping_ack = build_ping_ack(my_node->node_id,&my_node->cur_view);
             if(NULL!=ping_ack){
                 struct bufferevent* buff = my_node->peer_pool[msg->node_id].my_buff_event;
-                bufferevent_write(buff,ping_ack,SYS_MSG_SIZE((ping_ack->data_size)));
+                bufferevent_write(buff,ping_ack,PING_REQ_SIZE);
                 debug_log(
                     "Send Ping Ack To Lagged Node %u\n",msg->node_id);
                 free(ping_ack);
@@ -313,50 +315,51 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
 }
 
 
-static void handle_msg(node* my_node,struct evbuffer* evb){
+static void handle_msg(node* my_node,struct evbuffer* evb,size_t data_size){
     debug_log("there is enough data to read,actual data handler is called\n");
-    char* under_msg_buf=NULL;
-    char* sys_msg_buf=(char*)malloc(sizeof(sys_msg));
-    if(NULL==sys_msg_buf){return;}
-    evbuffer_remove(evb,sys_msg_buf,sizeof(sys_msg));
-    under_msg_buf = (char*)malloc(((sys_msg*)sys_msg_buf)->data_size);
-    assert((under_msg_buf!=NULL)&&
-            "cannot allocate memory space for the new received data,the program will exit");
-    evbuffer_remove(evb,under_msg_buf,((sys_msg*)sys_msg_buf)->data_size);
-    switch(((sys_msg*)sys_msg_buf)->code){
-        case ping_ack:
-            handle_ping_ack(my_node,(ping_ack_msg*)under_msg_buf);
+    void* msg_buf = (char*)malloc(SYS_MSG_HEADER_SIZE+data_size);
+    if(NULL==msg_buf){
+        goto handle_msg_exit;
+    }
+    evbuffer_remove(evb,msg_buf,SYS_MSG_HEADER_SIZE+data_size);
+    sys_msg_header* msg_header = msg_buf;
+    switch(msg_header->type){
+        case PING_ACK:
+            handle_ping_ack(my_node,(ping_ack_msg*)msg_buf);
             break;
-        case ping_req:
-            handle_ping_req(my_node,(ping_req_msg*)under_msg_buf);
+        case PING_REQ:
+            handle_ping_req(my_node,(ping_req_msg*)msg_buf);
             break;
         default:
             debug_log("unknown msg type %d\n",
-                    ((sys_msg*)sys_msg_buf)->code);
+                    msg_header->type);
+            goto handle_msg_exit;
     }
-    if(NULL!=sys_msg_buf){free(sys_msg_buf);}
-    if(NULL!=under_msg_buf){free(under_msg_buf);}
+
+handle_msg_exit:
+    if(NULL!=msg_buf){free(msg_buf);}
     return;
 }
 
 //general data handler by the user, test if there is enough data to read
 static void replica_on_read(struct bufferevent* bev,void* arg){
     node* my_node = arg;
-    char* buf = NULL;;
+    sys_msg_header* buf = NULL;;
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = evbuffer_get_length(input);
     debug_log("there is %u bytes data in the buffer in total\n",
             (unsigned)len);
-    if(len>sizeof(sys_msg)){
-        buf = (char*)malloc(sizeof(sys_msg));
+    if(len>SYS_MSG_HEADER_SIZE){
+        buf = (sys_msg_header*)malloc(SYS_MSG_HEADER_SIZE);
         if(NULL==buf){return;}
-        evbuffer_copyout(input,buf,sizeof(sys_msg));
-        int data_len = ((sys_msg*)buf)->data_size;
-        if(len>sizeof(sys_msg)+data_len){
-           my_node->msg_cb(my_node,input); 
+        evbuffer_copyout(input,buf,SYS_MSG_HEADER_SIZE);
+        int data_size = buf->data_size;
+        if(len>(SYS_MSG_HEADER_SIZE+data_size)){
+           my_node->msg_cb(my_node,input,data_size); 
         }
         free(buf);
     }
+    return;
 }
 
 

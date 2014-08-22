@@ -195,7 +195,9 @@ static int leader_handle_submit_req(struct consensus_component_t* comp,
         goto handle_submit_req_exit;
     }    
     accept_req* msg = build_accept_req(comp,data_size,data,vs);
-    if(msg)
+    if(NULL==msg){
+        goto handle_submit_req_exit;
+    }
     comp->uc(comp->my_node,ACCEPT_REQ_SIZE(msg),msg,-1);
     free(msg);
     view_stamp_inc(comp);
@@ -241,8 +243,18 @@ static void handle_force_exec(consensus_component* comp,size_t data_size,void* d
 
 static void* build_accept_req(consensus_component* comp,
         size_t data_size,void* data,view_stamp* vs){
-    accept_req* msg = (accept_req*)malloc()
-    return NULL;
+    accept_req* msg = (accept_req*)malloc(sizeof(accept_req)+data_size);
+    if(NULL==msg){
+        goto build_acc_req_exit;
+    }
+    msg->node_id = comp->node_id;
+    msg->req_canbe_exed = comp->highest_to_commit_vs;
+    msg->data_size = data_size;
+    msg->head.msg_type = ACCEPT_REQ;
+    msg->msg_vs = *vs;
+    memcpy(msg->data,data,data_size);
+build_acc_req_exit:
+    return msg;
 };
 static void* build_accept_ack(consensus_component* comp,size_t data_size,void* data){
     return NULL;
