@@ -10,3 +10,4 @@ test/log
 .project
 .cppproject
 .settings
+.db
