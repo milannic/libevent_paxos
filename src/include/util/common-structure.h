@@ -31,6 +31,7 @@ typedef struct view_stamp_t{
 }view_stamp;
 
 uint64_t vstol(view_stamp* vs);
+view_stamp ltovs(uint64_t);
 int view_stamp_comp(view_stamp* op1,view_stamp* op2);
 
 int timeval_comp(struct timeval *op1,struct timeval *op2);

@@ -5,7 +5,7 @@ CUR_DIR := $(shell pwd)
 SOURCES:=$(shell find ./src -type f)
 
 default:
-	cd target;$(MAKE);cd ..;
+	cd target;$(MAKE) all;cd ..;
 
 clean:
 	cd target;$(MAKE) clean;cd ..;

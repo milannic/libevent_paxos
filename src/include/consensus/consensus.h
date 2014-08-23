@@ -20,6 +20,8 @@
 #define CONSENSUS_H
 #include "../util/common-header.h"
 
+typedef uint64_t db_key_type;
+
 struct node_t;
 struct consensus_component_t;
 
@@ -39,7 +41,7 @@ void consensus_handle_msg(struct consensus_component_t*,size_t,void*);
 
 int submit_request(struct consensus_component_t*,size_t,void*,view_stamp*);
 
-int make_progress(struct consensus_component_t*);
+void make_progress(struct consensus_component_t*);
 
 int look_up_request(struct consensus_component_t*,view_stamp);
 

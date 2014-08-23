@@ -54,15 +54,15 @@ typedef struct accept_ack_t{
 
 typedef struct missing_req_t{
     consensus_msg_header header;
-    uint64_t record_no;
     uint32_t node_id;
+    view_stamp missing_vs;
 }missing_req;
 #define MISSING_REQ_SIZE (sizeof(missing_req))
 
 typedef struct missing_ack_t{
     consensus_msg_header header;
-    uint64_t missing_req;
     uint32_t node_id;
+    view_stamp missing_vs;
     size_t data_size;
     char data[0];
 }__attribute__((packed))missing_ack;

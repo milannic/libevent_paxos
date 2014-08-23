@@ -11,8 +11,7 @@
  *       Compiler:  gcc
  *
  *         Author:  Milannic (), milannic.cheng.liu@gmail.com
- *   Organization:  
- *
+ *   Organization:  *
  * =====================================================================================
  */
 
@@ -24,6 +23,7 @@ static struct timeval request_repeat_timeout = {2,0};
 
 typedef struct request_record_t{
     struct timeval created_time; // data created timestamp
+    char is_closed;
     uint64_t bit_map; // now we assume the maximal replica group size is 64;
     size_t data_size; // data size
     char data[0];     // real data
@@ -34,7 +34,6 @@ typedef struct view_boundary_t{
     view_stamp last_boundary;
 }view_boundary;
 #define VIEW_BOUNDARY_SIZE (sizeof(view_boundary))
-
 
 typedef struct consensus_component_t{
     con_role my_role;
@@ -66,19 +65,21 @@ static int leader_handle_submit_req(struct consensus_component_t*,
 
 static void handle_accept_req(consensus_component*,void* );
 static void handle_accept_ack(consensus_component* ,void* );
-static void handle_missing_req(consensus_component* ,size_t ,void* );
-static void handle_missing_ack(consensus_component* ,size_t ,void* );
+static void handle_missing_req(consensus_component*,void* );
+static void handle_missing_ack(consensus_component*,void* );
 static void handle_force_exec(consensus_component* ,size_t ,void* );
 
 static void* build_accept_req(consensus_component* ,size_t ,void*, view_stamp*);
 static void* build_accept_ack(consensus_component* ,view_stamp*);
-static void* build_missing_req(consensus_component*,uint64_t);
-static void* build_missing_ack(consensus_component* ,size_t ,void* );
-static void* build_force_exec(consensus_component* ,size_t ,void* );
+static void* build_missing_req(consensus_component*,view_stamp*);
+static void* build_missing_ack(consensus_component*,view_stamp*);
+static void* build_force_exec(consensus_component*);
 
 static void try_to_execute(consensus_component*);
-static void send_missing_req(consensus_component*,uint64_t);
+static void leader_try_to_execute(consensus_component*);
+static void send_missing_req(consensus_component*,view_stamp*);
 
+static void deliever_msg(consensus_component*,const view_stamp*);
 
 void consensus_handle_msg(consensus_component* comp,size_t data_size,void* data){
     consensus_msg_header* header = data;
@@ -92,10 +93,10 @@ void consensus_handle_msg(consensus_component* comp,size_t data_size,void* data)
             handle_accept_ack(comp,data);
             break;
         case MISSING_REQ:
-            handle_missing_req(comp,data_size,data);
+            handle_missing_req(comp,data);
             break;
         case MISSING_ACK:
-            handle_missing_ack(comp,data_size,data);
+            handle_missing_ack(comp,data);
             break;
         case FORCE_EXEC:
             handle_force_exec(comp,data_size,data);
@@ -197,13 +198,13 @@ static int leader_handle_submit_req(struct consensus_component_t* comp,
     view_stamp next = get_next_view_stamp(comp);
     vs->view_id = next.view_id;
     vs->req_id = next.req_id;
-    uint64_t record_no = vstol(vs);
+    db_key_type record_no = vstol(vs);
     request_record* record_data = 
         (request_record*)malloc(data_size+sizeof(request_record));
     gettimeofday(&record_data->created_time,NULL);
     record_data->bit_map = (1<<comp->node_id);
     memcpy(record_data->data,data,data_size);
-    if(store_record(comp->db_ptr,record_no,data_size,data)){
+    if(store_record(comp->db_ptr,sizeof(record_no),&record_no,data_size,data)){
         goto handle_submit_req_exit;
     }    
     accept_req* msg = build_accept_req(comp,data_size,data,vs);
@@ -238,8 +239,6 @@ static int reached_quorum(request_record* record,int group_size){
 
 
 
-
-
 static void handle_accept_req(consensus_component* comp,void* data){
     accept_req* msg = data;
     // for accept request, we only accept the message from the current leader
@@ -259,16 +258,18 @@ static void handle_accept_req(consensus_component* comp,void* data){
                     &comp->highest_to_commit_vs)>0){
             comp->highest_to_commit_vs = msg->req_canbe_exed;
         }
-        uint64_t record_no = vstol(&msg->msg_vs);
+        db_key_type record_no = vstol(&msg->msg_vs);
         request_record* record_data = (request_record*)malloc(
                 msg->data_size+sizeof(request_record));
         if(record_data==NULL){
             goto handle_accept_req_exit;
         }
+        gettimeofday(&record_data->created_time,NULL);
+        record_data->is_closed = 0;
         record_data->data_size = msg->data_size;
         memcpy(record_data->data,msg->data,msg->data_size);
         // record the data persistently 
-        if(store_record(comp->db_ptr,record_no,
+        if(store_record(comp->db_ptr,sizeof(record_no),&record_no,
                     REQ_RECORD_SIZE(record_data),msg->data)!=0){
             goto handle_accept_req_exit;
         }
@@ -295,8 +296,10 @@ static void handle_accept_ack(consensus_component* comp,void* data){
     if(view_stamp_comp(&msg->msg_vs,&comp->highest_committed_vs)<=0){
         goto handle_accept_ack_exit;
     }
-    uint64_t record_no = vstol(&msg->msg_vs);
-    request_record* record_data = retrieve_record(comp->db_ptr,record_no);
+    db_key_type record_no = vstol(&msg->msg_vs);
+    request_record* record_data = NULL;
+    size_t data_size;
+    retrieve_record(comp->db_ptr,sizeof(record_no),&record_no,&data_size,(void**)&record_data);
     if(record_data==NULL){
         paxos_log("Received Ack To Non-Exist Record %lu.\n",
                 record_no);
@@ -305,15 +308,39 @@ static void handle_accept_ack(consensus_component* comp,void* data){
     update_record(record_data,msg->node_id);
     // we do not care about whether the update is successful, otherwise this can
     // be treated as a message loss
-    store_record(comp->db_ptr,record_no,REQ_RECORD_SIZE(record_data),record_data);
+    store_record(comp->db_ptr,sizeof(record_no),&record_no,REQ_RECORD_SIZE(record_data),record_data);
 handle_accept_ack_exit:
     try_to_execute(comp);
     return;
 };
-static void handle_missing_req(consensus_component* comp,size_t data_size,void* data){
+
+static void handle_missing_req(consensus_component* comp,void* data){
+    missing_req* msg = data;
+    missing_ack* reply = build_missing_ack(comp,&msg->missing_vs);
+    if(NULL!=reply){
+        comp->uc(comp->my_node,MISSING_ACK_SIZE(reply),reply,msg->node_id);
+        free(reply);
+    }
     return;
 };
-static void handle_missing_ack(consensus_component* comp,size_t data_size,void* data){
+static void handle_missing_ack(consensus_component* comp,void* data){
+    missing_ack* msg = data;
+    if(view_stamp_comp(&comp->highest_committed_vs,&msg->missing_vs)){
+        goto handle_missing_ack_exit;
+    }else{
+       db_key_type record_no = vstol(&msg->missing_vs);
+       request_record* record_data = NULL;
+       size_t data_size;
+       retrieve_record(comp->db_ptr,sizeof(record_no),&record_no,&data_size,(void**)&record_data);
+       if(record_data!=NULL){
+           goto handle_missing_ack_exit;
+       }
+       record_data =(request_record*)malloc(REQ_RECORD_SIZE(msg));
+       memcpy(record_data->data,msg->data,msg->data_size);
+
+    }
+handle_missing_ack_exit:
+    try_to_execute(comp);
     return;
 };
 static void handle_force_exec(consensus_component* comp,size_t data_size,void* data){
@@ -345,38 +372,88 @@ static void* build_accept_ack(consensus_component* comp,
     return msg;
 };
 
-static void* build_missing_req(consensus_component* comp,uint64_t record_no){
+static void* build_missing_req(consensus_component* comp,view_stamp* vs){
     missing_req* msg = (missing_req*)malloc(MISSING_REQ);
     if(NULL!=msg){
         msg->header.msg_type = MISSING_REQ;
-        msg->record_no = record_no;
+        msg->missing_vs = *vs;
         msg->node_id = comp->node_id;
     }
     return msg;
 };
-static void* build_missing_ack(consensus_component* comp,size_t data_size,void* data){
-    return NULL;
+
+static void* build_missing_ack(consensus_component* comp,view_stamp* vs){
+    missing_ack* msg = NULL;
+    db_key_type record_no = vstol(vs);
+    request_record* record_data = NULL;
+    size_t data_size;
+    retrieve_record(comp->db_ptr,sizeof(record_no),&record_no,&data_size,(void**)&record_data);
+    if(NULL!=record_data){
+        msg = (missing_ack*)malloc(MISSING_ACK_SIZE(record_data));
+        if(NULL!=record_data){
+            msg->node_id = comp->node_id;
+            msg->data_size = record_data->data_size;
+            msg->header.msg_type = MISSING_ACK;
+            memcpy(msg->data,record_data->data,record_data->data_size);
+            msg->missing_vs = *vs;
+        }
+    }
+    return msg;
 };
-static void* build_force_exec(consensus_component* comp,size_t data_size,void* data){
-    return NULL;
+static void* build_force_exec(consensus_component* comp){
+    force_exec* msg = (force_exec*)malloc(FORCE_EXEC_SIZE);
+    if(NULL!=msg){
+        msg->header.msg_type = FORCE_EXEC;
+        msg->node_id = comp->node_id;
+        msg->highest_committed_op = comp->highest_committed_vs;
+    }
+    return msg;
 };
+
+// leader has another responsibility to update the highest request that can be executed,
+// and if the leader is also synchronous, it can execute the record in this stage
+static void leader_try_to_execute(consensus_component* comp){
+    db_key_type start = vstol(&comp->highest_to_commit_vs)+1;
+    db_key_type end = vstol(&comp->highest_seen_vs);
+    int exec_flag = (!view_stamp_comp(&comp->highest_committed_vs,&comp->highest_to_commit_vs));
+    request_record* record_data = NULL;
+    size_t data_size;
+    for(db_key_type index=start;index<=end;index++){
+        retrieve_record(comp->db_ptr,sizeof(index),&index,&data_size,(void**)&record_data);
+        assert(record_data!=NULL && "The Record Should Be Inserted By The Node Itself!");
+        if(reached_quorum(record_data,comp->group_size)){
+            view_stamp_inc(&comp->highest_to_commit_vs);
+            if(exec_flag){
+                view_stamp vs = ltovs(index);
+                deliever_msg(comp,&vs);
+                view_stamp_inc(&comp->highest_committed_vs);
+            }
+        }else{
+            return;
+        }
+    }
+}
 
 static void try_to_execute(consensus_component* comp){
     // there we have assumption, for the currently leader,whose commited request
     // and highest request to execute must be in the same view, otherwise, the
     // leader cannot be the leader 
-    uint64_t start = vstol(&comp->highest_committed_vs)+1;
-    uint64_t end;
+    if(LEADER==comp->my_role){
+        leader_try_to_execute(comp);
+    }
+    db_key_type start = vstol(&comp->highest_committed_vs)+1;
+    db_key_type end;
     view_boundary* boundary_record = NULL;
+    size_t data_size;
     if(comp->highest_committed_vs.view_id!=comp->highest_to_commit_vs.view_id){
         //address the boundary
         view_stamp bound;
         bound.view_id = comp->highest_committed_vs.view_id+1;
         bound.req_id = 0;
-        uint64_t bound_record_no = vstol(&bound);
-        boundary_record = retrieve_record(comp->db_ptr,bound_record_no);
+        db_key_type bound_record_no = vstol(&bound);
+        retrieve_record(comp->db_ptr,sizeof(bound_record_no),&bound_record_no,&data_size,(void**)&boundary_record);
         if(NULL==boundary_record){
-           send_missing_req(comp,bound_record_no); 
+           send_missing_req(comp,&bound); 
            goto try_to_execute_exit;
         }
         end = vstol(&boundary_record->last_boundary);
@@ -386,21 +463,23 @@ static void try_to_execute(consensus_component* comp){
     request_record* record_data = NULL;
     // we can only execute thins in sequence
     int exec_flag = 1;
-    for(uint64_t index = start;index<=end;index++){
-        record_data = retrieve_record(comp->db_ptr,index);
-        if(NULL==record_data){
+    view_stamp missing_vs;
+    for(db_key_type index = start;index<=end;index++){
+        if(0!=retrieve_record(comp->db_ptr,sizeof(index),&index,
+                    &data_size,(void**)&record_data)){
             exec_flag = 0;
-            send_missing_req(comp,index);
+            send_missing_req(comp,&missing_vs);
         }
         if(exec_flag){
-            comp->ucb(record_data->data_size,record_data->data);
+            deliever_msg(comp,&missing_vs);
+            store_record(comp->db_ptr,sizeof(index),&index,REQ_RECORD_SIZE(record_data),record_data);
             view_stamp_inc(&comp->highest_committed_vs);
         }
         record_data = NULL;
     }
     if(NULL!=boundary_record){
-        uint64_t op1 = vstol(&comp->highest_committed_vs);
-        uint64_t op2 = vstol(&boundary_record->last_boundary);
+        db_key_type op1 = vstol(&comp->highest_committed_vs);
+        db_key_type op2 = vstol(&boundary_record->last_boundary);
         if(op1==op2){
             cross_view(&comp->highest_committed_vs);
         }
@@ -409,8 +488,8 @@ try_to_execute_exit:
     return;
 };
 
-static void send_missing_req(consensus_component* comp,uint64_t record_no){
-       missing_req* msg = build_missing_req(comp,record_no);
+static void send_missing_req(consensus_component* comp,view_stamp* vs){
+       missing_req* msg = build_missing_req(comp,vs);
        if(NULL==msg){
            goto send_for_consensus_comp_exit;
        }
@@ -426,3 +505,26 @@ static void cross_view(view_stamp* vs){
     vs->req_id = 0;
     return;
 };
+
+void make_progress(struct consensus_component_t* comp){
+    if(LEADER!=comp->my_role){
+        goto make_progress_exit;
+    }
+    force_exec* msg = build_force_exec(comp); 
+    if(NULL==msg){goto make_progress_exit;}
+    comp->uc(comp->my_node,FORCE_EXEC_SIZE,msg,-1);
+    free(msg);
+make_progress_exit:
+    return;
+};
+
+static void deliever_msg(consensus_component* comp,const view_stamp* vs){
+    // in order to accelerate deliver process of the program
+    // we may just give the record number instead of the real data 
+    // to the proxy, and then the proxy will take the overhead of database operation
+    view_stamp* vs_dest = (view_stamp*)malloc(sizeof(view_stamp));
+    memcpy(vs_dest,vs,sizeof(view_stamp));
+    comp->ucb(sizeof(view_stamp),vs_dest);
+    return;
+}
+

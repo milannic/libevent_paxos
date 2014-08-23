@@ -90,7 +90,7 @@ void close_db(db* db_p,uint32_t mode){
     return;
 }
 
-int store_record(db* db_p,uint64_t record_no,uint32_t data_size,void* data){
+int store_record(db* db_p,size_t key_size,void* key_data,size_t data_size,void* data){
     int ret = 1;
     if((NULL==db_p)||(NULL==db_p->bdb_ptr)){
         goto db_store_return;
@@ -99,12 +99,12 @@ int store_record(db* db_p,uint64_t record_no,uint32_t data_size,void* data){
     DBT key,db_data;
     memset(&key,0,sizeof(key));
     memset(&db_data,0,sizeof(db_data));
-    key.data = &record_no;
-    key.size = sizeof(record_no);
+    key.data = key_data;
+    key.size = key_size;
     db_data.data = data;
     db_data.size = data_size;
     if ((ret=b_db->put(b_db,NULL,&key,&db_data,DB_AUTO_COMMIT))==0){
-        debug_log("db : %ld record stored. \n",record_no);
+        debug_log("db : %ld record stored. \n",*(uint64_t*)key_data);
         b_db->sync(b_db,0);
     }
     else{
@@ -114,8 +114,7 @@ db_store_return:
     return ret;
 }
 
-void* retrieve_record(db* db_p,uint64_t record_no){
-    void* ret_p=NULL;
+int retrieve_record(db* db_p,size_t key_size,void* key_data,size_t* data_size,void** data){
     int ret=1;
     if(NULL==db_p || NULL==db_p->bdb_ptr){
         goto db_retrieve_return;
@@ -124,10 +123,10 @@ void* retrieve_record(db* db_p,uint64_t record_no){
     DBT key,db_data;
     memset(&key,0,sizeof(key));
     memset(&db_data,0,sizeof(db_data));
-    key.data = &record_no;
-    key.size = sizeof(record_no);
+    key.data = key_data;
+    key.size = key_size;
     if((ret=b_db->get(b_db,NULL,&key,&db_data,0))==0){
-        debug_log("db : get record %ld from database.\n",record_no);
+        debug_log("db : get record %ld from database.\n",*(uint64_t*)key_data);
     }else{
         b_db->err(b_db,ret,"DB->Get");
         goto db_retrieve_return;
@@ -135,7 +134,8 @@ void* retrieve_record(db* db_p,uint64_t record_no){
     if(!db_data.size){
         goto db_retrieve_return;
     }
-    ret_p = db_data.data;
+    *data = db_data.data;
+    *data_size = db_data.size;
 db_retrieve_return:
-    return ret_p;
+    return ret;
 }
