@@ -194,7 +194,8 @@ static int initialize_expect_ping(node* my_node){
 
 
 static void update_view(node* my_node,view* new_view){
-    debug_log("entered update view\n");
+    debug_log("node %d entered update view\n",
+            my_node->node_id);
     int old_leader = isLeader(my_node);
     memcpy(&my_node->cur_view,new_view,sizeof(view));
     int new_leader = isLeader(my_node);
@@ -205,7 +206,9 @@ static void update_view(node* my_node,view* new_view){
             giveup_leader(my_node);
         }
     }
-    debug_log("leave update view\n");
+    debug_log("node %d 's current view changed to %u \n",
+            my_node->node_id,
+            my_node->cur_view.view_id);
     return;
 }
 
@@ -282,7 +285,7 @@ static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,in
         for(uint32_t i=0;i<my_node->group_size;i++){
             if(i!=my_node->node_id && my_node->peer_pool[i].active){
                 struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
-                bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg->header.data_size));
+                bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg));
                 debug_log(
                         "Send Consensus Msg To Node %u\n",i);
             }
@@ -290,7 +293,7 @@ static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,in
     }else{
         if(target!=(int)my_node->node_id&&my_node->peer_pool[target].active){
             struct bufferevent* buff = my_node->peer_pool[target].my_buff_event;
-            bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg->header.data_size));
+            bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg));
             debug_log(
                     "Send Consensus Msg To Node %u\n",target);
         }
@@ -311,8 +314,8 @@ static void handle_ping_ack(node* my_node,ping_ack_msg* msg){
 }
 
 static void handle_ping_req(node* my_node,ping_req_msg* msg){
-    debug_log("Received Ping Req Msg in node %d\n",
-            my_node->node_id);
+    debug_log("Received Ping Req Msg in node %d\n from node %d\n",
+            my_node->node_id,msg->node_id);
     if(my_node->cur_view.view_id < msg->view.view_id){
         update_view(my_node,&msg->view);
     }else if(my_node->cur_view.view_id > msg->view.view_id){
@@ -326,7 +329,9 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
                 free(ping_ack);
             }
         } 
-    }else{
+        return;
+    }
+    if(my_node->cur_view.view_id == msg->view.view_id){
         if(!isLeader(my_node)){
             if(timeval_comp(&my_node->last_ping_msg,&msg->timestamp)<0){
                 memcpy(&my_node->last_ping_msg,&msg->timestamp,
@@ -345,21 +350,42 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
                     msg->node_id,msg->view.view_id);
         }
     }
+    return;
 }
 
 static void handle_consensus_msg(node* my_node,consensus_msg* msg){
+    debug_log("node %d received consensus message\n",
+            my_node->node_id);
     if(NULL!=my_node->consensus_comp){
         consensus_handle_msg(my_node->consensus_comp,msg->header.data_size,(void*)msg+SYS_MSG_HEADER_SIZE);
     }
     return;
 }
 
-static void handle_msg(node* my_node,struct evbuffer* evb,size_t data_size){
-    debug_log("there is enough data to read,actual data handler is called\n");
+static void handle_request_submit(node* my_node,
+        req_sub_msg* msg,struct bufferevent* evb){
+    debug_log("node %d received consensus submit request\n",
+            my_node->node_id);
+    debug_log("the data size is %lu \n",
+            msg->header.data_size);
+    if(NULL!=my_node->consensus_comp){
+        view_stamp return_vs;
+        consensus_submit_request(
+                my_node->consensus_comp,msg->header.data_size,
+                (void*)msg+SYS_MSG_HEADER_SIZE,&return_vs);
+        // build_return_message;
+        //bufferevent_write(evb,)
+    }
+    return;
+}
+
+static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
+    //debug_log("there is enough data to read,actual data handler is called\n");
     void* msg_buf = (char*)malloc(SYS_MSG_HEADER_SIZE+data_size);
     if(NULL==msg_buf){
         goto handle_msg_exit;
     }
+    struct evbuffer* evb = bufferevent_get_input(bev);
     evbuffer_remove(evb,msg_buf,SYS_MSG_HEADER_SIZE+data_size);
     sys_msg_header* msg_header = msg_buf;
     switch(msg_header->type){
@@ -371,6 +397,9 @@ static void handle_msg(node* my_node,struct evbuffer* evb,size_t data_size){
             break;
         case CONSENSUS_MSG:
             handle_consensus_msg(my_node,(consensus_msg*)msg_buf);
+            break;
+        case REQUEST_SUBMIT:
+            handle_request_submit(my_node,(req_sub_msg*)msg_buf,bev);
             break;
         default:
             paxos_log("unknown msg type %d\n",
@@ -389,15 +418,15 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
     sys_msg_header* buf = NULL;;
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = evbuffer_get_length(input);
-    debug_log("there is %u bytes data in the buffer in total\n",
-            (unsigned)len);
-    if(len>SYS_MSG_HEADER_SIZE){
+    //debug_log("there is %u bytes data in the buffer in total\n",
+     //       (unsigned)len);
+    if(len>=SYS_MSG_HEADER_SIZE){
         buf = (sys_msg_header*)malloc(SYS_MSG_HEADER_SIZE);
         if(NULL==buf){return;}
         evbuffer_copyout(input,buf,SYS_MSG_HEADER_SIZE);
         int data_size = buf->data_size;
-        if(len>(SYS_MSG_HEADER_SIZE+data_size)){
-           my_node->msg_cb(my_node,input,data_size); 
+        if(len>=(SYS_MSG_HEADER_SIZE+data_size)){
+           my_node->msg_cb(my_node,bev,data_size); 
         }
         free(buf);
     }
@@ -405,7 +434,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
 }
 
 
-int initialize_node(node* my_node){
+int initialize_node(node* my_node,void (*user_cb)(size_t data_size,void* data)){
     int flag = 1;
     gettimeofday(&my_node->last_ping_msg,NULL);
     if(my_node->cur_view.leader_id==my_node->node_id){
@@ -425,7 +454,7 @@ int initialize_node(node* my_node){
 
     my_node->consensus_comp = init_consensus_comp(my_node,
             my_node->node_id,my_node->db_name,my_node->group_size,
-            &my_node->cur_view,NULL,send_for_consensus_comp);
+            &my_node->cur_view,user_cb,send_for_consensus_comp);
     if(NULL==my_node->consensus_comp){
         goto initialize_node_exit;
     }
@@ -524,7 +553,7 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
     debug_log("current node's db name is %s\n",my_node->db_name);
 #endif
 
-    if(initialize_node(my_node)){
+    if(initialize_node(my_node,user_cb)){
         paxos_log("cannot initialize node\n");
         goto exit_error;
     }

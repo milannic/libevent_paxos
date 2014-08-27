@@ -19,13 +19,20 @@
 #include "../src/include/replica-sys/message.h"
 #include "../src/include/util/common-header.h"
 
+/* 
+typedef struct request_submit_msg_t{
+    sys_msg_header header; 
+    char data[0];
+}__attribute__((packed))req_sub_msg;
+#define REQ_SUB_SIZE(M) (((M)->header->data_size)+sizeof(req_sub_msg))
+ */
 
 int main ( int argc, char *argv[] )
 {
     char* server_address=NULL;
     int server_port;
     int c;
-    int node_id;
+    int node_id=9;
     while((c=getopt(argc,argv,"n:s:p:"))!=-1){
         switch(c){
             case 'n':
@@ -59,6 +66,43 @@ int main ( int argc, char *argv[] )
     int my_socket = socket(AF_INET,SOCK_STREAM,0);
     if(connect(my_socket,(struct sockaddr*)&server_sock_addr,sizeof(server_sock_addr))!=0){
         fprintf(stderr,"%s",strerror(errno));
+        goto main_exit_error;
+    }
+
+    int count = 0;
+    req_sub_msg* request_1 = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+8);
+    request_1->header.type = REQUEST_SUBMIT;
+    request_1->header.data_size = 8;
+    request_1->data[0] = 'n';
+    request_1->data[1] = 'o';
+    request_1->data[2] = 'd';
+    request_1->data[3] = 'e';
+    request_1->data[4] = node_id+'0';
+    request_1->data[5] = ':';
+    request_1->data[6] = count+'0';
+    request_1->data[7] = '\0';
+    count++;
+    printf("send message %s\n",request_1->data);
+    int ret;
+    
+    if((ret=send(my_socket,request_1,REQ_SUB_SIZE(request_1),0))<0){
+        goto main_exit_error;
+    }
+    req_sub_msg* request_2 = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+8);
+    request_2->header.type = REQUEST_SUBMIT;
+    request_2->header.data_size = 8;
+    request_2->data[0] = 'n';
+    request_2->data[1] = 'o';
+    request_2->data[2] = 'd';
+    request_2->data[3] = 'e';
+    request_2->data[4] = node_id+'0';
+    request_2->data[5] = ':';
+    request_2->data[6] = count+'0';
+    request_2->data[7] = '\0';
+    count++;
+    printf("send message %s\n",request_2->data);
+    
+    if((ret=send(my_socket,request_2,REQ_SUB_SIZE(request_1),0))<0){
         goto main_exit_error;
     }
     return EXIT_SUCCESS;

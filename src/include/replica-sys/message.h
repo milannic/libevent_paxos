@@ -67,7 +67,7 @@ typedef struct request_submit_msg_t{
     sys_msg_header header; 
     char data[0];
 }__attribute__((packed))req_sub_msg;
-#define REQ_SUB_SIZE(M) (((M)->data_size)+sizeof(req_sub_msg))
+#define REQ_SUB_SIZE(M) (((M)->header.data_size)+sizeof(req_sub_msg))
 
 typedef struct request_submit_reply_msg_t{
     sys_msg_header header; 
@@ -97,7 +97,7 @@ typedef struct consensus_msg_t{
     sys_msg_header header;
     char data[0];
 }__attribute__((packed))consensus_msg;
-#define CONSENSUS_MSG_SIZE(size) (sizeof(sys_msg_header)+size)
+#define CONSENSUS_MSG_SIZE(M) (sizeof(sys_msg_header)+M->header.data_size)
 
 
 //sys_msg* package_sys_msg(sys_msg_code,int,void*);

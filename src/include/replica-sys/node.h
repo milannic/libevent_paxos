@@ -49,7 +49,9 @@ typedef struct node_config_t{
 }node_config;
 
 
-typedef void (*msg_handler)(struct node_t*,struct evbuffer*,size_t);
+typedef void (*user_cb)(size_t data_size,void* data);
+
+typedef void (*msg_handler)(struct node_t*,struct bufferevent*,size_t);
 
 typedef struct node_t{
 

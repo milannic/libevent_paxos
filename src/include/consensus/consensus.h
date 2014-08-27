@@ -39,14 +39,14 @@ struct consensus_component_t* init_consensus_comp(struct node_t*,uint32_t,
 
 void consensus_handle_msg(struct consensus_component_t*,size_t,void*);
 
-int submit_request(struct consensus_component_t*,size_t,void*,view_stamp*);
+int consensus_submit_request(struct consensus_component_t*,size_t,void*,view_stamp*);
 
-void make_progress(struct consensus_component_t*);
+void consensus_make_progress(struct consensus_component_t*);
 
-int look_up_request(struct consensus_component_t*,view_stamp);
+int consensus_look_up_request(struct consensus_component_t*,view_stamp);
 
-view_stamp get_higghest_seen_req(struct consensus_component_t*);
+view_stamp consensus_get_highest_seen_req(struct consensus_component_t*);
 
-void update_role(struct consensus_component_t*);
+void consensus_update_role(struct consensus_component_t*);
 
 #endif

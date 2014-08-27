@@ -79,7 +79,8 @@ static void try_to_execute(consensus_component*);
 static void leader_try_to_execute(consensus_component*);
 static void send_missing_req(consensus_component*,view_stamp*);
 
-static void deliever_msg(consensus_component*,const view_stamp*);
+static void deliever_msg_vs(consensus_component*,const view_stamp*);
+static void deliever_msg_data(consensus_component*,view_stamp*);
 
 void consensus_handle_msg(consensus_component* comp,size_t data_size,void* data){
     consensus_msg_header* header = data;
@@ -111,7 +112,7 @@ void consensus_handle_msg(consensus_component* comp,size_t data_size,void* data)
 
 //public interface method
 
-view_stamp get_higghest_seen_req(consensus_component* comp){
+view_stamp consensus_get_highest_seen_req(consensus_component* comp){
     return comp->highest_seen_vs;
 }
 
@@ -137,12 +138,12 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
         }
         comp->ucb = u_cb;
         comp->uc = uc;
+        comp->highest_seen_vs.view_id = 1;
         comp->highest_seen_vs.req_id = 0;
-        comp->highest_seen_vs.view_id = comp->cur_view->view_id;
-        comp->highest_committed_vs.view_id = 0; 
+        comp->highest_committed_vs.view_id = 1; 
         comp->highest_committed_vs.req_id = 0; 
-        comp->highest_to_commit_vs.view_id = 0;
-        comp->highest_to_commit_vs.view_id = 0;
+        comp->highest_to_commit_vs.view_id = 1;
+        comp->highest_to_commit_vs.req_id = 0;
         goto consensus_init_exit;
 
     }
@@ -157,7 +158,7 @@ consensus_init_exit:
     return comp;
 }
 
-int submit_request(struct consensus_component_t* comp,
+int consensus_submit_request(struct consensus_component_t* comp,
         size_t data_size,void* data,view_stamp* vs){
     if(LEADER==comp->my_role){
        return leader_handle_submit_req(comp,data_size,data,vs);
@@ -166,14 +167,14 @@ int submit_request(struct consensus_component_t* comp,
     }
 }
 
-void update_role(struct consensus_component_t* comp){
+void consensus_update_role(struct consensus_component_t* comp){
     if(comp->cur_view->leader_id!=comp->node_id){
         comp->my_role = SECONDARY;
     }else{
         comp->my_role = LEADER;
+        comp->highest_seen_vs.view_id = comp->cur_view->view_id;
+        comp->highest_seen_vs.req_id = 0;
     }
-    comp->highest_seen_vs.view_id = comp->cur_view->view_id;
-    comp->highest_seen_vs.req_id = 0;
     return;
 }
 
@@ -241,8 +242,13 @@ static int reached_quorum(request_record* record,int group_size){
 
 static void handle_accept_req(consensus_component* comp,void* data){
     accept_req* msg = data;
-    // for accept request, we only accept the message from the current leader
-    if(msg->node_id!=comp->cur_view->leader_id){
+    // if we have gone over the view in the message, just ignore it;
+    if(msg->msg_vs.view_id< comp->cur_view->view_id){
+        goto handle_accept_req_exit;
+    }
+    // if we this message is not from the current leader
+    if(msg->msg_vs.view_id == comp->cur_view->view_id && 
+            msg->node_id!=comp->cur_view->leader_id){
         goto handle_accept_req_exit;
     }
     // if we have committed the operation, then safely ignore it
@@ -422,10 +428,13 @@ static void leader_try_to_execute(consensus_component* comp){
         retrieve_record(comp->db_ptr,sizeof(index),&index,&data_size,(void**)&record_data);
         assert(record_data!=NULL && "The Record Should Be Inserted By The Node Itself!");
         if(reached_quorum(record_data,comp->group_size)){
+            view_stamp temp = ltovs(index);
+            debug_log("node %d  : view stamp %u : %u has reached reached_quorum.\n",
+            comp->node_id,temp.view_id,temp.req_id);
             view_stamp_inc(&comp->highest_to_commit_vs);
             if(exec_flag){
                 view_stamp vs = ltovs(index);
-                deliever_msg(comp,&vs);
+                deliever_msg_data(comp,&vs);
                 view_stamp_inc(&comp->highest_committed_vs);
             }
         }else{
@@ -471,7 +480,7 @@ static void try_to_execute(consensus_component* comp){
             send_missing_req(comp,&missing_vs);
         }
         if(exec_flag){
-            deliever_msg(comp,&missing_vs);
+            deliever_msg_data(comp,&missing_vs);
             store_record(comp->db_ptr,sizeof(index),&index,REQ_RECORD_SIZE(record_data),record_data);
             view_stamp_inc(&comp->highest_committed_vs);
         }
@@ -506,7 +515,7 @@ static void cross_view(view_stamp* vs){
     return;
 };
 
-void make_progress(struct consensus_component_t* comp){
+void consensus_make_progress(struct consensus_component_t* comp){
     if(LEADER!=comp->my_role){
         goto make_progress_exit;
     }
@@ -518,13 +527,34 @@ make_progress_exit:
     return;
 };
 
-static void deliever_msg(consensus_component* comp,const view_stamp* vs){
+static void deliever_msg_vs(consensus_component* comp,const view_stamp* vs){
     // in order to accelerate deliver process of the program
     // we may just give the record number instead of the real data 
     // to the proxy, and then the proxy will take the overhead of database operation
     view_stamp* vs_dest = (view_stamp*)malloc(sizeof(view_stamp));
     memcpy(vs_dest,vs,sizeof(view_stamp));
     comp->ucb(sizeof(view_stamp),vs_dest);
+    return;
+}
+
+static void deliever_msg_data(consensus_component* comp,view_stamp* vs){
+    // in order to accelerate deliver process of the program
+    // we may just give the record number instead of the real data 
+    // to the proxy, and then the proxy will take the overhead of database operation
+    
+    db_key_type vstokey = vstol(vs);
+    void* data = NULL;
+    size_t data_size=0;
+    retrieve_record(comp->db_ptr,sizeof(db_key_type),&vstokey,&data_size,&data);
+    debug_log("node %d deliever view stamp %u : %u to the user.\n",
+    comp->node_id,vs->view_id,vs->req_id);
+    if(NULL!=data){
+        if(comp->ucb!=NULL){
+            comp->ucb(data_size,data);
+        }else{
+            debug_log("no such call back func\n");
+        }
+    }
     return;
 }
 
