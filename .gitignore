@@ -11,3 +11,4 @@ test/log
 .cppproject
 .settings
 .db
+.log
