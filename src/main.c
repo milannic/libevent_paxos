@@ -21,8 +21,8 @@
 #include "include/replica-sys/replica.h"
 
 static void pseudo_cb(int data_size,void* data){
-    fprintf(stderr,"hahahaha %s\n",(char*)data);
-    //free(data);
+    fprintf(stdout,"hahahaha %s\n",(char*)data);
+    fflush(stdout);
     return;
 }
 

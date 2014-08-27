@@ -260,9 +260,20 @@ static void handle_accept_req(consensus_component* comp,void* data){
             comp->highest_seen_vs = msg->msg_vs;
         }
         // update highest requests that can be executed
+        //
+        debug_log("now node %d sees request %u : %u \n",
+                comp->node_id,
+                msg->req_canbe_exed.view_id,
+                msg->req_canbe_exed.req_id);
+
         if(view_stamp_comp(&msg->req_canbe_exed,
                     &comp->highest_to_commit_vs)>0){
+
             comp->highest_to_commit_vs = msg->req_canbe_exed;
+            debug_log("now node %d can execute request %u : %u \n",
+                    comp->node_id,
+                    comp->highest_to_commit_vs.view_id,
+                    comp->highest_to_commit_vs.req_id);
         }
         db_key_type record_no = vstol(&msg->msg_vs);
         request_record* record_data = (request_record*)malloc(
@@ -358,7 +369,12 @@ static void* build_accept_req(consensus_component* comp,
     accept_req* msg = (accept_req*)malloc(sizeof(accept_req)+data_size);
     if(NULL!=msg){
         msg->node_id = comp->node_id;
-        msg->req_canbe_exed = comp->highest_to_commit_vs;
+        msg->req_canbe_exed.view_id = comp->highest_to_commit_vs.view_id;
+        msg->req_canbe_exed.req_id = comp->highest_to_commit_vs.req_id;
+        debug_log("now node %d give execute request %u : %u \n",
+                comp->node_id,
+                comp->highest_to_commit_vs.view_id,
+                comp->highest_to_commit_vs.req_id);
         msg->data_size = data_size;
         msg->header.msg_type = ACCEPT_REQ;
         msg->msg_vs = *vs;
@@ -431,7 +447,17 @@ static void leader_try_to_execute(consensus_component* comp){
             view_stamp temp = ltovs(index);
             debug_log("node %d  : view stamp %u : %u has reached reached_quorum.\n",
             comp->node_id,temp.view_id,temp.req_id);
+            
+            debug_log("before node %d inc execute  %u : %u \n",
+                    comp->node_id,
+                    comp->highest_to_commit_vs.view_id,
+                    comp->highest_to_commit_vs.req_id);
             view_stamp_inc(&comp->highest_to_commit_vs);
+            debug_log("after node %d inc execute  %u : %u \n",
+                    comp->node_id,
+                    comp->highest_to_commit_vs.view_id,
+                    comp->highest_to_commit_vs.req_id);
+
             if(exec_flag){
                 view_stamp vs = ltovs(index);
                 deliever_msg_data(comp,&vs);

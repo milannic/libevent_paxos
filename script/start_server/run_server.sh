@@ -13,7 +13,7 @@ echo ${SERVER_PROGRAM}
 
 export LD_LIBRARY_PATH=${CUR_DIR}/../../.local/lib
 
-${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_PATH} 2>node_start_0_err${SUFFIX} 1>node_start_0${SUFFIX} &
-${SERVER_PROGRAM} -n 1 -m r -c ${CONFIG_PATH} 2>node_start_1_err${SUFFIX} 1>node_start_1${SUFFIX} &
-${SERVER_PROGRAM} -n 2 -m r -c ${CONFIG_PATH} 2>node_start_2_err${SUFFIX} 1>node_start_2${SUFFIX} &
+${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_PATH} >>node_start_0${SUFFIX}  2>>node_start_0_err${SUFFIX}  &
+${SERVER_PROGRAM} -n 1 -m r -c ${CONFIG_PATH} >>node_start_1${SUFFIX} 2>>node_start_1_err${SUFFIX}  &
+${SERVER_PROGRAM} -n 2 -m r -c ${CONFIG_PATH} >>node_start_2${SUFFIX}  2>>node_start_2_err${SUFFIX}  &
 
