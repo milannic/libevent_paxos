@@ -19,9 +19,7 @@
 #include "../src/include/replica-sys/message.h"
 #include "../src/include/util/common-header.h"
 #include <unistd.h>
-#include <time.h>
-
-/* 
+#include <time.h> /* 
 typedef struct request_submit_msg_t{
     sys_msg_header header; 
     char data[0];
@@ -78,20 +76,23 @@ int main ( int argc, char *argv[] )
     int ret;
     req_sub_msg* request = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+8);
     srand(time(NULL)+node_id);
-    for(int index=0;index<9;index++){
-        int s_time = 3*((double)rand()/(double)RAND_MAX);
+    for(int index=0;index<1000;index++){
+        int s_time = 20*((double)rand()/(double)RAND_MAX);
         printf("sleep time is %u\n",s_time);
-        sleep(s_time);
+        usleep(s_time);
         request->header.type = REQUEST_SUBMIT;
-        request->header.data_size = 8;
-        request->data[0] = 'n';
-        request->data[1] = 'o';
-        request->data[2] = 'd';
-        request->data[3] = 'e';
-        request->data[4] = node_id+'0';
-        request->data[5] = ':';
-        request->data[6] = index+'0';
-        request->data[7] = '\0';
+        request->header.data_size = 11;
+        request->data[0] = 'c';
+        request->data[1] = 'l';
+        request->data[2] = 'i';
+        request->data[3] = 'n';
+        request->data[4] = 't';
+        request->data[5] = node_id+'0';
+        request->data[6] = ':';
+        request->data[7] = 's';
+        request->data[8] = 'e';
+        request->data[9] = 'n';
+        request->data[10] = 'd';
 
         if((ret=send(my_socket,request,REQ_SUB_SIZE(request),0))<0){
             goto main_exit_error;

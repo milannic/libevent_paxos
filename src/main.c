@@ -23,7 +23,8 @@
 static int number = 1;
 
 static void pseudo_cb(int data_size,void* data){
-    fprintf(stdout,"%s\n",(char*)data);
+    fprintf(stdout,"%d : %s\n",number,(char*)data);
+    number++;
     fflush(stdout);
     return;
 }
