@@ -7,7 +7,7 @@
 
 check_output(){
     
-    LOG_NAME=${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOGSUFFIX}
+    LOG_NAME=${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX}
     RESULT=$(grep "Node .* Starts Running" ${LOG_NAME} | wc -l)
     if [ "${RESULT}" -eq "0" ];then
         exit 1
@@ -24,7 +24,7 @@ NO=${1}
 CUR_DIR=$(pwd)
 rm -rf ${CUR_DIR}/.db
 
-${LOGSUFFIX}=".log"
+LOG_SUFFIX=".log"
 
 SLEEP_TIME=5
 
@@ -60,7 +60,7 @@ export LD_LIBRARY_PATH=${FILEPATH}/../.local/lib
 
 #echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
 #echo "Now We Start The Leader"
-${FILEPATH}/../target/server.out -n 0 -m s -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOGSUFFIX}  &
+${FILEPATH}/../target/server.out -n 0 -m s -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX}  &
 PRIMARY_PID=$!
 
 

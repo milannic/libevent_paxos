@@ -6,19 +6,21 @@
 
 
 check_output(){
-    
+
     LOG_NAME_0=${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX}
     LOG_NAME_1=${FILEPATH}/log/${TEST_NAME}_1_${NO}${LOG_SUFFIX}
     LOG_NAME_2=${FILEPATH}/log/${TEST_NAME}_2_${NO}${LOG_SUFFIX}
+
     RESULT_1=$(diff ${LOG_NAME_0} ${LOG_NAME_1} | wc -l)
 
-    if [ "${RESULT_1}" -eq "0" ];then
-        exit 1 
+    if [ "${RESULT_1}" -ne "0" ];then
+        echo ${RESULT_1}
+        exit 1
     fi
 
     RESULT_2=$(diff ${LOG_NAME_0} ${LOG_NAME_2} | wc -l)
 
-    if [ "${RESULT_2}" -eq "0" ];then
+    if [ "${RESULT_2}" -ne "0" ];then
         exit 1
     fi
 
@@ -31,7 +33,6 @@ NO=${1}
 #echo "==========Node Start Test =========="
 
 CUR_DIR=$(pwd)
-rm -rf ${CUR_DIR}/.db
 
 LOG_SUFFIX=".log"
 SLEEP_TIME=3
@@ -69,10 +70,11 @@ export LD_LIBRARY_PATH=${FILEPATH}/../.local/lib
 SERVER_PROGRAM=${FILEPATH}/../target/server.out
 CONFIG_FILE=${FILEPATH}/../target/nodes.cfg
 
+rm -rf ${FILEPATH}/.db
 
 #echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
 #echo "Now We Start The Leader"
-${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_FILE} 1>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX} & #2>${FILEPATH}/log/temp0 &
+${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_FILE} 1>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_0_${NO} &
 PRIMARY_PID=$!
 
 
@@ -81,16 +83,18 @@ sleep ${SLEEP_TIME}
 
 #start another node
 for i in $(seq ${SECONDARIES_SIZE});do
-    ${SERVER_PROGRAM} -n ${i} -m r -c ${CONFIG_FILE} 1>${FILEPATH}/log/${TEST_NAME}_${i}_${NO}${LOG_SUFFIX} & # 2>${FILEPATH}/log/temp${i} &
+    ${SERVER_PROGRAM} -n ${i} -m r -c ${CONFIG_FILE} 1>${FILEPATH}/log/${TEST_NAME}_${i}_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_${i}_${NO} &
     declare NODE_${i}=$!
 done
 
 
-CLIENT_PROGRAM=${CUR_DIR}/../client/client.out;
 
 
-${CLIENT_PROGRAM} -n 0 -s 127.0.0.1 -p 8000 -r 9 &>/dev/null &
-${CLIENT_PROGRAM} -n 1 -s 127.0.0.1 -p 8000 -r 9 &>/dev/null &
+
+CLIENT_PROGRAM=${FILEPATH}/../client/client.out
+
+${CLIENT_PROGRAM} -n 0 -s 127.0.0.1 -p 8000 -r 9  &>/dev/null &
+${CLIENT_PROGRAM} -n 1 -s 127.0.0.1 -p 8000 -r 9  &>/dev/null &
 ${CLIENT_PROGRAM} -n 2 -s 127.0.0.1 -p 8000 -r 9  &>/dev/null &
 
 sleep 30

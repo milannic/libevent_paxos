@@ -14,6 +14,7 @@ clean:
 	@rm -rf .db
 
 test:
+	cd test;rm -rf ./log/*;rm -rf .db;cd ..;
 	@python ./test/run_test.py -p ${CUR_DIR}/test -r 1
 
 list:
