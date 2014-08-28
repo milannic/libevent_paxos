@@ -18,6 +18,8 @@
 
 #include "../src/include/replica-sys/message.h"
 #include "../src/include/util/common-header.h"
+#include <unistd.h>
+#include <time.h>
 
 /* 
 typedef struct request_submit_msg_t{
@@ -33,7 +35,8 @@ int main ( int argc, char *argv[] )
     int server_port;
     int c;
     int node_id=9;
-    while((c=getopt(argc,argv,"n:s:p:"))!=-1){
+    int repeat_time=0;
+    while((c=getopt(argc,argv,"n:s:p:r:"))!=-1){
         switch(c){
             case 'n':
                 node_id = atoi(optarg);
@@ -44,6 +47,9 @@ int main ( int argc, char *argv[] )
             case 'p':
                 server_port = atoi(optarg);
                 break;
+            case 'r':
+                repeat_time= atoi(optarg);
+                break;
             case '?':
                 fprintf(stderr,"Option -%c needs requires an argument\n",optopt);
                 break;
@@ -52,7 +58,7 @@ int main ( int argc, char *argv[] )
                 goto main_exit_error;
         }
     }
-    if(argc<7 || optind>argc){
+    if(argc<9 || optind>argc){
         fprintf(stderr,"Parameter Error\n");
         goto main_exit_error;
     }
@@ -69,41 +75,28 @@ int main ( int argc, char *argv[] )
         goto main_exit_error;
     }
 
-    int count = 0;
-    req_sub_msg* request_1 = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+8);
-    request_1->header.type = REQUEST_SUBMIT;
-    request_1->header.data_size = 8;
-    request_1->data[0] = 'n';
-    request_1->data[1] = 'o';
-    request_1->data[2] = 'd';
-    request_1->data[3] = 'e';
-    request_1->data[4] = node_id+'0';
-    request_1->data[5] = ':';
-    request_1->data[6] = count+'0';
-    request_1->data[7] = '\0';
-    count++;
-    printf("send message %s\n",request_1->data);
     int ret;
-    
-    if((ret=send(my_socket,request_1,REQ_SUB_SIZE(request_1),0))<0){
-        goto main_exit_error;
-    }
-    req_sub_msg* request_2 = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+8);
-    request_2->header.type = REQUEST_SUBMIT;
-    request_2->header.data_size = 8;
-    request_2->data[0] = 'n';
-    request_2->data[1] = 'o';
-    request_2->data[2] = 'd';
-    request_2->data[3] = 'e';
-    request_2->data[4] = node_id+'0';
-    request_2->data[5] = ':';
-    request_2->data[6] = count+'0';
-    request_2->data[7] = '\0';
-    count++;
-    printf("send message %s\n",request_2->data);
-    
-    if((ret=send(my_socket,request_2,REQ_SUB_SIZE(request_1),0))<0){
-        goto main_exit_error;
+    req_sub_msg* request = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+8);
+    srand(time(NULL)+node_id);
+    for(int index=0;index<9;index++){
+        int s_time = 3*((double)rand()/(double)RAND_MAX);
+        printf("sleep time is %u\n",s_time);
+        sleep(s_time);
+        request->header.type = REQUEST_SUBMIT;
+        request->header.data_size = 8;
+        request->data[0] = 'n';
+        request->data[1] = 'o';
+        request->data[2] = 'd';
+        request->data[3] = 'e';
+        request->data[4] = node_id+'0';
+        request->data[5] = ':';
+        request->data[6] = index+'0';
+        request->data[7] = '\0';
+
+        if((ret=send(my_socket,request,REQ_SUB_SIZE(request),0))<0){
+            goto main_exit_error;
+        }
+        printf("send message %s\n",request->data);
     }
     return EXIT_SUCCESS;
 main_exit_error:

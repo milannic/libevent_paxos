@@ -20,8 +20,10 @@
 #include <stdlib.h>
 #include "include/replica-sys/replica.h"
 
+static int number = 1;
+
 static void pseudo_cb(int data_size,void* data){
-    fprintf(stdout,"hahahaha %s\n",(char*)data);
+    fprintf(stdout,"%s\n",(char*)data);
     fflush(stdout);
     return;
 }

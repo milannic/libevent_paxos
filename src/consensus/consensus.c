@@ -19,6 +19,8 @@
 #include "../include/consensus/consensus-msg.h"
 #include "../include/db/db-interface.h"
 
+static struct timeval re_set_period={2,0};
+
 static struct timeval request_repeat_timeout = {2,0};
 
 typedef struct request_record_t{
@@ -52,6 +54,7 @@ typedef struct consensus_component_t{
     user_cb ucb;
 }consensus_component;
 
+typedef uint64_t record_index_type;
 
 //static function declaration
 //
@@ -195,20 +198,24 @@ static void view_stamp_inc(view_stamp* vs){
 
 static int leader_handle_submit_req(struct consensus_component_t* comp,
         size_t data_size,void* data,view_stamp* vs){
+    debug_log("%s\n",__PRETTY_FUNCTION__);
     int ret = 1;
     view_stamp next = get_next_view_stamp(comp);
     vs->view_id = next.view_id;
     vs->req_id = next.req_id;
     db_key_type record_no = vstol(vs);
+
     request_record* record_data = 
         (request_record*)malloc(data_size+sizeof(request_record));
     gettimeofday(&record_data->created_time,NULL);
     record_data->bit_map = (1<<comp->node_id);
+    record_data->data_size = data_size;
+    record_data->is_closed = 0;
     memcpy(record_data->data,data,data_size);
-    if(store_record(comp->db_ptr,sizeof(record_no),&record_no,data_size,data)){
+    if(store_record(comp->db_ptr,sizeof(record_no),&record_no,REQ_RECORD_SIZE(record_data),record_data)){
         goto handle_submit_req_exit;
     }    
-    accept_req* msg = build_accept_req(comp,data_size,data,vs);
+    accept_req* msg = build_accept_req(comp,REQ_RECORD_SIZE(record_data),record_data,vs);
     if(NULL==msg){
         goto handle_submit_req_exit;
     }
@@ -226,11 +233,13 @@ handle_submit_req_exit:
 
 static void update_record(request_record* record,uint32_t node_id){
     record->bit_map = (record->bit_map | (1<<node_id));
+    debug_log("the record bit map is updated to %x\n",record->bit_map);
     return;
 }
 
 static int reached_quorum(request_record* record,int group_size){
     // this may be compatibility issue 
+    debug_log("the record bit map is %x\n",record->bit_map);
     if(__builtin_popcountl(record->bit_map)>=((group_size/2)+1)){
         return 1;
     }else{
@@ -241,6 +250,8 @@ static int reached_quorum(request_record* record,int group_size){
 
 
 static void handle_accept_req(consensus_component* comp,void* data){
+    debug_log("node %d handle accept req\n",
+            comp->node_id);
     accept_req* msg = data;
     // if we have gone over the view in the message, just ignore it;
     if(msg->msg_vs.view_id< comp->cur_view->view_id){
@@ -275,19 +286,23 @@ static void handle_accept_req(consensus_component* comp,void* data){
                     comp->highest_to_commit_vs.view_id,
                     comp->highest_to_commit_vs.req_id);
         }
+
         db_key_type record_no = vstol(&msg->msg_vs);
+        request_record* origin_data = (request_record*)msg->data;
         request_record* record_data = (request_record*)malloc(
-                msg->data_size+sizeof(request_record));
+                REQ_RECORD_SIZE(origin_data));
         if(record_data==NULL){
             goto handle_accept_req_exit;
         }
         gettimeofday(&record_data->created_time,NULL);
-        record_data->is_closed = 0;
-        record_data->data_size = msg->data_size;
-        memcpy(record_data->data,msg->data,msg->data_size);
+        record_data->is_closed = origin_data->is_closed;
+        record_data->data_size = origin_data->data_size;
+        memcpy(record_data->data,origin_data->data,
+                origin_data->data_size);
+
         // record the data persistently 
         if(store_record(comp->db_ptr,sizeof(record_no),&record_no,
-                    REQ_RECORD_SIZE(record_data),msg->data)!=0){
+                    REQ_RECORD_SIZE(record_data),record_data)!=0){
             goto handle_accept_req_exit;
         }
         // build the reply to the leader
@@ -306,6 +321,8 @@ static void handle_accept_ack(consensus_component* comp,void* data){
     accept_ack* msg = data;
     // if currently the node is not the leader, then it should ignore all the
     // accept ack, because that can must be the msg from previous view
+    debug_log("node %d handle accept ack from node %u \n",
+            comp->node_id,msg->node_id);
     if(comp->my_role!=LEADER){
         goto handle_accept_ack_exit;
     }
@@ -332,9 +349,18 @@ handle_accept_ack_exit:
 };
 
 static void handle_missing_req(consensus_component* comp,void* data){
+    debug_log("node %d handle missing req\n",
+            comp->node_id);
     missing_req* msg = data;
+
+    debug_log("handle missing req %u : %u from node %d\n",
+    msg->missing_vs.view_id,msg->missing_vs.req_id,msg->node_id);
+
     missing_ack* reply = build_missing_ack(comp,&msg->missing_vs);
+
     if(NULL!=reply){
+        debug_log("send missing ack %u : %u to node %d\n",
+            msg->missing_vs.view_id,msg->missing_vs.req_id,msg->node_id);
         comp->uc(comp->my_node,MISSING_ACK_SIZE(reply),reply,msg->node_id);
         free(reply);
     }
@@ -342,25 +368,46 @@ static void handle_missing_req(consensus_component* comp,void* data){
 };
 static void handle_missing_ack(consensus_component* comp,void* data){
     missing_ack* msg = data;
-    if(view_stamp_comp(&comp->highest_committed_vs,&msg->missing_vs)){
+    request_record* origin = (request_record*)msg->data;
+    debug_log("node %d handle missing ack from node %d \n",
+            comp->node_id,msg->node_id);
+    if(view_stamp_comp(&comp->highest_committed_vs,&msg->missing_vs)>=0){
         goto handle_missing_ack_exit;
     }else{
        db_key_type record_no = vstol(&msg->missing_vs);
        request_record* record_data = NULL;
        size_t data_size;
        retrieve_record(comp->db_ptr,sizeof(record_no),&record_no,&data_size,(void**)&record_data);
+
        if(record_data!=NULL){
            goto handle_missing_ack_exit;
        }
-       record_data =(request_record*)malloc(REQ_RECORD_SIZE(msg));
-       memcpy(record_data->data,msg->data,msg->data_size);
 
+       record_data =(request_record*)malloc(REQ_RECORD_SIZE(origin));
+
+       if(record_data==NULL){
+           goto handle_missing_ack_exit;
+       }
+
+       gettimeofday(&record_data->created_time,NULL);
+       record_data->data_size = origin->data_size;
+       memcpy(record_data->data,origin->data,origin->data_size);
+       store_record(comp->db_ptr,sizeof(record_no),&record_no,REQ_RECORD_SIZE(record_data),record_data);
     }
-handle_missing_ack_exit:
     try_to_execute(comp);
+handle_missing_ack_exit:
     return;
 };
 static void handle_force_exec(consensus_component* comp,size_t data_size,void* data){
+    force_exec* msg = data;
+    if(msg->node_id!=comp->cur_view->leader_id){
+        goto handle_force_exec_exit;
+    }
+    if(view_stamp_comp(&comp->highest_to_commit_vs,&msg->highest_committed_op)<0){
+        comp->highest_to_commit_vs=msg->highest_committed_op;
+        try_to_execute(comp);
+    }
+handle_force_exec_exit:
     return;
 };
 
@@ -398,25 +445,36 @@ static void* build_missing_req(consensus_component* comp,view_stamp* vs){
     missing_req* msg = (missing_req*)malloc(MISSING_REQ);
     if(NULL!=msg){
         msg->header.msg_type = MISSING_REQ;
-        msg->missing_vs = *vs;
+        msg->missing_vs.view_id = vs->view_id;
+        msg->missing_vs.req_id = vs->req_id;
+
         msg->node_id = comp->node_id;
+        debug_log("in building req, the view stamp is %u : %u \n",
+                msg->missing_vs.view_id,msg->missing_vs.req_id);
     }
     return msg;
 };
 
 static void* build_missing_ack(consensus_component* comp,view_stamp* vs){
     missing_ack* msg = NULL;
+    debug_log("in missing ack, the view stamp is %u : %u \n",
+            vs->view_id,vs->req_id);
     db_key_type record_no = vstol(vs);
     request_record* record_data = NULL;
     size_t data_size;
     retrieve_record(comp->db_ptr,sizeof(record_no),&record_no,&data_size,(void**)&record_data);
     if(NULL!=record_data){
-        msg = (missing_ack*)malloc(MISSING_ACK_SIZE(record_data));
-        if(NULL!=record_data){
+        debug_log("I am here\n");
+        int memsize = MISSING_ACK_SIZE(record_data);
+        msg=(missing_ack*)malloc(memsize);
+        if(NULL!=msg){
+            debug_log("I am there\n");
+            debug_log("the data is : %s\n",
+                    record_data->data);
             msg->node_id = comp->node_id;
-            msg->data_size = record_data->data_size;
+            msg->data_size = memsize;
             msg->header.msg_type = MISSING_ACK;
-            memcpy(msg->data,record_data->data,record_data->data_size);
+            memcpy(msg->data,record_data,memsize);
             msg->missing_vs = *vs;
         }
     }
@@ -440,6 +498,9 @@ static void leader_try_to_execute(consensus_component* comp){
     int exec_flag = (!view_stamp_comp(&comp->highest_committed_vs,&comp->highest_to_commit_vs));
     request_record* record_data = NULL;
     size_t data_size;
+    debug_log("the leader tries to execute\n");
+    debug_log("the end value is %u\n",end);
+    debug_log("the group size is %u\n",comp->group_size);
     for(db_key_type index=start;index<=end;index++){
         retrieve_record(comp->db_ptr,sizeof(index),&index,&data_size,(void**)&record_data);
         assert(record_data!=NULL && "The Record Should Be Inserted By The Node Itself!");
@@ -473,6 +534,14 @@ static void try_to_execute(consensus_component* comp){
     // there we have assumption, for the currently leader,whose commited request
     // and highest request to execute must be in the same view, otherwise, the
     // leader cannot be the leader 
+    
+    debug_log("node %d try to execute\n",
+            comp->node_id);
+    if(comp->cur_view->view_id==0){
+        debug_log("node %d currently is a 0 node\n",
+                comp->node_id);
+        goto try_to_execute_exit;
+    }
     if(LEADER==comp->my_role){
         leader_try_to_execute(comp);
     }
@@ -480,6 +549,8 @@ static void try_to_execute(consensus_component* comp){
     db_key_type end;
     view_boundary* boundary_record = NULL;
     size_t data_size;
+    debug_log("bug is here node %d\n",
+            comp->node_id);
     if(comp->highest_committed_vs.view_id!=comp->highest_to_commit_vs.view_id){
         //address the boundary
         view_stamp bound;
@@ -495,11 +566,14 @@ static void try_to_execute(consensus_component* comp){
     }else{
         end = vstol(&comp->highest_to_commit_vs);
     }
+    debug_log("the end value is %lu\n",
+           end);
     request_record* record_data = NULL;
     // we can only execute thins in sequence
     int exec_flag = 1;
     view_stamp missing_vs;
     for(db_key_type index = start;index<=end;index++){
+        missing_vs = ltovs(index);
         if(0!=retrieve_record(comp->db_ptr,sizeof(index),&index,
                     &data_size,(void**)&record_data)){
             exec_flag = 0;
@@ -507,7 +581,8 @@ static void try_to_execute(consensus_component* comp){
         }
         if(exec_flag){
             deliever_msg_data(comp,&missing_vs);
-            store_record(comp->db_ptr,sizeof(index),&index,REQ_RECORD_SIZE(record_data),record_data);
+//            record_data->is_closed = 1;
+//            store_record(comp->db_ptr,sizeof(index),&index,REQ_RECORD_SIZE(record_data),record_data);
             view_stamp_inc(&comp->highest_committed_vs);
         }
         record_data = NULL;
@@ -529,7 +604,7 @@ static void send_missing_req(consensus_component* comp,view_stamp* vs){
            goto send_for_consensus_comp_exit;
        }
        assert(comp->uc!=NULL&&"No Up Call Handler\n");
-       comp->uc(comp->my_node,MISSING_REQ,msg,-1);
+       comp->uc(comp->my_node,MISSING_REQ_SIZE,msg,-1);
        free(msg);
 send_for_consensus_comp_exit:
        return;
@@ -544,6 +619,35 @@ static void cross_view(view_stamp* vs){
 void consensus_make_progress(struct consensus_component_t* comp){
     if(LEADER!=comp->my_role){
         goto make_progress_exit;
+    }
+    debug_log("Let's make progress\n");
+    if((view_stamp_comp(&comp->highest_committed_vs,&comp->highest_seen_vs)<0)&& (comp->highest_seen_vs.view_id==comp->cur_view->view_id)){
+        view_stamp temp;
+        temp.view_id = comp->cur_view->view_id;
+        temp.req_id = 0;
+        if(view_stamp_comp(&temp,&comp->highest_committed_vs)<0){
+            temp = comp->highest_committed_vs;
+        }
+        temp.req_id++;
+        record_index_type start =  vstol(&temp);
+        record_index_type end = vstol(&comp->highest_seen_vs);
+        for(record_index_type index = start;index<=end;index++){
+            request_record* record_data = NULL;
+            size_t data_size=0;
+            view_stamp temp_vs = ltovs(index);
+            debug_log("I am here %lu \n",index);
+            retrieve_record(comp->db_ptr,sizeof(db_key_type),&index,&data_size,(void**)&record_data);
+            if(!reached_quorum(record_data,comp->group_size)){
+                debug_log("I am there\n");
+                accept_req* msg = build_accept_req(comp,REQ_RECORD_SIZE(record_data),record_data,&temp_vs);
+                if(NULL==msg){
+                    continue;
+                }else{
+                    comp->uc(comp->my_node,ACCEPT_REQ_SIZE(msg),msg,-1);
+                    free(msg);
+                }
+            }
+        } 
     }
     force_exec* msg = build_force_exec(comp); 
     if(NULL==msg){goto make_progress_exit;}
@@ -569,14 +673,14 @@ static void deliever_msg_data(consensus_component* comp,view_stamp* vs){
     // to the proxy, and then the proxy will take the overhead of database operation
     
     db_key_type vstokey = vstol(vs);
-    void* data = NULL;
+    request_record* data = NULL;
     size_t data_size=0;
-    retrieve_record(comp->db_ptr,sizeof(db_key_type),&vstokey,&data_size,&data);
+    retrieve_record(comp->db_ptr,sizeof(db_key_type),&vstokey,&data_size,(void**)&data);
     debug_log("node %d deliever view stamp %u : %u to the user.\n",
     comp->node_id,vs->view_id,vs->req_id);
     if(NULL!=data){
         if(comp->ucb!=NULL){
-            comp->ucb(data_size,data);
+            comp->ucb(data->data_size,data->data);
         }else{
             debug_log("no such call back func\n");
         }

@@ -7,8 +7,9 @@
 int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; 
 static unsigned current_connection = 3;
 struct timeval reconnect_timeval = {2,0};
-struct timeval ping_timeval = {1,0};
-struct timeval expect_ping_timeval = {5,0};
+struct timeval ping_timeval = {2,0};
+struct timeval expect_ping_timeval = {8,0};
+struct timeval make_progress_timeval = {2,0};
 int heart_beat_threshold = 4;
 
 static void usage(){
@@ -47,6 +48,10 @@ static void leader_ping_period(int fd,short what,void* arg);
 static void expected_leader_ping_period(int fd,short wat,void* arg);
 static int initialize_leader_ping(node*);
 static int initialize_expect_ping(node*);
+
+//make progress
+static int initialize_leader_make_progress(node* my_node);
+static void make_progress_on(int fd,short what,void* arg);
 
 //view change
 static void update_view(node*,view*);
@@ -191,6 +196,38 @@ static int initialize_expect_ping(node* my_node){
     event_add(my_node->ev_leader_ping,&expect_ping_timeval);
     return 0;
 }
+
+static void make_progress_on(int fd,short what,void* arg){
+    paxos_log("Leader Tries To Ping Other Nodes\n");
+    node* my_node = arg; 
+    // at first check whether I am the leader
+    if(my_node->cur_view.leader_id!=my_node->node_id){
+        if(my_node->ev_make_progress!=NULL){
+            event_free(my_node->ev_make_progress);
+            initialize_leader_make_progress(my_node);
+        }
+        return;
+    }
+    if(NULL!=my_node->consensus_comp){
+        consensus_make_progress(my_node->consensus_comp);
+    }
+    if(NULL!=my_node->ev_make_progress){
+        event_add(my_node->ev_make_progress,&make_progress_timeval);
+    }
+    return;
+}
+
+static int initialize_leader_make_progress(node* my_node){
+    if(NULL==my_node->ev_make_progress){
+        my_node->ev_make_progress = evtimer_new(my_node->base,make_progress_on,(void*)my_node);
+        if(my_node->ev_make_progress==NULL){
+            return 1;
+        }
+    }
+    event_add(my_node->ev_make_progress,&make_progress_timeval);
+    return 0;
+}
+
 
 
 static void update_view(node* my_node,view* new_view){
@@ -417,19 +454,25 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
     node* my_node = arg;
     sys_msg_header* buf = NULL;;
     struct evbuffer* input = bufferevent_get_input(bev);
-    size_t len = evbuffer_get_length(input);
-    //debug_log("there is %u bytes data in the buffer in total\n",
-     //       (unsigned)len);
-    if(len>=SYS_MSG_HEADER_SIZE){
+    size_t len = 0;
+    len = evbuffer_get_length(input);
+    debug_log("there is %u bytes data in the buffer in total\n",
+            (unsigned)len);
+    while(len>=SYS_MSG_HEADER_SIZE){
         buf = (sys_msg_header*)malloc(SYS_MSG_HEADER_SIZE);
         if(NULL==buf){return;}
         evbuffer_copyout(input,buf,SYS_MSG_HEADER_SIZE);
         int data_size = buf->data_size;
         if(len>=(SYS_MSG_HEADER_SIZE+data_size)){
            my_node->msg_cb(my_node,bev,data_size); 
+        }else{
+            break;
         }
         free(buf);
+        buf=NULL;
+        len = evbuffer_get_length(input);
     }
+    if(NULL!=buf){free(buf);}
     return;
 }
 
@@ -439,6 +482,9 @@ int initialize_node(node* my_node,void (*user_cb)(size_t data_size,void* data)){
     gettimeofday(&my_node->last_ping_msg,NULL);
     if(my_node->cur_view.leader_id==my_node->node_id){
         if(initialize_leader_ping(my_node)){
+            goto initialize_node_exit;
+        }
+        if(initialize_leader_make_progress(my_node)){
             goto initialize_node_exit;
         }
     }

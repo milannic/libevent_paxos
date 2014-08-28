@@ -1,5 +1,5 @@
 GCC := gcc-4.8
-CFLAGS := -Wall -O2 -g
+CFLAGS := -Wall -O2 -g -std=gnu11
 LDFLAGS := 
 
 SOURCES := $(shell find . -name "*.c")
@@ -33,9 +33,9 @@ list:
 	@echo $(OBJS)
 	@echo $(DEPS)
 run:
-	@$(DIR)/client.out -n 0 -s 127.0.0.1 -p 8000 &
-	@$(DIR)/client.out -n 1 -s 127.0.0.1 -p 8000 &
-	@$(DIR)/client.out -n 2 -s 127.0.0.1 -p 8000 &
+	@$(DIR)/client.out -n 0 -s 127.0.0.1 -p 8000 -r 9 &
+	@$(DIR)/client.out -n 1 -s 127.0.0.1 -p 8000 -r 9 &
+	@$(DIR)/client.out -n 2 -s 127.0.0.1 -p 8000 -r 9 &
 
 
 

@@ -6,7 +6,7 @@
 
 check_output(){
     
-    LOG_NAME=${FILEPATH}/log/${TEST_NAME}_1_${NO}
+    LOG_NAME=${FILEPATH}/log/${TEST_NAME}_1_${NO}${LOG_SUFFIX}
     RESULT=$(grep "Lost.*Leader" ${LOG_NAME} | wc -l)
     if [ "${RESULT}" -eq "0" ];then
         exit 1
@@ -21,8 +21,11 @@ NO=${1}
 #echo "==========Ping Test =========="
 
 CUR_DIR=$(pwd)
+rm -rf ${CUR_DIR}/.db
 
-SLEEP_TIME=5
+LOG_SUFFIX=".log"
+
+SLEEP_TIME=10
 
 SECONDARIES_SIZE=1
 
@@ -58,13 +61,13 @@ export LD_LIBRARY_PATH=${FILEPATH}/../.local/lib
 
 #echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
 #echo "Now We Start The Leader"
-${FILEPATH}/../target/server.out -n 0 -m s -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_0_${NO}  &
+${FILEPATH}/../target/server.out -n 0 -m s -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX}  &
 PRIMARY_PID=$!
 
 #echo "Now We Start Other Nodes"
 
 for i in $(seq ${SECONDARIES_SIZE});do
-    ${FILEPATH}/../target/server.out -n ${i} -m r -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_${i}_${NO} &
+    ${FILEPATH}/../target/server.out -n ${i} -m r -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_${i}_${NO}${LOG_SUFFIX} &
     declare NODE_${i}=$!
 done
 
