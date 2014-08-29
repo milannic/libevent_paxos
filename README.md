@@ -12,19 +12,19 @@ Compilation of the program needs gcc-4.8 which is indicated in the Makefile(some
 
 Source Code
 -----------------------------------------
-#1.src
+##1.src
 source files
-##1.1 config-comp
+###1.1 config-comp
 implementation of configuration file parsing module.
-##1.2 consensus
+###1.2 consensus
 implementation of normal case request consensus and deliver
-##1.3 db
+###1.3 db
 implementation of database operation module.
-##1.4 replica-sys
+###1.4 replica-sys
 the replicate node which integrates other modules to be one.
-##1.5 util
+###1.5 util
 some helper functions.
-##1.6 include
+###1.6 include
 header files of the program.
 
 
@@ -38,21 +38,21 @@ When there is request from client and is agreed among the majority of the replic
 Test
 ----------------------------------------
 Now we have four test(make test after make):
-#1.Sample Test
+##1.Sample Test
 blank test for illustration .
-#2.Node Start Test
+##2.Node Start Test
 start a primary node, make sure all the initializations finished.
-#3.Ping Test
+##3.Ping Test
 start a primary node and one secondary node,then kill the primary node, the secondary should notice that it haven't heard from the leader for a long time, then start a leader election.
-#4.Normal Case Test
+##4.Normal Case Test
 start a replica group, and also many clients sending requests to the primary concurrently. The output in all the replica group should be completely the same.
 
 
 To-Do
 -----------------------------------------
-#Leader Election Component
-#Client Side Library
-#Proxy Integrated with DMT
+##Leader Election Component
+##Client Side Library
+##Proxy Integrated with DMT
 
 
 Misc
