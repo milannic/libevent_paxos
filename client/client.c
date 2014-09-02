@@ -81,18 +81,20 @@ int main ( int argc, char *argv[] )
         printf("sleep time is %u\n",s_time);
         usleep(s_time);
         request->header.type = REQUEST_SUBMIT;
-        request->header.data_size = 11;
+        request->header.data_size = 13;
         request->data[0] = 'c';
         request->data[1] = 'l';
         request->data[2] = 'i';
-        request->data[3] = 'n';
-        request->data[4] = 't';
-        request->data[5] = node_id+'0';
-        request->data[6] = ':';
-        request->data[7] = 's';
-        request->data[8] = 'e';
-        request->data[9] = 'n';
-        request->data[10] = 'd';
+        request->data[3] = 'e';
+        request->data[4] = 'n';
+        request->data[5] = 't';
+        request->data[6] = node_id+'0';
+        request->data[7] = ':';
+        request->data[8] = 's';
+        request->data[9] = 'e';
+        request->data[10] = 'n';
+        request->data[11] = 'd';
+        request->data[12] = '\0';
 
         if((ret=send(my_socket,request,REQ_SUB_SIZE(request),0))<0){
             goto main_exit_error;

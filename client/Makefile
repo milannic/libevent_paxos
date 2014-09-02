@@ -1,5 +1,5 @@
 GCC := gcc-4.8
-CFLAGS := -Wall -O2 -g -std=gnu11
+CFLAGS := -Wall -O2 -g -std=gnu11 -I../.local/include
 LDFLAGS := 
 
 SOURCES := $(shell find . -name "*.c")

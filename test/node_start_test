@@ -8,7 +8,7 @@
 check_output(){
     
     LOG_NAME=${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX}
-    RESULT=$(grep "Node .* Starts Running" ${LOG_NAME} | wc -l)
+    RESULT=$(grep "Node 0 Starts Running" ${LOG_NAME} | wc -l)
     if [ "${RESULT}" -eq "0" ];then
         exit 1
     else
