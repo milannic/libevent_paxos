@@ -88,7 +88,7 @@ for i in $(seq ${SECONDARIES_SIZE});do
 done
 
 
-
+sleep 10
 
 
 CLIENT_PROGRAM=${FILEPATH}/../client/client.out

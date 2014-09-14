@@ -105,7 +105,7 @@ int store_record(db* db_p,size_t key_size,void* key_data,size_t data_size,void* 
     db_data.size = data_size;
     if ((ret=b_db->put(b_db,NULL,&key,&db_data,DB_AUTO_COMMIT))==0){
         debug_log("db : %ld record stored. \n",*(uint64_t*)key_data);
-        b_db->sync(b_db,0);
+        //b_db->sync(b_db,0);
     }
     else{
         debug_log("db : can not save record %ld from database.\n",*(uint64_t*)key_data);
