@@ -60,27 +60,37 @@ typedef uint64_t record_index_type;
 //
 
 static view_stamp get_next_view_stamp(consensus_component*);
+
 static void view_stamp_inc(view_stamp*);
 static void cross_view(view_stamp*);
 
 static int leader_handle_submit_req(struct consensus_component_t*,
         size_t,void*,view_stamp*);
 
+static int forward_submit_req(consensus_component*,size_t,void*);
+
 static void handle_accept_req(consensus_component*,void* );
 static void handle_accept_ack(consensus_component* ,void* );
 static void handle_missing_req(consensus_component*,void* );
 static void handle_missing_ack(consensus_component*,void* );
-static void handle_force_exec(consensus_component* ,size_t ,void* );
+static void handle_force_exec(consensus_component* ,void* );
+static void handle_forward_req(consensus_component*,void* );
 
 static void* build_accept_req(consensus_component* ,size_t ,void*, view_stamp*);
 static void* build_accept_ack(consensus_component* ,view_stamp*);
 static void* build_missing_req(consensus_component*,view_stamp*);
 static void* build_missing_ack(consensus_component*,view_stamp*);
 static void* build_force_exec(consensus_component*);
+static void* build_forward_req(consensus_component* comp,
+        size_t,void*);
 
 static void try_to_execute(consensus_component*);
 static void leader_try_to_execute(consensus_component*);
 static void send_missing_req(consensus_component*,view_stamp*);
+
+// helper func
+static int isLeader(consensus_component*);
+
 
 static void deliever_msg_vs(consensus_component*,const view_stamp*);
 static void deliever_msg_data(consensus_component*,view_stamp*);
@@ -103,7 +113,10 @@ void consensus_handle_msg(consensus_component* comp,size_t data_size,void* data)
             handle_missing_ack(comp,data);
             break;
         case FORCE_EXEC:
-            handle_force_exec(comp,data_size,data);
+            handle_force_exec(comp,data);
+            break;
+        case FORWARD_REQ:
+            handle_forward_req(comp,data);
             break;
         default:
             paxos_log("Unknown Consensus MSG : %d \n",
@@ -166,7 +179,7 @@ int consensus_submit_request(struct consensus_component_t* comp,
     if(LEADER==comp->my_role){
        return leader_handle_submit_req(comp,data_size,data,vs);
     }else{
-        return 2;
+        return forward_submit_req(comp,data_size,data);
     }
 }
 
@@ -181,8 +194,6 @@ void consensus_update_role(struct consensus_component_t* comp){
     return;
 }
 
-
-
 //static method area
 
 static view_stamp get_next_view_stamp(consensus_component* comp){
@@ -191,9 +202,16 @@ static view_stamp get_next_view_stamp(consensus_component* comp){
     next_vs.req_id = (comp->highest_seen_vs.req_id+1);
     return next_vs;
 };
+
 static void view_stamp_inc(view_stamp* vs){
     vs->req_id++;
     return;
+};
+
+static int isLeader(consensus_component* comp){
+    if(comp==NULL){return 0;}
+    assert(comp->cur_view!=NULL && "current node has not view");
+    return comp->cur_view->leader_id == comp->node_id;
 };
 
 static int leader_handle_submit_req(struct consensus_component_t* comp,
@@ -201,8 +219,10 @@ static int leader_handle_submit_req(struct consensus_component_t* comp,
     debug_log("%s\n",__PRETTY_FUNCTION__);
     int ret = 1;
     view_stamp next = get_next_view_stamp(comp);
-    vs->view_id = next.view_id;
-    vs->req_id = next.req_id;
+    if(NULL!=vs){
+        vs->view_id = next.view_id;
+        vs->req_id = next.req_id;
+    }
     db_key_type record_no = vstol(vs);
 
     request_record* record_data = 
@@ -231,6 +251,16 @@ handle_submit_req_exit:
     return ret;
 }
 
+static int forward_submit_req(consensus_component* comp,size_t data_size,void* data){
+    forward_req* msg = build_forward_req(comp,data_size,data);
+    int ret = 1;
+    if(msg!=NULL){
+        comp->uc(comp->my_node,FORWARD_REQ_SIZE(msg),msg,comp->cur_view->leader_id);
+        ret = 0;
+    }
+    return ret;
+}
+
 static void update_record(request_record* record,uint32_t node_id){
     record->bit_map = (record->bit_map | (1<<node_id));
     debug_log("the record bit map is updated to %x\n",record->bit_map);
@@ -246,8 +276,6 @@ static int reached_quorum(request_record* record,int group_size){
         return 0;
     }
 }
-
-
 
 static void handle_accept_req(consensus_component* comp,void* data){
     debug_log("node %d handle accept req\n",
@@ -398,7 +426,7 @@ static void handle_missing_ack(consensus_component* comp,void* data){
 handle_missing_ack_exit:
     return;
 };
-static void handle_force_exec(consensus_component* comp,size_t data_size,void* data){
+static void handle_force_exec(consensus_component* comp,void* data){
     force_exec* msg = data;
     if(msg->node_id!=comp->cur_view->leader_id){
         goto handle_force_exec_exit;
@@ -410,6 +438,16 @@ static void handle_force_exec(consensus_component* comp,size_t data_size,void* d
 handle_force_exec_exit:
     return;
 };
+
+
+
+static void handle_forward_req(consensus_component* comp,void* data){
+    if(comp->my_role!=LEADER){goto handle_forward_req_exit;}
+    forward_req* msg = data;
+    leader_handle_submit_req(comp,msg->data_size,data,NULL);
+handle_forward_req_exit:
+    return;
+}
 
 static void* build_accept_req(consensus_component* comp,
         size_t data_size,void* data,view_stamp* vs){
@@ -489,6 +527,18 @@ static void* build_force_exec(consensus_component* comp){
     }
     return msg;
 };
+
+static void* build_forward_req(consensus_component* comp,
+        size_t data_size,void* data){
+    forward_req* msg = (forward_req*)malloc(sizeof(FORWARD_REQ)+data_size);
+    if(NULL!=msg){
+        msg->header.msg_type = FORWARD_REQ;
+        msg->node_id = comp->node_id;
+        msg->data_size = data_size;
+        memcpy(msg->data,data,data_size);
+    }
+    return msg;
+}
 
 // leader has another responsibility to update the highest request that can be executed,
 // and if the leader is also synchronous, it can execute the record in this stage
@@ -668,6 +718,7 @@ static void deliever_msg_vs(consensus_component* comp,const view_stamp* vs){
 }
 
 static void deliever_msg_data(consensus_component* comp,view_stamp* vs){
+
     // in order to accelerate deliver process of the program
     // we may just give the record number instead of the real data 
     // to the proxy, and then the proxy will take the overhead of database operation

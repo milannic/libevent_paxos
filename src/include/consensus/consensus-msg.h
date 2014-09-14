@@ -28,6 +28,7 @@ typedef enum consensus_msg_code_t{
         MISSING_REQ=2,
         MISSING_ACK=3,
         FORCE_EXEC=4,
+        FORWARD_REQ=5,
 }con_code;
 
 typedef struct consensus_msg_header_t{
@@ -74,5 +75,13 @@ typedef struct force_exec_t{
     view_stamp highest_committed_op;
 }force_exec;
 #define FORCE_EXEC_SIZE (sizeof(force_exec))
+
+typedef struct forward_req_t{
+    consensus_msg_header header;
+    uint32_t node_id;
+    size_t data_size;
+    char data[0];
+}__attribute__((packed))forward_req;
+#define FORWARD_REQ_SIZE(M) (sizeof(forward_req)+(M->data_size))
 
 #endif
