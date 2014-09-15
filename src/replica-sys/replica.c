@@ -313,6 +313,7 @@ static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd
 
 // consensus part
 static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,int target){
+    ENTER_FUNC
     consensus_msg* msg = build_consensus_msg(data_size,data);
     if(NULL==msg){
         goto send_for_consensus_comp_exit;
@@ -339,6 +340,7 @@ send_for_consensus_comp_exit:
     if(msg!=NULL){
         free(msg);
     }
+    LEAVE_FUNC
     return;
 }
 

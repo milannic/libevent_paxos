@@ -19,6 +19,7 @@
 #include "../include/consensus/consensus-msg.h"
 #include "../include/db/db-interface.h"
 
+
 static struct timeval re_set_period={2,0};
 
 static struct timeval request_repeat_timeout = {2,0};
@@ -216,15 +217,15 @@ static int isLeader(consensus_component* comp){
 
 static int leader_handle_submit_req(struct consensus_component_t* comp,
         size_t data_size,void* data,view_stamp* vs){
-    debug_log("%s\n",__PRETTY_FUNCTION__);
+    ENTER_FUNC
     int ret = 1;
     view_stamp next = get_next_view_stamp(comp);
     if(NULL!=vs){
         vs->view_id = next.view_id;
         vs->req_id = next.req_id;
     }
-    db_key_type record_no = vstol(vs);
-
+    db_key_type record_no = vstol(&next);
+    DEBUG_POINT(1);
     request_record* record_data = 
         (request_record*)malloc(data_size+sizeof(request_record));
     gettimeofday(&record_data->created_time,NULL);
@@ -235,12 +236,14 @@ static int leader_handle_submit_req(struct consensus_component_t* comp,
     if(store_record(comp->db_ptr,sizeof(record_no),&record_no,REQ_RECORD_SIZE(record_data),record_data)){
         goto handle_submit_req_exit;
     }    
-    accept_req* msg = build_accept_req(comp,REQ_RECORD_SIZE(record_data),record_data,vs);
+    DEBUG_POINT(2);
+    accept_req* msg = build_accept_req(comp,REQ_RECORD_SIZE(record_data),record_data,&next);
     if(NULL==msg){
         goto handle_submit_req_exit;
     }
     comp->uc(comp->my_node,ACCEPT_REQ_SIZE(msg),msg,-1);
     free(msg);
+    DEBUG_POINT(3);
     view_stamp_inc(&comp->highest_seen_vs);
     ret = 0;
 handle_submit_req_exit: 
@@ -248,28 +251,31 @@ handle_submit_req_exit:
     if(record_data!=NULL){
         free(record_data);
     }
+    LEAVE_FUNC
     return ret;
 }
 
 static int forward_submit_req(consensus_component* comp,size_t data_size,void* data){
+    ENTER_FUNC
     forward_req* msg = build_forward_req(comp,data_size,data);
     int ret = 1;
     if(msg!=NULL){
         comp->uc(comp->my_node,FORWARD_REQ_SIZE(msg),msg,comp->cur_view->leader_id);
         ret = 0;
     }
+    LEAVE_FUNC
     return ret;
 }
 
 static void update_record(request_record* record,uint32_t node_id){
     record->bit_map = (record->bit_map | (1<<node_id));
-    debug_log("the record bit map is updated to %x\n",record->bit_map);
+    //debug_log("the record bit map is updated to %x\n",record->bit_map);
     return;
 }
 
 static int reached_quorum(request_record* record,int group_size){
     // this may be compatibility issue 
-    debug_log("the record bit map is %x\n",record->bit_map);
+    //debug_log("the record bit map is %x\n",record->bit_map);
     if(__builtin_popcountl(record->bit_map)>=((group_size/2)+1)){
         return 1;
     }else{
@@ -442,10 +448,12 @@ handle_force_exec_exit:
 
 
 static void handle_forward_req(consensus_component* comp,void* data){
+    ENTER_FUNC
     if(comp->my_role!=LEADER){goto handle_forward_req_exit;}
     forward_req* msg = data;
-    leader_handle_submit_req(comp,msg->data_size,data,NULL);
+    leader_handle_submit_req(comp,msg->data_size,msg->data,NULL);
 handle_forward_req_exit:
+    LEAVE_FUNC
     return;
 }
 
@@ -502,13 +510,9 @@ static void* build_missing_ack(consensus_component* comp,view_stamp* vs){
     size_t data_size;
     retrieve_record(comp->db_ptr,sizeof(record_no),&record_no,&data_size,(void**)&record_data);
     if(NULL!=record_data){
-        debug_log("I am here\n");
         int memsize = MISSING_ACK_SIZE(record_data);
         msg=(missing_ack*)malloc(memsize);
         if(NULL!=msg){
-            debug_log("I am there\n");
-            debug_log("the data is : %s\n",
-                    record_data->data);
             msg->node_id = comp->node_id;
             msg->data_size = memsize;
             msg->header.msg_type = MISSING_ACK;
@@ -530,13 +534,15 @@ static void* build_force_exec(consensus_component* comp){
 
 static void* build_forward_req(consensus_component* comp,
         size_t data_size,void* data){
-    forward_req* msg = (forward_req*)malloc(sizeof(FORWARD_REQ)+data_size);
+    ENTER_FUNC
+    forward_req* msg = (forward_req*)malloc(sizeof(forward_req)+data_size);
     if(NULL!=msg){
         msg->header.msg_type = FORWARD_REQ;
         msg->node_id = comp->node_id;
         msg->data_size = data_size;
         memcpy(msg->data,data,data_size);
     }
+    LEAVE_FUNC
     return msg;
 }
 
@@ -550,7 +556,6 @@ static void leader_try_to_execute(consensus_component* comp){
     size_t data_size;
     debug_log("the leader tries to execute\n");
     debug_log("the end value is %u\n",end);
-    debug_log("the group size is %u\n",comp->group_size);
     for(db_key_type index=start;index<=end;index++){
         retrieve_record(comp->db_ptr,sizeof(index),&index,&data_size,(void**)&record_data);
         assert(record_data!=NULL && "The Record Should Be Inserted By The Node Itself!");
@@ -599,8 +604,6 @@ static void try_to_execute(consensus_component* comp){
     db_key_type end;
     view_boundary* boundary_record = NULL;
     size_t data_size;
-    debug_log("bug is here node %d\n",
-            comp->node_id);
     if(comp->highest_committed_vs.view_id!=comp->highest_to_commit_vs.view_id){
         //address the boundary
         view_stamp bound;
@@ -685,10 +688,8 @@ void consensus_make_progress(struct consensus_component_t* comp){
             request_record* record_data = NULL;
             size_t data_size=0;
             view_stamp temp_vs = ltovs(index);
-            debug_log("I am here %lu \n",index);
             retrieve_record(comp->db_ptr,sizeof(db_key_type),&index,&data_size,(void**)&record_data);
             if(!reached_quorum(record_data,comp->group_size)){
-                debug_log("I am there\n");
                 accept_req* msg = build_accept_req(comp,REQ_RECORD_SIZE(record_data),record_data,&temp_vs);
                 if(NULL==msg){
                     continue;

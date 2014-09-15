@@ -21,6 +21,9 @@
     fprintf(stderr,args); \
 }while(0);
 
+#define ENTER_FUNC {debug_log("entering %s.\n",__PRETTY_FUNCTION__)}
+#define LEAVE_FUNC {debug_log("leaving %s.\n",__PRETTY_FUNCTION__)}
 
+#define DEBUG_POINT(n) {debug_log("debug point " #n ".\n")}
 
 #endif

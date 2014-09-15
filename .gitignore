@@ -5,6 +5,7 @@ Debug
 *.d
 dep-lib
 test/log
+test/.db
 .local
 .cproject
 .project

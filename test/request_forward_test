@@ -90,13 +90,14 @@ done
 
 sleep 5
 
+
 CLIENT_PROGRAM=${FILEPATH}/../client/client.out
 
 ${CLIENT_PROGRAM} -n 0 -s 127.0.0.1 -p 8000 -r 9  &>/dev/null &
-${CLIENT_PROGRAM} -n 1 -s 127.0.0.1 -p 8000 -r 9  &>/dev/null &
-${CLIENT_PROGRAM} -n 2 -s 127.0.0.1 -p 8000 -r 9  &>/dev/null &
-${CLIENT_PROGRAM} -n 3 -s 127.0.0.1 -p 8000 -r 9  &>/dev/null &
-${CLIENT_PROGRAM} -n 4 -s 127.0.0.1 -p 8000 -r 9  &>/dev/null &
+${CLIENT_PROGRAM} -n 1 -s 127.0.0.1 -p 8001 -r 9  &>/dev/null &
+${CLIENT_PROGRAM} -n 2 -s 127.0.0.1 -p 8002 -r 9  &>/dev/null &
+${CLIENT_PROGRAM} -n 3 -s 127.0.0.1 -p 8001 -r 9  &>/dev/null &
+${CLIENT_PROGRAM} -n 4 -s 127.0.0.1 -p 8002 -r 9  &>/dev/null &
 
 sleep 5
 
