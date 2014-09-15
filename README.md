@@ -4,7 +4,7 @@ By Milannic(milannic.cheng.liu@gmail.com)
 
 Usage
 --------------------------------------
-this program replies on **libevent-2.0.21** for network communication, **libconfig-1.4.9**  for node configuration and **libdb(Berkeley DB)-5.1.29** for data persistently store.
+this program replies on **libevent-2.0.21** for network communication, **libconfig-1.4.9**  for node configuration and **libdb(Berkeley DB)-5.1.29** for data persistently store.**Uthash** is used for C-implementation Hashtable. 
 
 Please Use ./mk in the root dir to download and install the dependencies(those libraries will be installed in ./.local, and sources files will be kept in ./dep-lib)
 
