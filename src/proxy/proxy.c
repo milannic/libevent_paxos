@@ -16,6 +16,7 @@
  * =====================================================================================
  */
 #include "../include/proxy/proxy.h"
+#include <pthread.h>
 
 static int hello(void){
     return 1;
