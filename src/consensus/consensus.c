@@ -383,6 +383,7 @@ handle_accept_ack_exit:
 };
 
 static void handle_missing_req(consensus_component* comp,void* data){
+    ENTER_FUNC
     debug_log("node %d handle missing req\n",
             comp->node_id);
     missing_req* msg = data;
@@ -398,9 +399,11 @@ static void handle_missing_req(consensus_component* comp,void* data){
         comp->uc(comp->my_node,MISSING_ACK_SIZE(reply),reply,msg->node_id);
         free(reply);
     }
+    LEAVE_FUNC
     return;
 };
 static void handle_missing_ack(consensus_component* comp,void* data){
+    ENTER_FUNC
     missing_ack* msg = data;
     request_record* origin = (request_record*)msg->data;
     debug_log("node %d handle missing ack from node %d \n",
@@ -430,6 +433,7 @@ static void handle_missing_ack(consensus_component* comp,void* data){
     }
     try_to_execute(comp);
 handle_missing_ack_exit:
+    LEAVE_FUNC
     return;
 };
 static void handle_force_exec(consensus_component* comp,void* data){
