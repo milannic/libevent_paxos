@@ -15,6 +15,7 @@ EXECUTABLES :=
 SUBDIRS := \
 src/util \
 src/replica-sys \
+src/proxy \
 src \
 src/db \
 src/consensus \

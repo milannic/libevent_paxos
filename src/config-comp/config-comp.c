@@ -18,7 +18,7 @@
 
 #include "../include/config-comp/config-comp.h"
 
-int read_configuration_file(node* cur_node,const char* config_path){
+int consensus_read_config(node* cur_node,const char* config_path){
     config_t config_file;
     config_init(&config_file);
 
@@ -42,7 +42,7 @@ int read_configuration_file(node* cur_node,const char* config_path){
     }
 
     config_setting_t *nodes_config;
-    nodes_config = config_lookup(&config_file,"nodes_config");
+    nodes_config = config_lookup(&config_file,"consensus_config");
 
     if(NULL==nodes_config){
         paxos_log("cannot find nodes settings \n");

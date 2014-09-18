@@ -68,6 +68,7 @@ static int isLeader(node*);
 
 
 static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
+
 static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg){
     peer* peer_node = (peer*)arg;
     if(ev&BEV_EVENT_CONNECTED){
@@ -590,7 +591,7 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
         my_node->ev_leader_ping = NULL;
     }
 
-    if(read_configuration_file(my_node,config_path)){
+    if(consensus_read_config(my_node,config_path)){
         goto exit_error;
     }
     

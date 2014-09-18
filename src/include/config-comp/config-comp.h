@@ -26,6 +26,6 @@ extern int max_waiting_connections;
 
 #define MAX_ACCEPT_CONNECTIONS 500
 
-int read_configuration_file(node* cur_node,const char* config_file);
+int consensus_read_config(node* cur_node,const char* config_file);
 
 #endif

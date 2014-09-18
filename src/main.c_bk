@@ -18,7 +18,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "include/rsm-interface.h"
 #include "include/replica-sys/replica.h"
 
 static int number = 1;
@@ -31,10 +30,8 @@ static void pseudo_cb(int data_size,void* data){
 }
 
 int main(int argc,char** argv){
-
-    struct proxy_node_t* proxy = proxy_init(argc,argv);
-    if(NULL==proxy){
-        return 1;
+    struct node_t* my_node = system_initialize(argc,argv,pseudo_cb);
+    if(my_node){
+        system_run(my_node);
     }
-    return 0;
 }
