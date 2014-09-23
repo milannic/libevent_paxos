@@ -168,7 +168,7 @@ proxy_node* proxy_init(int argc,char** argv){
     debug_log("current proxy's db name is %s\n",proxy->db_name);
 #endif
 
-    proxy->con_node = system_initialize(argc,argv,update_state);
+    proxy->con_node = system_initialize(node_id,start_mode,config_path,update_state);
 
     if(NULL==proxy->con_node){
         paxos_log("cannot initialize node\n");

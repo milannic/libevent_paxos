@@ -481,6 +481,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
 
 
 int initialize_node(node* my_node,void (*user_cb)(size_t data_size,void* data)){
+    ENTER_FUNC
     int flag = 1;
     gettimeofday(&my_node->last_ping_msg,NULL);
     if(my_node->cur_view.leader_id==my_node->node_id){
@@ -512,64 +513,21 @@ initialize_node_exit:
         return flag;
 }
 
-node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* data)){
-    char* start_mode= NULL;
-    char* config_path = NULL;
-    int node_id = -1;
-    int c;
+node* system_initialize(int node_id,const char* start_mode,const char* config_path,void(*user_cb)(int data_size,void* data)){
+    ENTER_FUNC
 
+    DEBUG_POINT(1);
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));
     if(NULL==my_node){
         goto exit_error;
     }
 
-    while((c = getopt (argc,argv,"c:n:m:")) != -1){
-        switch(c){
-            case 'n':
-                node_id = atoi(optarg);
-                break;
-            case 'c':
-                config_path = optarg;
-                break;
-            case 'm':
-                start_mode= optarg;
-                if(*start_mode!='s' && *start_mode!='r'){
-                    paxos_log("Unknown Start Mode\n");
-                    usage();
-                    goto exit_error;
-                }
-                break;
-            case '?':
-                if(optopt == 'n'){
-                    paxos_log("Option -n requires an argument\n");
-                    usage();
-                    goto exit_error;
-                }
-                else if(optopt == 'm'){
-                    paxos_log("Option -m requires an argument\n");
-                    usage();
-                    goto exit_error;
-                }
-                else if(optopt == 'c'){
-                    paxos_log("Option -c requires an argument\n");
-                    usage();
-                    goto exit_error;
-                }
-                break;
-            default:
-                paxos_log("Unknown Option %d \n",c);
-                goto exit_error;
-        }
-    }
-
-    if(argc<7 || optind>argc){
-        usage();
-        goto exit_error;
-    }
+    DEBUG_POINT(2);
 
     // set up base
 	struct event_base* base = event_base_new();
+
 
     if(NULL==base){
         goto exit_error;
@@ -580,6 +538,7 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
     my_node->base = base;
     my_node->node_id = node_id;
 
+    DEBUG_POINT(3)
     //seed, currently the node is the leader
     if(*start_mode=='s'){
         my_node->cur_view.view_id = 1;
@@ -591,6 +550,7 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
         my_node->ev_leader_ping = NULL;
     }
 
+    DEBUG_POINT(4)
     if(consensus_read_config(my_node,config_path)){
         goto exit_error;
     }
@@ -602,6 +562,7 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
     debug_log("current node's db name is %s\n",my_node->db_name);
 #endif
 
+    DEBUG_POINT(5)
     if(initialize_node(my_node,user_cb)){
         paxos_log("cannot initialize node\n");
         goto exit_error;
@@ -612,10 +573,13 @@ node* system_initialize(int argc,char** argv,void(*user_cb)(int data_size,void* 
                 (void*)my_node,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,-1,
                 (struct sockaddr*)&my_node->my_address,sizeof(my_node->my_address));
 
+    DEBUG_POINT(6);
     if(!my_node->listener){
         paxos_log("cannot set up the listener\n");
         goto exit_error;
     }
+
+    LEAVE_FUNC
 
 	return my_node;
 
