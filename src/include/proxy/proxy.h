@@ -38,7 +38,7 @@ typedef uint64_t flag_t;
 
 // hash table of socket pair
 typedef struct socket_pair_t{
-    hk_t pairt_key;
+    hk_t key;
     struct bufferevent* p_s;
     struct bufferevent* p_c;
     // hash pair handle

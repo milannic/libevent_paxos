@@ -46,9 +46,15 @@ hk_t getKey(nid_t node_id,nc_t node_count,sec_t time){
 int main ( int argc, char *argv[] )
 {
     hash_obj* hash_map = NULL;
+    hk_t temp_key =12345;
+    hash_obj* ret = NULL;
+    HASH_FIND(hh,hash_map,&temp_key,sizeof(hk_t),ret);
+    if(ret==NULL){
+        printf("cannot find this key\n");
+    }
     nid_t node_id = 10;
     nc_t  count = 0;
-    for(int i=0;i<100;i++){
+    for(int i=0;i<10;i++){
         struct timeval temp;
         gettimeofday(&temp,NULL);
         sec_t time = temp.tv_sec;
@@ -58,8 +64,18 @@ int main ( int argc, char *argv[] )
         cur->s_c = -1;
         cur->id = key;
         HASH_ADD(hh,hash_map,id,sizeof(hk_t),cur);
+        temp_key = key;
         count++;
     }
+
+    ret = NULL;
+    HASH_FIND(hh,hash_map,&temp_key,sizeof(hk_t),ret);
+    if(ret==NULL){
+        printf("cannot find this key\n");
+    }else{
+        printf("find the key of %lu.\n",ret->id);
+    }
+
     unsigned num_count = HASH_COUNT(hash_map);
     printf("there is %u elements in the hash table.\n",num_count);
     hash_obj* iter;

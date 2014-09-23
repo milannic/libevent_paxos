@@ -18,12 +18,40 @@
 #include "../include/proxy/proxy.h"
 #include "../include/config-comp/config-proxy.h"
 
+
+
+#define MY_HASH_SET(value,hash_map,ret) { if(value==NULL){ret=1;}else{ \\
+ HASH_ADD(hh,hash_map,key,sizeof(hk_t),value); }} 
+
+#define MY_HASH_GET(key,hash_map,ret){ if(value==NULL){ret=1;}else{ \\
+ HASH_ADD(hh,hash_map,key,sizeof(hk_t),value); }} 
+
+
 static void* shared_mem=NULL; 
 static rec_no_t cur_id=0;
 static rec_no_t highest_id=0;
 
+
+
+
 //helper function
 static hk_t gen_key(nid_t,nc_t,sec_t);
+static socket_pair* hash_get(hk_t key,socket_pair* hash_map){
+    socket_pair* ret = NULL;
+    HASH_FIND(hh,hash_map,&key,sizeof(hk_t),ret);
+    return ret;
+
+}
+
+static int hash_set(socket_pair* value,socket_pair* hash_map){
+    // error
+    if(value==NULL){
+        return 1;
+    }else{
+        HASH_ADD(hh,hash_map,key,sizeof(hk_t),value);
+    }
+    return 0;
+}
 // consensus callback
 static void update_state(int,void*);
 
@@ -40,9 +68,12 @@ static hk_t gen_key(nid_t node_id,nc_t node_count,sec_t time){
 }
 
 static void update_state(int data_size,void* data){
+    ENTER_FUNC
+    paxos_log("the newly delivered request is %lu.\n",*(hk_t*)data);
     void* dest = ((flag_t*)shared_mem)+1; 
     dest = ((rec_no_t*)dest)+1; 
     memcpy(dest,data,data_size);
+    LEAVE_FUNC
     return;
 }
 
@@ -50,6 +81,7 @@ static void update_state(int data_size,void* data){
 //public interface
 
 proxy_node* proxy_init(int argc,char** argv){
+    ENTER_FUNC
     char* start_mode= NULL;
     char* config_path = NULL;
     int node_id = -1;
@@ -122,7 +154,10 @@ proxy_node* proxy_init(int argc,char** argv){
     if(proxy_read_config(proxy,config_path)){
         goto exit_error;
     }
+    // ensure the value is NULL at first
+    proxy->hash_map=NULL;
     
+#if 0
     char ipv4_address[INET_ADDRSTRLEN];
     inet_ntop(AF_INET,&proxy->sys_addr.p_addr.sin_addr,ipv4_address,INET_ADDRSTRLEN);
     debug_log("current proxy's ip address is %s:%d\n",ipv4_address,ntohs(proxy->sys_addr.p_addr.sin_port));
@@ -131,14 +166,14 @@ proxy_node* proxy_init(int argc,char** argv){
     inet_ntop(AF_INET,&proxy->sys_addr.s_addr.sin_addr,ipv4_address,INET_ADDRSTRLEN);
     debug_log("current server's ip address is %s:%d\n",ipv4_address,ntohs(proxy->sys_addr.s_addr.sin_port));
     debug_log("current proxy's db name is %s\n",proxy->db_name);
+#endif
 
-//
-//    proxy->con_node = system_initialize(argc,argv,update_state);
-//
-//    if(NULL==proxy->con_node){
-//        paxos_log("cannot initialize node\n");
-//        goto exit_error;
-//    }
+    proxy->con_node = system_initialize(argc,argv,update_state);
+
+    if(NULL==proxy->con_node){
+        paxos_log("cannot initialize node\n");
+        goto exit_error;
+    }
 
 //    proxy->listener =
 //        evconnlistener_new_bind(base,NULL,
@@ -159,6 +194,7 @@ exit_error:
         }
         free(proxy);
     }
+    LEAVE_FUNC
     return NULL;
 }
 
