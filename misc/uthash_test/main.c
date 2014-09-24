@@ -22,6 +22,12 @@
 #include <stdlib.h>
 #include "uthash.h"
 
+#define MY_HASH_SET(value,hash_map,ret) do{if(value==NULL){ret=1;} \
+    else{ HASH_ADD(hh,hash_map,id,sizeof(hk_t),value); }}while(0)
+
+#define MY_HASH_GET(key,hash_map,ret) do{\
+ HASH_FIND(hh,hash_map,key,sizeof(hk_t),ret);}while(0) 
+
 typedef uint64_t hk_t;
 typedef uint64_t sec_t;
 typedef uint16_t nid_t;
@@ -45,6 +51,7 @@ hk_t getKey(nid_t node_id,nc_t node_count,sec_t time){
 
 int main ( int argc, char *argv[] )
 {
+    int MY_STRING(3); 
     hash_obj* hash_map = NULL;
     hk_t temp_key =12345;
     hash_obj* ret = NULL;
@@ -63,13 +70,14 @@ int main ( int argc, char *argv[] )
         cur->s_s = -1;
         cur->s_c = -1;
         cur->id = key;
-        HASH_ADD(hh,hash_map,id,sizeof(hk_t),cur);
+        int ret;
+        MY_HASH_SET(cur,hash_map,ret);
         temp_key = key;
         count++;
     }
 
     ret = NULL;
-    HASH_FIND(hh,hash_map,&temp_key,sizeof(hk_t),ret);
+    MY_HASH_GET(&temp_key,hash_map,ret);
     if(ret==NULL){
         printf("cannot find this key\n");
     }else{

@@ -36,5 +36,8 @@ int main(int argc,char** argv){
     if(NULL==proxy){
         return 1;
     }
+    while(1){
+        ;
+    }
     return 0;
 }

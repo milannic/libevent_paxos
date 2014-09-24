@@ -1,0 +1,90 @@
+/*
+ * =====================================================================================
+ *
+ *       Filename:  main.c
+ *
+ *    Description:  
+ *
+ *        Version:  1.0
+ *        Created:  08/06/2014 04:31:43 PM
+ *       Revision:  none
+ *       Compiler:  gcc
+ *
+ *         Author:  Milannic (), milannic.cheng.liu@gmail.com
+ *   Organization:  
+ *
+ * =====================================================================================
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <unistd.h>
+#include <getopt.h>
+#include <pthread.h>
+#include <signal.h>
+
+#include "include/replica-sys/replica.h"
+
+static int number = 1;
+static struct node_t*  my_node;
+
+static void node_sys_sig_handler(int sig){
+    switch(sig){
+        case SIGTERM:
+        case SIGHUP:
+        case SIGINT:
+        case SIGQUIT:
+            fprintf(stderr,"catch singal %d.\n",sig);
+            fflush(stderr);
+            system_exit(my_node);
+            exit(sig);
+            break;
+    }
+}
+
+void* t_consensus(void *arg){
+    struct node_t* my_node = arg;
+    system_run(my_node);
+    return NULL;
+}
+
+
+int main(int argc,char** argv){
+
+//    signal(SIGINT,node_sys_sig_handler);
+//    signal(SIGHUP,node_sys_sig_handler);
+//    signal(SIGTERM,node_sys_sig_handler);
+//    signal(SIGQUIT,node_sys_sig_handler);
+
+    char* start_mode= NULL;
+    char* config_path = NULL;
+    int node_id = -1;
+    int c;
+
+    while((c = getopt (argc,argv,"c:n:m:")) != -1){
+        switch(c){
+            case 'n':
+                node_id = atoi(optarg);
+                break;
+            case 'c':
+                config_path = optarg;
+                break;
+            case 'm':
+                start_mode= optarg;
+                break;
+            default:
+                return 1;
+        }
+    }
+
+    if(argc<7 || optind>argc){
+        return EXIT_FAILURE;
+    }
+    pthread_t my_thread;
+    struct node_t* my_node = system_initialize(node_id,start_mode,config_path,pseudo_cb);
+    pthread_create(&my_thread,NULL,t_consensus,my_node);
+    pthread_join(my_thread,NULL);
+    printf("finished all of this.\n");
+    exit(0);
+}

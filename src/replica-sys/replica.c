@@ -22,6 +22,10 @@ static void usage(){
 static void replica_on_read(struct bufferevent*,void*);
 static void replica_on_error_cb(struct bufferevent*,short,void*);
 
+//signal handler
+static void node_singal_handler(evutil_socket_t fid,short what,void* arg);
+static void node_sys_sig_handler(int sig);
+
 // consensus part
 static void send_for_consensus_comp(node*,size_t,void*,int);
 
@@ -66,6 +70,30 @@ static int free_node(node*);
 //helper function
 static int isLeader(node*);
 
+//implementation level
+
+static void node_singal_handler(evutil_socket_t fid,short what,void* arg){
+    ENTER_FUNC
+    node* my_node = arg;
+    if(what&EV_SIGNAL){
+        paxos_log("Node %d Received Kill Singal.Now Quit.\n",my_node->node_id);
+    }
+    event_base_loopexit(my_node->base,NULL);
+    LEAVE_FUNC
+}
+
+//static void node_sys_sig_handler(int sig){
+//    ENTER_FUNC
+//    switch(sig){
+//        case SIGTERM:
+//        case SIGHUP:
+//        case SIGKILL:
+//        case SIGINT:
+//            paxos_log("catch one singal\n");
+//            break;
+//    }
+//    LEAVE_FUNC
+//}
 
 static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
 
@@ -79,6 +107,7 @@ static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg){
             peer_node->active = 0;
             paxos_log("Lost Connection With Node %d \n",peer_node->peer_id);
         }
+        peer_node->my_buff_event = NULL;
         int err = EVUTIL_SOCKET_ERROR();
 		paxos_log("%s (%d)\n",evutil_socket_error_to_string(err),peer_node->peer_id);
         bufferevent_free(bev);
@@ -285,7 +314,23 @@ static int isLeader(node* my_node){
 }
 
 static int free_node(node* my_node){
-    //to-do
+    ENTER_FUNC
+    if(my_node->listener!=NULL){
+        evconnlistener_free(my_node->listener);
+    }
+    if(my_node->singnal_handler!=NULL){
+        event_free(my_node->singnal_handler);
+    }
+    if(my_node->ev_make_progress!=NULL){
+        event_free(my_node->ev_make_progress);
+    }
+    if(my_node->ev_leader_ping!=NULL){
+        event_free(my_node->ev_leader_ping);
+    }
+    if(my_node->base!=NULL){
+        event_base_free(my_node->base);
+    }
+    LEAVE_FUNC
     return 0;
 }
 
@@ -497,6 +542,10 @@ int initialize_node(node* my_node,void (*user_cb)(size_t data_size,void* data)){
             goto initialize_node_exit;
         }
     }
+   
+    my_node->singnal_handler = evsignal_new(my_node->base,
+            SIGQUIT,node_singal_handler,my_node);
+    evsignal_add(my_node->singnal_handler,NULL);
     my_node->state = NODE_ACTIVE;
     my_node->msg_cb = handle_msg;
     connect_peers(my_node);
@@ -515,6 +564,11 @@ initialize_node_exit:
 
 node* system_initialize(int node_id,const char* start_mode,const char* config_path,void(*user_cb)(int data_size,void* data)){
     ENTER_FUNC
+    
+//    signal(SIGINT,node_sys_sig_handler);
+//    signal(SIGHUP,node_sys_sig_handler);
+//    signal(SIGTERM,node_sys_sig_handler);
+//    signal(SIGQUIT,node_sys_sig_handler);
 
     DEBUG_POINT(1);
     node* my_node = (node*)malloc(sizeof(node));
@@ -590,16 +644,20 @@ exit_error:
     return NULL;
 }
 
-
 void system_run(struct node_t* replica){
+    ENTER_FUNC
     debug_log("Node %u Starts Running\n",
             replica->node_id);
     event_base_dispatch(replica->base);
+    LEAVE_FUNC
 }
 
 
 void system_exit(struct node_t* replica){
+    ENTER_FUNC
     event_base_loopexit(replica->base,NULL);
-    event_base_free(replica->base);
+    DEBUG_POINT(0)
+    DEBUG_POINT(1)
     free_node(replica);
+    LEAVE_FUNC
 }

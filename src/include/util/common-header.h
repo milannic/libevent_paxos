@@ -18,8 +18,10 @@
 #ifndef COMMON_HEADER_H
 #define COMMON_HEADER_H
 
+#define _POSIX_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <assert.h>
 #include <getopt.h>
 #include <unistd.h>
@@ -28,7 +30,9 @@
 #include <errno.h>
 #include <ctype.h>
 #include <string.h>
+#include <pthread.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <arpa/inet.h>

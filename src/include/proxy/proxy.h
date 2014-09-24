@@ -22,7 +22,6 @@
 #include "../rsm-interface.h"
 #include "../replica-sys/replica.h"
 #include "uthash.h"
-#include <pthread.h>
 
 
 // hash_key type def
@@ -61,23 +60,59 @@ typedef struct proxy_node_t{
     nc_t pair_count;
     socket_pair* hash_map;
     proxy_address sys_addr;
+    int fake;
 
     // libevent part
     struct event_base* base;
     struct evconnlistener* listener;
-
     // DMT part
     // in the loop of libevent logical, we must give a way to periodically
     // invoke our actively working function
     struct event* do_action;
-
     // consensus module
     struct node_t* con_node;
     struct bufferevent* con_conn;
+    struct event* re_con;
 
     char* db_name;
 
 }proxy_node;
 
+typedef enum proxy_action_t{
+    CONNECT=0,
+    SEND=1,
+    CLOSE=2,
+}proxy_action;
+
+typedef struct proxy_msg_header_t{
+    proxy_action action;
+    struct timeval created_time;
+    hk_t connection_id;
+}proxy_msg_header;
+#define PROXY_MSG_HEADER_SIZE (sizeof(proxy_msg_header))
+
+typedef struct proxy_connect_msg_t{
+    proxy_msg_header header;
+}proxy_connect_msg;
+#define PROXY_CONNECT_MSG_SIZE (sizeof(proxy_connect_msg))
+
+typedef struct proxy_send_msg_t{
+    proxy_msg_header header;
+    size_t data_size;
+    char data[0];
+}__attribute__((packed))proxy_send_msg;
+#define PROXY_SEND_MSG_SIZE(M) (M->data_size+sizeof(proxy_send_msg))
+
+typedef struct proxy_close_msg_t{
+    proxy_msg_header header;
+}proxy_close_msg;
+#define PROXY_CLOSE_MSG_SIZE (sizeof(proxy_close_msg))
+
+
+#define MY_HASH_SET(value,hash_map) do{ \
+    HASH_ADD(hh,hash_map,key,sizeof(hk_t),value);}while(0)
+
+#define MY_HASH_GET(key,hash_map,ret) do{\
+ HASH_FIND(hh,hash_map,key,sizeof(hk_t),ret);}while(0) 
 
 #endif

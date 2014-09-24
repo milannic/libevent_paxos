@@ -60,14 +60,10 @@ export LD_LIBRARY_PATH=${FILEPATH}/../.local/lib
 
 #echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
 #echo "Now We Start The Leader"
-${FILEPATH}/../target/server.out -n 0 -m s -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX}  &
-
+${FILEPATH}/../target/server.out -r -n 0 -m s -c ${FILEPATH}/../target/nodes.cfg &>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX}  &
 PRIMARY_PID=$!
-echo ${PRIMARY_PID}
-
 
 #echo "Sleep Some Time"
-
 read -n1 kbd
 
 #echo "Kill The Leader"

@@ -72,7 +72,9 @@ typedef struct node_t{
     // libevent part
     struct evconnlistener* listener;
     struct event_base* base;
+
     msg_handler msg_cb;
+    struct event* singnal_handler;
     struct event* ev_leader_ping;
     struct event* ev_make_progress;
     struct timeval last_ping_msg;
