@@ -99,7 +99,6 @@ typedef struct consensus_msg_t{
 }__attribute__((packed))consensus_msg;
 #define CONSENSUS_MSG_SIZE(M) (sizeof(sys_msg_header)+M->header.data_size)
 
-
 //sys_msg* package_sys_msg(sys_msg_code,int,void*);
 
 void* build_consensus_msg(uint32_t,void*);

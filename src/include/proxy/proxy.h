@@ -34,10 +34,13 @@ typedef uint16_t nc_t;
 typedef uint64_t rec_no_t;
 typedef uint64_t flag_t;
 
+struct proxy_node_t;
+
 
 // hash table of socket pair
 typedef struct socket_pair_t{
     hk_t key;
+    struct proxy_node_t* proxy;
     struct bufferevent* p_s;
     struct bufferevent* p_c;
     // hash pair handle
@@ -73,6 +76,8 @@ typedef struct proxy_node_t{
     struct node_t* con_node;
     struct bufferevent* con_conn;
     struct event* re_con;
+
+    FILE* log_file;
 
     char* db_name;
 

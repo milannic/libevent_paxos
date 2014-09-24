@@ -20,7 +20,8 @@
 
 struct proxy_node_t;
 
-struct proxy_node_t* proxy_init(int argc,char** argv);
+struct proxy_node_t* proxy_init(int node_id,const char* start_mode,const char* config_path,
+        const char* log_path,int fake_mode);
 void proxy_run(struct proxy_node_t* proxy);
 void proxy_exit(struct proxy_node_t* proxy);
 

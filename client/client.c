@@ -1,8 +1,7 @@
 /*
  * =====================================================================================
  *
- *       Filename:  client.c
- *
+ *       Filename:  client.c *
  *    Description:  
  *
  *        Version:  1.0
@@ -74,7 +73,7 @@ int main ( int argc, char *argv[] )
     }
 
     int ret;
-    req_sub_msg* request = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+8);
+    req_sub_msg* request = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+13);
     srand(time(NULL)+node_id);
     for(int index=0;index<1000;index++){
         int s_time = 20*((double)rand()/(double)RAND_MAX);
