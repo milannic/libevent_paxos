@@ -2,8 +2,7 @@
  * =====================================================================================
  *
  *       Filename:  proxy.c
- *
- *    Description:  
+ * *    Description:  
  *
  *        Version:  1.0
  *        Created:  09/14/2014 11:19:25 PM
@@ -148,6 +147,13 @@ static void client_side_on_read(struct bufferevent* bev,void* arg){
     return;
 }
 static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
+    socket_pair* pair = arg;
+    proxy_node* proxy = pair->proxy;
+    req_sub_msg* close_msg = build_req_sub_msg(pair->key,CLOSE,0,NULL);
+    if(NULL!=close_msg && NULL!=proxy->con_conn){
+        bufferevent_write(proxy->con_conn,close_msg,REQ_SUB_SIZE(close_msg));
+        free(close_msg);
+    }
     return;
 }
 
@@ -224,34 +230,30 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
     return;
 }
 
-static void proxy_singnal_handler(int sig){
+static void proxy_singnal_handler(evutil_socket_t fid,short what,void* arg){
     ENTER_FUNC
-    switch(sig){
-        case SIGTERM:
-            paxos_log("the sig value is %d .\n",sig);
-            paxos_log("the sub value is %lu .\n",con_subt);
-            if(con_subt!=9999999){
-                pthread_kill(con_subt,SIGQUIT);
-                paxos_log("wating consensus comp to quit.\n");
-                pthread_join(con_subt,NULL);
-            }
-            LEAVE_FUNC
-            exit(sig);
+    proxy_node* proxy = arg;
+    if(what&EV_SIGNAL){
+        paxos_log("Node Proxy Received SIGTERM .Now Quit.\n");
+        if(proxy->sub_thread!=0){
+            pthread_kill(proxy->sub_thread,SIGQUIT);
+            paxos_log("wating consensus comp to quit.\n");
+            pthread_join(proxy->sub_thread,NULL);
+        }
     }
+    event_base_loopexit(proxy->base,NULL);
+    LEAVE_FUNC
+    return;
 }
 
 proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_path,
         const char* log_path,int fake_mode){
     ENTER_FUNC
-    signal(SIGINT,proxy_singnal_handler);
-    signal(SIGQUIT,proxy_singnal_handler);
-    signal(SIGTERM,proxy_singnal_handler);
-    signal(SIGHUP,proxy_singnal_handler);
 
     proxy_node* proxy = (proxy_node*)malloc(sizeof(proxy_node));
 
     if(NULL==proxy){
-        goto exit_error;
+        goto proxy_exit_error;
     }
 
     memset(proxy,0,sizeof(proxy_node));
@@ -260,7 +262,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 	struct event_base* base = event_base_new();
 
     if(NULL==base){
-        goto exit_error;
+        goto proxy_exit_error;
     }
 
     
@@ -272,7 +274,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     proxy->node_id = node_id;
 
     if(proxy_read_config(proxy,config_path)){
-        goto exit_error;
+        goto proxy_exit_error;
     }
     // ensure the value is NULL at first
     proxy->hash_map=NULL;
@@ -281,9 +283,14 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 
     if(NULL==proxy->con_node){
         paxos_log("cannot initialize node\n");
-        goto exit_error;
+        goto proxy_exit_error;
     }
-    pthread_create(&con_subt,NULL,t_consensus,proxy->con_node);
+    proxy->sub_thread = 0;
+    pthread_create(&proxy->sub_thread,NULL,t_consensus,proxy->con_node);
+
+    proxy->sig_handler = evsignal_new(proxy->base,SIGTERM,proxy_singnal_handler,proxy);
+    evsignal_add(proxy->sig_handler,NULL);
+
     proxy->listener =
         evconnlistener_new_bind(proxy->base,proxy_on_accept,
                 (void*)proxy,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,
@@ -291,19 +298,19 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
                 sizeof(proxy->sys_addr.p_sock_len));
     if(!proxy->listener){
         paxos_log("cannot set up the listener\n");
-        goto exit_error;
+        goto proxy_exit_error;
     }
     LEAVE_FUNC
 	return proxy;
 
-exit_error:
+proxy_exit_error:
     if(NULL!=proxy){
         if(NULL!=proxy->con_node){
             // to do
         }
         free(proxy);
     }
-    LEAVE_FUNC
+    ERR_LEAVE_FUNC
     return NULL;
 }
 

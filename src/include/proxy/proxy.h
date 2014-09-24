@@ -68,11 +68,14 @@ typedef struct proxy_node_t{
     // libevent part
     struct event_base* base;
     struct evconnlistener* listener;
+    //signal handler
+    struct event* sig_handler;
     // DMT part
     // in the loop of libevent logical, we must give a way to periodically
     // invoke our actively working function
     struct event* do_action;
     // consensus module
+    pthread_t sub_thread;
     struct node_t* con_node;
     struct bufferevent* con_conn;
     struct event* re_con;

@@ -318,8 +318,8 @@ static int free_node(node* my_node){
     if(my_node->listener!=NULL){
         evconnlistener_free(my_node->listener);
     }
-    if(my_node->singnal_handler!=NULL){
-        event_free(my_node->singnal_handler);
+    if(my_node->signal_handler!=NULL){
+        event_free(my_node->signal_handler);
     }
     if(my_node->ev_make_progress!=NULL){
         event_free(my_node->ev_make_progress);
@@ -542,10 +542,10 @@ int initialize_node(node* my_node,void (*user_cb)(size_t data_size,void* data)){
             goto initialize_node_exit;
         }
     }
-   
-    my_node->singnal_handler = evsignal_new(my_node->base,
+     
+    my_node->signal_handler = evsignal_new(my_node->base,
             SIGQUIT,node_singal_handler,my_node);
-    evsignal_add(my_node->singnal_handler,NULL);
+    evsignal_add(my_node->signal_handler,NULL);
     my_node->state = NODE_ACTIVE;
     my_node->msg_cb = handle_msg;
     connect_peers(my_node);
