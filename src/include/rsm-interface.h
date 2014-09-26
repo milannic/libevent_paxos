@@ -17,6 +17,24 @@
  */
 #ifndef RSM_INTERFACE_H
 #define RSM_INTERFACE_H
+#include <unistd.h>
+
+typedef enum client_msg_code_t{
+    C_SEND = 0,
+    //further structure is reserved for potential expansion
+}client_msg_code;
+
+typedef struct client_msg_header_t{
+    client_msg_code type;
+    size_t data_size;
+}client_msg_header;
+#define CLIENT_MSG_HEADER_SIZE (sizeof(client_msg_header))
+
+typedef struct client_msg_t{
+    client_msg_header header;
+    char data[0];
+}__attribute__((packed))client_msg;
+#define CLIENT_MSG_SIZE(M) (sizeof(client_msg)+((M)->header.size))
 
 struct proxy_node_t;
 

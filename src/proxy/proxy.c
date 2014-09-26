@@ -51,8 +51,11 @@ static void reconnect_on_timeout(int fd,short what,void* arg);
 
 
 //socket pair callback function
+//
+//
 static void server_side_on_read(struct bufferevent* bev,void* arg);
 static void server_side_on_err(struct bufferevent* bev,short what,void* arg);
+static void client_process_data(proxy_node*,struct bufferevent*,size_t);
 static void client_side_on_read(struct bufferevent* bev,void* arg);
 static void client_side_on_err(struct bufferevent* bev,short what,void* arg);
 
@@ -85,9 +88,9 @@ static void update_state(int data_size,void* data){
     ENTER_FUNC
     proxy_msg_header* header = data;
     switch(header->action){
-        case CONNECT:
-        case SEND:
-        case CLOSE:
+        case P_CONNECT:
+        case P_SEND:
+        case P_CLOSE:
             break;
     }
     LEAVE_FUNC
@@ -143,13 +146,65 @@ static void server_side_on_read(struct bufferevent* bev,void* arg){
 static void server_side_on_err(struct bufferevent* bev,short what,void* arg){
     return;
 }
-static void client_side_on_read(struct bufferevent* bev,void* arg){
+
+static void client_process_data(proxy_node* proxy,struct bufferevent* bev,size_t data_size){
+    ENTER_FUNC
+    void* msg_buf = (char*)malloc(CLIENT_MSG_HEADER_SIZE+data_size);
+    if(NULL==msg_buf){
+        goto client_process_data_exit;
+    }
+    struct evbuffer* evb = bufferevent_get_input(bev);
+    evbuffer_remove(evb,msg_buf,CLIENT_MSG_HEADER_SIZE+data_size);
+    client_msg_header* msg_header = msg_buf;
+    switch(msg_header->type){
+        case C_SEND:
+            //handle_ping_ack(my_node,(ping_ack_msg*)msg_buf);
+            paxos_log("Fake Handler.\n");
+            break;
+        default:
+            paxos_log("Unknown Client Msg Type %d\n",
+                    msg_header->type);
+            goto client_process_data_exit;
+    }
+
+client_process_data_exit:
+    if(NULL!=msg_buf){free(msg_buf);}
+    LEAVE_FUNC
     return;
-}
+};
+
+static void client_side_on_read(struct bufferevent* bev,void* arg){
+    ENTER_FUNC
+    proxy_node* proxy = arg;
+    client_msg_header* header = NULL;
+    struct evbuffer* input = bufferevent_get_input(bev);
+    size_t len = 0;
+    len = evbuffer_get_length(input);
+    debug_log("there is %u bytes data in the buffer in total\n",
+            (unsigned)len);
+    while(len>=CLIENT_MSG_HEADER_SIZE){
+        header = (client_msg_header*)malloc(CLIENT_MSG_HEADER_SIZE);
+        if(NULL==header){return;}
+        evbuffer_copyout(input,header,CLIENT_MSG_HEADER_SIZE);
+        int data_size = header->data_size;
+        if(len>=(CLIENT_MSG_HEADER_SIZE+data_size)){
+           client_process_data(proxy,bev,data_size); 
+        }else{
+            break;
+        }
+        free(header);
+        header=NULL;
+        len = evbuffer_get_length(input);
+    }
+    if(NULL!=header){free(header);}
+    LEAVE_FUNC
+    return;
+};
+
 static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
-    req_sub_msg* close_msg = build_req_sub_msg(pair->key,CLOSE,0,NULL);
+    req_sub_msg* close_msg = build_req_sub_msg(pair->key,P_CLOSE,0,NULL);
     if(NULL!=close_msg && NULL!=proxy->con_conn){
         bufferevent_write(proxy->con_conn,close_msg,REQ_SUB_SIZE(close_msg));
         free(close_msg);
@@ -161,32 +216,32 @@ static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
 static req_sub_msg* build_req_sub_msg(hk_t s_key,int type,size_t data_size,void* data){
     req_sub_msg* msg = NULL;
     switch(type){
-        case CONNECT:
+        case P_CONNECT:
             msg = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+PROXY_CONNECT_MSG_SIZE);
             msg->header.type = REQUEST_SUBMIT;
             msg->header.data_size = PROXY_CONNECT_MSG_SIZE;
             proxy_connect_msg* co_msg = (void*)msg->data;
-            co_msg->header.action = CONNECT;
+            co_msg->header.action = P_CONNECT;
             gettimeofday(&co_msg->header.created_time,NULL);
             co_msg->header.connection_id = s_key;
             break;
-        case SEND:
+        case P_SEND:
             msg = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+sizeof(proxy_send_msg)+data_size);
             msg->header.type = REQUEST_SUBMIT;
             msg->header.data_size = sizeof(proxy_send_msg)+data_size;
             proxy_send_msg* send_msg = (void*)msg->data;
-            send_msg->header.action = SEND;
+            send_msg->header.action = P_SEND;
             gettimeofday(&send_msg->header.created_time,NULL);
             send_msg->header.connection_id = s_key;
             send_msg->data_size = data_size;
             memcpy(send_msg->data,data,data_size);
             break;
-        case CLOSE:
+        case P_CLOSE:
             msg = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+PROXY_CONNECT_MSG_SIZE);
             msg->header.type = REQUEST_SUBMIT;
             msg->header.data_size = PROXY_CONNECT_MSG_SIZE;
             proxy_close_msg* cl_msg = (void*)msg->data;
-            cl_msg->header.action = CONNECT;
+            cl_msg->header.action = P_CLOSE;
             gettimeofday(&cl_msg->header.created_time,NULL);
             cl_msg->header.connection_id = s_key;
             break;
@@ -221,7 +276,7 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
         bufferevent_enable(new_conn->p_c,EV_READ|EV_PERSIST|EV_WRITE);
         MY_HASH_SET(new_conn,proxy->hash_map);
         // connect operation should be consistent among all the proxies.
-        req_msg = build_req_sub_msg(new_conn->key,CONNECT,0,NULL); 
+        req_msg = build_req_sub_msg(new_conn->key,P_CONNECT,0,NULL); 
         bufferevent_write(proxy->con_conn,req_msg,REQ_SUB_SIZE(req_msg));
     }
     if(req_msg!=NULL){
@@ -307,6 +362,11 @@ proxy_exit_error:
     if(NULL!=proxy){
         if(NULL!=proxy->con_node){
             // to do
+            if(proxy->sub_thread!=0){
+                pthread_kill(proxy->sub_thread,SIGQUIT);
+                paxos_log("wating consensus comp to quit.\n");
+                pthread_join(proxy->sub_thread,NULL);
+            }
         }
         free(proxy);
     }
