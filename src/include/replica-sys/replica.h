@@ -20,7 +20,7 @@
 
 struct node_t;
 
-struct node_t* system_initialize(int node_id,const char* start_mode,const char* config_path,void(*user_cb)(int data_size,void* data));
+struct node_t* system_initialize(int node_id,const char* start_mode,const char* config_path,void(*user_cb)(int data_size,void* data,void* arg),void* arg);
 void system_run(struct node_t* replica);
 void system_exit(struct node_t* replica);
 

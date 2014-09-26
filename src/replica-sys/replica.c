@@ -525,7 +525,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
 }
 
 
-int initialize_node(node* my_node,void (*user_cb)(size_t data_size,void* data)){
+int initialize_node(node* my_node,void (*user_cb)(size_t data_size,void* data,void* arg),void* arg){
     ENTER_FUNC
     int flag = 1;
     gettimeofday(&my_node->last_ping_msg,NULL);
@@ -553,7 +553,7 @@ int initialize_node(node* my_node,void (*user_cb)(size_t data_size,void* data)){
 
     my_node->consensus_comp = init_consensus_comp(my_node,
             my_node->node_id,my_node->db_name,my_node->group_size,
-            &my_node->cur_view,user_cb,send_for_consensus_comp);
+            &my_node->cur_view,user_cb,send_for_consensus_comp,arg);
     if(NULL==my_node->consensus_comp){
         goto initialize_node_exit;
     }
@@ -562,7 +562,7 @@ initialize_node_exit:
         return flag;
 }
 
-node* system_initialize(int node_id,const char* start_mode,const char* config_path,void(*user_cb)(int data_size,void* data)){
+node* system_initialize(int node_id,const char* start_mode,const char* config_path,void(*user_cb)(int data_size,void* data,void* arg),void* arg){
     ENTER_FUNC
     
 //    signal(SIGINT,node_sys_sig_handler);
@@ -617,7 +617,7 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
 #endif
 
     DEBUG_POINT(5)
-    if(initialize_node(my_node,user_cb)){
+    if(initialize_node(my_node,user_cb,arg)){
         paxos_log("cannot initialize node\n");
         goto exit_error;
     }

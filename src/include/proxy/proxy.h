@@ -79,10 +79,10 @@ typedef struct proxy_node_t{
     struct node_t* con_node;
     struct bufferevent* con_conn;
     struct event* re_con;
-
     FILE* log_file;
-
     char* db_name;
+    // for call back of the thread;
+    pthread_mutex_t lock;
 
 }proxy_node;
 

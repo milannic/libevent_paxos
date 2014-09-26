@@ -22,7 +22,6 @@
 static void* shared_mem=NULL; 
 static rec_no_t cur_id=0;
 static rec_no_t highest_id=0;
-static pthread_t con_subt=9999999;
 static struct timeval reconnect_timeval = {2,0};
 
 typedef struct request_record_t{
@@ -32,14 +31,14 @@ typedef struct request_record_t{
     size_t data_size; // data size
     char data[0];     // real data
 }__attribute__((packed))request_record;
-#define REQ_RECORD_SIZE(M) (sizeof(request_record)+(M->data_size))
-
+#define REQ_RECORD_SIZE(M) (sizeof(request_record)+(M->data_size)) 
 
 //helper function
 static hk_t gen_key(nid_t,nc_t,sec_t);
 
 // consensus callback
-static void update_state(int,void*);
+static void update_state(int,void*,void*);
+static void fake_update_state(int,void*,void*);
 static void usage();
 
 static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
@@ -53,9 +52,10 @@ static void reconnect_on_timeout(int fd,short what,void* arg);
 //socket pair callback function
 //
 //
+static unsigned global_req_count=0;
 static void server_side_on_read(struct bufferevent* bev,void* arg);
 static void server_side_on_err(struct bufferevent* bev,short what,void* arg);
-static void client_process_data(proxy_node*,struct bufferevent*,size_t);
+static void client_process_data(socket_pair*,struct bufferevent*,size_t);
 static void client_side_on_read(struct bufferevent* bev,void* arg);
 static void client_side_on_err(struct bufferevent* bev,short what,void* arg);
 
@@ -72,25 +72,38 @@ static hk_t gen_key(nid_t node_id,nc_t node_count,sec_t time){
     return key;
 }
 
-//static void update_state(int data_size,void* data){
-//    ENTER_FUNC
-//    paxos_log("the newly delivered request is %lu.\n",*(hk_t*)data);
-//    void* dest = ((flag_t*)shared_mem)+1; 
-//    dest = ((rec_no_t*)dest)+1; 
-//    memcpy(dest,data,data_size);
-//    LEAVE_FUNC
-//    return;
-//}
+static void update_state(int data_size,void* data,void* arg){
+    ENTER_FUNC
+    paxos_log("To Be Done.\n");
+    LEAVE_FUNC
+    return;
+}
 
 //fake update state, we take out the data directly without re-
 //visit the database
-static void update_state(int data_size,void* data){
+static void fake_update_state(int data_size,void* data,void* arg){
     ENTER_FUNC
+    proxy_node* proxy = arg;
     proxy_msg_header* header = data;
+    FILE* output = proxy->log_file;
+    if(output==NULL){
+        output = stdout;
+    }
     switch(header->action){
         case P_CONNECT:
+            fprintf(output,"%u : connection %lu connects.\n",
+                    global_req_count++,header->connection_id);
+            break;
         case P_SEND:
+            fprintf(output,"%u : connection %lu occurs sends data %s.\n",
+                    global_req_count++,
+                    header->connection_id,((client_msg*)header)->data);
+            break;
         case P_CLOSE:
+            fprintf(output,"%u : connection %lu closes.\n",
+                    global_req_count++,header->connection_id);
+            break;
+        default:
             break;
     }
     LEAVE_FUNC
@@ -108,10 +121,8 @@ static void* t_consensus(void *arg){
 }
 
 //public interface
-//
-
-
 void consensus_on_event(struct bufferevent* bev,short ev,void* arg){
+    ENTER_FUNC
     proxy_node* proxy = arg;
     if(ev&BEV_EVENT_CONNECTED){
         paxos_log("Connected to Consensus.\n");
@@ -122,15 +133,21 @@ void consensus_on_event(struct bufferevent* bev,short ev,void* arg){
         proxy->con_conn = NULL;
         event_add(proxy->re_con,&reconnect_timeval);
     }
-
+    LEAVE_FUNC
+    return;
 }
+
 //void consensus_on_read(struct bufferevent* bev,void*);
 void connect_consensus(proxy_node* proxy){
+    ENTER_FUNC
     proxy->con_conn = bufferevent_socket_new(proxy->base,-1,BEV_OPT_CLOSE_ON_FREE);
     bufferevent_setcb(proxy->con_conn,NULL,NULL,consensus_on_event,proxy);
     bufferevent_enable(proxy->con_conn,EV_READ|EV_WRITE|EV_PERSIST);
     bufferevent_socket_connect(proxy->con_conn,(struct sockaddr*)&proxy->sys_addr.c_addr,proxy->sys_addr.c_sock_len);
+    LEAVE_FUNC
+    return;
 }
+
 
 void reconnect_on_timeout(int fd,short what,void* arg){
     // this function should also test whether it should re-set 
@@ -147,35 +164,41 @@ static void server_side_on_err(struct bufferevent* bev,short what,void* arg){
     return;
 }
 
-static void client_process_data(proxy_node* proxy,struct bufferevent* bev,size_t data_size){
+static void client_process_data(socket_pair* pair,struct bufferevent* bev,size_t data_size){
     ENTER_FUNC
     void* msg_buf = (char*)malloc(CLIENT_MSG_HEADER_SIZE+data_size);
+    req_sub_msg* con_msg=NULL;
     if(NULL==msg_buf){
         goto client_process_data_exit;
     }
     struct evbuffer* evb = bufferevent_get_input(bev);
     evbuffer_remove(evb,msg_buf,CLIENT_MSG_HEADER_SIZE+data_size);
     client_msg_header* msg_header = msg_buf;
+    proxy_node* proxy = pair->proxy;
     switch(msg_header->type){
         case C_SEND:
-            //handle_ping_ack(my_node,(ping_ack_msg*)msg_buf);
-            paxos_log("Fake Handler.\n");
+            con_msg = build_req_sub_msg(pair->key,P_SEND,
+                    msg_header->data_size,((client_msg*)msg_header)->data);
+            if(NULL!=con_msg && NULL!=proxy->con_conn){
+                bufferevent_write(proxy->con_conn,con_msg,REQ_SUB_SIZE(con_msg));
+            }
             break;
         default:
             paxos_log("Unknown Client Msg Type %d\n",
                     msg_header->type);
             goto client_process_data_exit;
     }
-
 client_process_data_exit:
     if(NULL!=msg_buf){free(msg_buf);}
+    if(NULL!=con_msg){free(con_msg);}
     LEAVE_FUNC
     return;
 };
 
+// check whether there is enough data on the client evbuffer
 static void client_side_on_read(struct bufferevent* bev,void* arg){
     ENTER_FUNC
-    proxy_node* proxy = arg;
+    socket_pair* pair = arg;
     client_msg_header* header = NULL;
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = 0;
@@ -188,7 +211,7 @@ static void client_side_on_read(struct bufferevent* bev,void* arg){
         evbuffer_copyout(input,header,CLIENT_MSG_HEADER_SIZE);
         int data_size = header->data_size;
         if(len>=(CLIENT_MSG_HEADER_SIZE+data_size)){
-           client_process_data(proxy,bev,data_size); 
+           client_process_data(pair,bev,data_size); 
         }else{
             break;
         }
@@ -226,9 +249,11 @@ static req_sub_msg* build_req_sub_msg(hk_t s_key,int type,size_t data_size,void*
             co_msg->header.connection_id = s_key;
             break;
         case P_SEND:
+            // consensus
             msg = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+sizeof(proxy_send_msg)+data_size);
             msg->header.type = REQUEST_SUBMIT;
             msg->header.data_size = sizeof(proxy_send_msg)+data_size;
+            //proxy
             proxy_send_msg* send_msg = (void*)msg->data;
             send_msg->header.action = P_SEND;
             gettimeofday(&send_msg->header.created_time,NULL);
@@ -272,7 +297,7 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
                 cur.tv_sec);
         new_conn->p_c = bufferevent_socket_new(proxy->base,fd,BEV_OPT_CLOSE_ON_FREE);
         new_conn->proxy = proxy;
-        bufferevent_setcb(new_conn->p_c,server_side_on_read,NULL,server_side_on_err,new_conn);
+        bufferevent_setcb(new_conn->p_c,client_side_on_read,NULL,client_side_on_err,new_conn);
         bufferevent_enable(new_conn->p_c,EV_READ|EV_PERSIST|EV_WRITE);
         MY_HASH_SET(new_conn,proxy->hash_map);
         // connect operation should be consistent among all the proxies.
@@ -308,10 +333,16 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     proxy_node* proxy = (proxy_node*)malloc(sizeof(proxy_node));
 
     if(NULL==proxy){
+        paxos_log("cannot malloc the proxy.\n");
         goto proxy_exit_error;
     }
 
     memset(proxy,0,sizeof(proxy_node));
+
+    if(pthread_mutex_init(&proxy->lock,NULL)){
+        paxos_log("cannot init the lock.\n");
+        goto proxy_exit_error;
+    }
     
     // set up base
 	struct event_base* base = event_base_new();
@@ -320,7 +351,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
         goto proxy_exit_error;
     }
 
-    
+//    proxy->log_file = NULL; 
     if(log_path!=NULL){
         proxy->log_file = fopen(log_path,"w");
     }
@@ -333,14 +364,19 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     }
     // ensure the value is NULL at first
     proxy->hash_map=NULL;
-    
-    proxy->con_node = system_initialize(node_id,start_mode,config_path,update_state);
+    if(proxy->fake){ 
+        proxy->con_node = system_initialize(node_id,start_mode,
+                config_path,fake_update_state,proxy);
+    }else{
+        proxy->con_node = system_initialize(node_id,start_mode,
+                config_path,update_state,proxy);
+    }
 
     if(NULL==proxy->con_node){
         paxos_log("cannot initialize node\n");
         goto proxy_exit_error;
     }
-    proxy->sub_thread = 0;
+
     pthread_create(&proxy->sub_thread,NULL,t_consensus,proxy->con_node);
 
     proxy->sig_handler = evsignal_new(proxy->base,SIGTERM,proxy_singnal_handler,proxy);

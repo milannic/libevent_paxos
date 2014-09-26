@@ -26,7 +26,7 @@ struct node_t;
 struct consensus_component_t;
 
 typedef void (*up_call)(struct node_t*,size_t,void*,int);
-typedef void (*user_cb)(size_t data_size,void* data);
+typedef void (*user_cb)(size_t data_size,void* data,void* arg);
 
 typedef enum con_role_t{
     LEADER = 0,
@@ -35,7 +35,7 @@ typedef enum con_role_t{
 
 struct consensus_component_t* init_consensus_comp(struct node_t*,uint32_t,
         const char*,int,
-        view*,user_cb,up_call);
+        view*,user_cb,up_call,void*);
 
 void consensus_handle_msg(struct consensus_component_t*,size_t,void*);
 

@@ -53,6 +53,7 @@ typedef struct consensus_component_t{
     db* db_ptr;
     up_call uc;
     user_cb ucb;
+    void* up_para;
 }consensus_component;
 
 typedef uint64_t record_index_type;
@@ -136,7 +137,7 @@ view_stamp consensus_get_highest_seen_req(consensus_component* comp){
 
 consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
         const char* db_name,int group_size,
-        view* cur_view,user_cb u_cb,up_call uc){
+        view* cur_view,user_cb u_cb,up_call uc,void* arg){
     consensus_component* comp = (consensus_component*)
         malloc(sizeof(consensus_component));
     if(NULL!=comp){
@@ -155,6 +156,7 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
         }
         comp->ucb = u_cb;
         comp->uc = uc;
+        comp->up_para = arg;
         comp->highest_seen_vs.view_id = 1;
         comp->highest_seen_vs.req_id = 0;
         comp->highest_committed_vs.view_id = 1; 
@@ -718,7 +720,7 @@ static void deliever_msg_vs(consensus_component* comp,const view_stamp* vs){
     // to the proxy, and then the proxy will take the overhead of database operation
     view_stamp* vs_dest = (view_stamp*)malloc(sizeof(view_stamp));
     memcpy(vs_dest,vs,sizeof(view_stamp));
-    comp->ucb(sizeof(view_stamp),vs_dest);
+    comp->ucb(sizeof(view_stamp),vs_dest,comp->up_para);
     return;
 }
 
@@ -736,7 +738,7 @@ static void deliever_msg_data(consensus_component* comp,view_stamp* vs){
     comp->node_id,vs->view_id,vs->req_id);
     if(NULL!=data){
         if(comp->ucb!=NULL){
-            comp->ucb(data->data_size,data->data);
+            comp->ucb(data->data_size,data->data,comp->up_para);
         }else{
             debug_log("no such call back func\n");
         }
