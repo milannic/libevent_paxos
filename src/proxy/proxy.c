@@ -90,19 +90,27 @@ static void fake_update_state(int data_size,void* data,void* arg){
     if(output==NULL){
         output = stdout;
     }
+    struct timeval endtime;
+    gettimeofday(&endtime,NULL);
     switch(header->action){
         case P_CONNECT:
-            fprintf(output,"%u : connection %lu connects.\nNo.%lu  requests of this connection.\n",
-                    global_req_count++,header->connection_id,header->counter);
+            fprintf(output,"\n%lu:%lu -----> %lu:%lu.\n",header->created_time.tv_sec,
+                    header->created_time.tv_usec,endtime.tv_sec,endtime.tv_usec);
+            fprintf(output,"%u : connection %lu connects.\n",
+                    global_req_count++,header->connection_id);
             break;
         case P_SEND:
-            fprintf(output,"%u : connection %lu sends data %s.\nNo.%lu requests of this connection.\n",
+            fprintf(output,"\n%lu:%lu -----> %lu:%lu.\n",header->created_time.tv_sec,
+                    header->created_time.tv_usec,endtime.tv_sec,endtime.tv_usec);
+            fprintf(output,"\n%u : connection %lu sends data %s.\n",
                     global_req_count++,
-                    header->connection_id,((proxy_send_msg*)header)->data,header->counter);
+                    header->connection_id,((proxy_send_msg*)header)->data);
             break;
         case P_CLOSE:
-            fprintf(output,"%u : connection %lu closes.\nNo.%lu requests of this connection.\n",
-                    global_req_count++,header->connection_id,header->counter);
+            fprintf(output,"\n%lu:%lu -----> %lu:%lu.\n",header->created_time.tv_sec,
+                    header->created_time.tv_usec,endtime.tv_sec,endtime.tv_usec);
+            fprintf(output,"\n%u : connection %lu closes.\n",
+                    global_req_count++,header->connection_id);
             break;
         default:
             break;
