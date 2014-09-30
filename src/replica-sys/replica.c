@@ -345,7 +345,7 @@ static void replica_on_error_cb(struct bufferevent* bev,short ev,void *arg){
 
 static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd,struct sockaddr *address,int socklen,void *arg){
     node* my_node = arg;
-    paxos_log( "a new connection is established and the socket is %d\n",fd);
+    paxos_log( "In consensus,Connection is established.\n");
     if(current_connection>=MAX_ACCEPT_CONNECTIONS){
         paxos_log("it has exceeded the predefined maximal concurrent connections\n");
         close(fd);

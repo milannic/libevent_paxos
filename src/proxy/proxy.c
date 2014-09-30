@@ -92,16 +92,16 @@ static void fake_update_state(int data_size,void* data,void* arg){
     }
     switch(header->action){
         case P_CONNECT:
-            fprintf(output,"%u : connection %lu connects,No.%lu  requests of this connection.\n",
+            fprintf(output,"%u : connection %lu connects.\nNo.%lu  requests of this connection.\n",
                     global_req_count++,header->connection_id,header->counter);
             break;
         case P_SEND:
-            fprintf(output,"%u : connection %lu sends data %s,No.%lu requests of this connection.\n",
+            fprintf(output,"%u : connection %lu sends data %s.\nNo.%lu requests of this connection.\n",
                     global_req_count++,
-                    header->connection_id,((client_msg*)header)->data,header->counter);
+                    header->connection_id,((proxy_send_msg*)header)->data,header->counter);
             break;
         case P_CLOSE:
-            fprintf(output,"%u : connection %lu closes.No.%lu requests of this connection.\n",
+            fprintf(output,"%u : connection %lu closes.\nNo.%lu requests of this connection.\n",
                     global_req_count++,header->connection_id,header->counter);
             break;
         default:
@@ -178,6 +178,7 @@ static void client_process_data(socket_pair* pair,struct bufferevent* bev,size_t
     proxy_node* proxy = pair->proxy;
     switch(msg_header->type){
         case C_SEND_WR:
+            paxos_log("received msg from client, the message is %s.\n",((client_msg*)msg_header)->data);
             con_msg = build_req_sub_msg(pair->key,pair->counter++,P_SEND,
                     msg_header->data_size,((client_msg*)msg_header)->data);
             if(NULL!=con_msg && NULL!=proxy->con_conn){
@@ -289,9 +290,9 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
         fd,struct sockaddr *address,int socklen,void *arg){
     req_sub_msg* req_msg = NULL;
     proxy_node* proxy = arg;
-    paxos_log( "a new connection is established and the socket is %d\n",fd);
+    paxos_log( "In proxy: a client connection is established.%d\n",fd);
     if(proxy->con_conn==NULL){
-        paxos_log("We have lost the connection to consensus component now.\n");
+        paxos_log("In proxy: We have lost the connection to consensus component now.\n");
         close(fd);
     }else{
         socket_pair* new_conn = malloc(sizeof(socket_pair));

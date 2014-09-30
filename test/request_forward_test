@@ -104,10 +104,10 @@ sleep 5
 sleep ${SLEEP_TIME}
 
 #echo "Kill The Leader"
-kill ${PRIMARY_PID} &>/dev/null
+kill -15 ${PRIMARY_PID} &>/dev/null
 
 for i in $(echo ${!NODE*});do
-    kill ${!i} &>/dev/null
+    kill -15 ${!i} &>/dev/null
 done
 
 check_output
