@@ -17,8 +17,6 @@
  */
 #ifndef COMMON_HEADER_H
 #define COMMON_HEADER_H
-
-#define _POSIX_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -41,4 +39,8 @@
 #include "net-communication.h"
 #include "debug.h"
 
+#endif
+
+#ifndef _POSIX_SOURCE
+#define _POSIX_SOURCE
 #endif

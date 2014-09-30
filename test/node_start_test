@@ -68,7 +68,9 @@ echo ${PRIMARY_PID}
 
 #echo "Sleep Some Time"
 
-read -n1 kbd
+#read -n1 kbd
+
+sleep 5
 
 #echo "Kill The Leader"
 kill -15 ${PRIMARY_PID} &>/dev/null

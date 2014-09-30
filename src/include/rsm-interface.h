@@ -20,7 +20,8 @@
 #include <unistd.h>
 
 typedef enum client_msg_code_t{
-    C_SEND = 0,
+    C_SEND_WR = 0,
+    C_SEND_RD = 1,
     //further structure is reserved for potential expansion
 }client_msg_code;
 
@@ -34,7 +35,7 @@ typedef struct client_msg_t{
     client_msg_header header;
     char data[0];
 }__attribute__((packed))client_msg;
-#define CLIENT_MSG_SIZE(M) (sizeof(client_msg)+((M)->header.size))
+#define CLIENT_MSG_SIZE(M) (sizeof(client_msg)+((M)->header.data_size))
 
 struct proxy_node_t;
 

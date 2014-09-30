@@ -15,7 +15,7 @@
  * =====================================================================================
  */
 
-#include "../src/include/rsm-interface.h"
+#include "../src/include/replica-sys/message.h"
 #include "../src/include/util/common-header.h"
 #include <unistd.h>
 #include <time.h> /* 
@@ -73,13 +73,13 @@ int main ( int argc, char *argv[] )
     }
 
     int ret;
-    client_msg *request = (client_msg*)malloc(CLIENT_MSG_HEADER_SIZE+13);
+    req_sub_msg* request = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+13);
     srand(time(NULL)+node_id);
     for(int index=0;index<1000;index++){
         int s_time = 20*((double)rand()/(double)RAND_MAX);
         printf("sleep time is %u\n",s_time);
         usleep(s_time);
-        request->header.type = C_SEND_WR;
+        request->header.type = REQUEST_SUBMIT;
         request->header.data_size = 13;
         request->data[0] = 'c';
         request->data[1] = 'l';
@@ -95,11 +95,10 @@ int main ( int argc, char *argv[] )
         request->data[11] = 'd';
         request->data[12] = '\0';
 
-        if((ret=send(my_socket,request,CLIENT_MSG_SIZE(request),0))<0){
+        if((ret=send(my_socket,request,REQ_SUB_SIZE(request),0))<0){
             goto main_exit_error;
         }
         printf("send message %s\n",request->data);
-
     }
     return EXIT_SUCCESS;
 main_exit_error:

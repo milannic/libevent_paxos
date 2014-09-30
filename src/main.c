@@ -101,9 +101,9 @@ int main(int argc,char** argv){
     struct proxy_node_t* proxy = proxy_init(node_id,start_mode,config_path,log_path,fake_mode);
     if(NULL==proxy){
         return 1;
+    }else{
+        proxy_run(proxy);
     }
-    while(1){
-        ;
-    }
+    fprintf(stderr,"total goes out.\n");
     return 0;
 }

@@ -81,13 +81,13 @@ DEBUG
 sleep ${SLEEP_TIME}
 
 #echo "Kill The Leader"
-kill ${PRIMARY_PID} &>/dev/null
+kill -15 ${PRIMARY_PID} &>/dev/null
 
 #echo "Sleep Some Time"
 sleep ${SLEEP_TIME}
 
 for i in $(echo ${!NODE*});do
-    kill ${!i} &>/dev/null
+    kill -15 ${!i} &>/dev/null
 done
 
 check_output

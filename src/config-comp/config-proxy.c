@@ -23,6 +23,7 @@
 
 
 int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
+    ENTER_FUNC
     config_t config_file;
     config_init(&config_file);
 
@@ -61,8 +62,8 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
         paxos_log("cannot find current node's address\n");
         goto goto_config_error;
     }
-    const char* peer_ipaddr;
-    int peer_port;
+    const char* peer_ipaddr=NULL;
+    int peer_port=-1;
 
     if(!config_setting_lookup_string(con_ele,"ip_address",&peer_ipaddr)){
         goto goto_config_error;
@@ -73,7 +74,7 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     cur_node->sys_addr.c_addr.sin_port = htons(peer_port);
     cur_node->sys_addr.c_addr.sin_family = AF_INET;
     inet_pton(AF_INET,peer_ipaddr,&cur_node->sys_addr.c_addr.sin_addr);
-
+    cur_node->sys_addr.c_sock_len = sizeof(cur_node->sys_addr.c_addr);
 
 // parse server address
     config_setting_t *server_config;
@@ -97,6 +98,8 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
         goto goto_config_error;
     }
 
+    peer_ipaddr=NULL;
+    peer_port=-1;
     if(!config_setting_lookup_string(serv_ele,"ip_address",&peer_ipaddr)){
         goto goto_config_error;
     }
@@ -108,9 +111,11 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     cur_node->sys_addr.s_addr.sin_family = AF_INET;
     inet_pton(AF_INET,peer_ipaddr,&cur_node->sys_addr.s_addr.sin_addr);
 
+    cur_node->sys_addr.s_sock_len = sizeof(cur_node->sys_addr.s_addr);
 // parse proxy address
     config_setting_t *proxy_config;
     proxy_config = config_lookup(&config_file,"proxy_config");
+
 
     if(NULL==proxy_config){
         paxos_log("cannot find nodes settings \n");
@@ -130,6 +135,9 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
         goto goto_config_error;
     }
 
+    peer_ipaddr=NULL;
+    peer_port=-1;
+
     if(!config_setting_lookup_string(pro_ele,"ip_address",&peer_ipaddr)){
         goto goto_config_error;
     }
@@ -137,10 +145,15 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
         goto goto_config_error;
     }
 
+    paxos_log("test %d.\n",cur_node->node_id);
+    paxos_log("test %d.\n",peer_port);
+
     cur_node->sys_addr.p_addr.sin_port = htons(peer_port);
     cur_node->sys_addr.p_addr.sin_family = AF_INET;
     inet_pton(AF_INET,peer_ipaddr,&cur_node->sys_addr.p_addr.sin_addr);
+    cur_node->sys_addr.p_sock_len = sizeof(cur_node->sys_addr.p_addr);
 
+    paxos_log("test %lu.\n",cur_node->sys_addr.p_sock_len);
 
     const char* db_name;
     if(!config_setting_lookup_string(pro_ele,"db_name",&db_name)){
@@ -158,11 +171,13 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     cur_node->db_name[db_name_len] = '\0';
 
     config_destroy(&config_file);
+    LEAVE_FUNC
     return 0;
 
 goto_config_error:
     paxos_log("%s:%d - %s\n", config_error_file(&config_file),
             config_error_line(&config_file), config_error_text(&config_file));
     config_destroy(&config_file);
+    ERR_LEAVE_FUNC
     return -1;
 }

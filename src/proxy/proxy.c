@@ -23,6 +23,7 @@ static void* shared_mem=NULL;
 static rec_no_t cur_id=0;
 static rec_no_t highest_id=0;
 static struct timeval reconnect_timeval = {2,0};
+static void* hack_arg=NULL;
 
 typedef struct request_record_t{
     struct timeval created_time; // data created timestamp
@@ -59,7 +60,7 @@ static void client_process_data(socket_pair*,struct bufferevent*,size_t);
 static void client_side_on_read(struct bufferevent* bev,void* arg);
 static void client_side_on_err(struct bufferevent* bev,short what,void* arg);
 
-static req_sub_msg* build_req_sub_msg(hk_t s_key,int type,size_t data_size,void* data);
+static req_sub_msg* build_req_sub_msg(hk_t s_key,counter_t counter,int type,size_t data_size,void* data);
 
 //log component
 
@@ -91,17 +92,17 @@ static void fake_update_state(int data_size,void* data,void* arg){
     }
     switch(header->action){
         case P_CONNECT:
-            fprintf(output,"%u : connection %lu connects.\n",
-                    global_req_count++,header->connection_id);
+            fprintf(output,"%u : connection %lu connects,No.%lu  requests of this connection.\n",
+                    global_req_count++,header->connection_id,header->counter);
             break;
         case P_SEND:
-            fprintf(output,"%u : connection %lu occurs sends data %s.\n",
+            fprintf(output,"%u : connection %lu sends data %s,No.%lu requests of this connection.\n",
                     global_req_count++,
-                    header->connection_id,((client_msg*)header)->data);
+                    header->connection_id,((client_msg*)header)->data,header->counter);
             break;
         case P_CLOSE:
-            fprintf(output,"%u : connection %lu closes.\n",
-                    global_req_count++,header->connection_id);
+            fprintf(output,"%u : connection %lu closes.No.%lu requests of this connection.\n",
+                    global_req_count++,header->connection_id,header->counter);
             break;
         default:
             break;
@@ -176,8 +177,8 @@ static void client_process_data(socket_pair* pair,struct bufferevent* bev,size_t
     client_msg_header* msg_header = msg_buf;
     proxy_node* proxy = pair->proxy;
     switch(msg_header->type){
-        case C_SEND:
-            con_msg = build_req_sub_msg(pair->key,P_SEND,
+        case C_SEND_WR:
+            con_msg = build_req_sub_msg(pair->key,pair->counter++,P_SEND,
                     msg_header->data_size,((client_msg*)msg_header)->data);
             if(NULL!=con_msg && NULL!=proxy->con_conn){
                 bufferevent_write(proxy->con_conn,con_msg,REQ_SUB_SIZE(con_msg));
@@ -227,7 +228,7 @@ static void client_side_on_read(struct bufferevent* bev,void* arg){
 static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
-    req_sub_msg* close_msg = build_req_sub_msg(pair->key,P_CLOSE,0,NULL);
+    req_sub_msg* close_msg = build_req_sub_msg(pair->key,pair->counter++,P_CLOSE,0,NULL);
     if(NULL!=close_msg && NULL!=proxy->con_conn){
         bufferevent_write(proxy->con_conn,close_msg,REQ_SUB_SIZE(close_msg));
         free(close_msg);
@@ -236,7 +237,7 @@ static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
 }
 
 
-static req_sub_msg* build_req_sub_msg(hk_t s_key,int type,size_t data_size,void* data){
+static req_sub_msg* build_req_sub_msg(hk_t s_key,counter_t counter,int type,size_t data_size,void* data){
     req_sub_msg* msg = NULL;
     switch(type){
         case P_CONNECT:
@@ -245,8 +246,9 @@ static req_sub_msg* build_req_sub_msg(hk_t s_key,int type,size_t data_size,void*
             msg->header.data_size = PROXY_CONNECT_MSG_SIZE;
             proxy_connect_msg* co_msg = (void*)msg->data;
             co_msg->header.action = P_CONNECT;
-            gettimeofday(&co_msg->header.created_time,NULL);
             co_msg->header.connection_id = s_key;
+            co_msg->header.counter = counter;
+            gettimeofday(&co_msg->header.created_time,NULL);
             break;
         case P_SEND:
             // consensus
@@ -256,8 +258,9 @@ static req_sub_msg* build_req_sub_msg(hk_t s_key,int type,size_t data_size,void*
             //proxy
             proxy_send_msg* send_msg = (void*)msg->data;
             send_msg->header.action = P_SEND;
-            gettimeofday(&send_msg->header.created_time,NULL);
             send_msg->header.connection_id = s_key;
+            send_msg->header.counter = counter;
+            gettimeofday(&send_msg->header.created_time,NULL);
             send_msg->data_size = data_size;
             memcpy(send_msg->data,data,data_size);
             break;
@@ -267,8 +270,9 @@ static req_sub_msg* build_req_sub_msg(hk_t s_key,int type,size_t data_size,void*
             msg->header.data_size = PROXY_CONNECT_MSG_SIZE;
             proxy_close_msg* cl_msg = (void*)msg->data;
             cl_msg->header.action = P_CLOSE;
-            gettimeofday(&cl_msg->header.created_time,NULL);
             cl_msg->header.connection_id = s_key;
+            cl_msg->header.counter = counter;
+            gettimeofday(&cl_msg->header.created_time,NULL);
             break;
         default:
             goto build_req_sub_msg_err_exit;
@@ -296,17 +300,34 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
         new_conn->key = gen_key(proxy->node_id,proxy->pair_count++,
                 cur.tv_sec);
         new_conn->p_c = bufferevent_socket_new(proxy->base,fd,BEV_OPT_CLOSE_ON_FREE);
+        new_conn->counter = 0;
         new_conn->proxy = proxy;
         bufferevent_setcb(new_conn->p_c,client_side_on_read,NULL,client_side_on_err,new_conn);
         bufferevent_enable(new_conn->p_c,EV_READ|EV_PERSIST|EV_WRITE);
         MY_HASH_SET(new_conn,proxy->hash_map);
         // connect operation should be consistent among all the proxies.
-        req_msg = build_req_sub_msg(new_conn->key,P_CONNECT,0,NULL); 
+        req_msg = build_req_sub_msg(new_conn->key,new_conn->counter++,P_CONNECT,0,NULL); 
         bufferevent_write(proxy->con_conn,req_msg,REQ_SUB_SIZE(req_msg));
     }
     if(req_msg!=NULL){
         free(req_msg);
     }
+    return;
+}
+
+static void proxy_singnal_handler_sys(int sig){
+    ENTER_FUNC
+    proxy_node* proxy = hack_arg;
+    if(sig&SIGTERM){
+        paxos_log("Node Proxy Received SIGTERM .Now Quit.\n");
+        if(proxy->sub_thread!=0){
+            pthread_kill(proxy->sub_thread,SIGQUIT);
+            paxos_log("wating consensus comp to quit.\n");
+            pthread_join(proxy->sub_thread,NULL);
+        }
+    }
+    event_base_loopexit(proxy->base,NULL);
+    LEAVE_FUNC
     return;
 }
 
@@ -364,6 +385,16 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     }
     // ensure the value is NULL at first
     proxy->hash_map=NULL;
+    proxy->listener = evconnlistener_new_bind(proxy->base,proxy_on_accept,
+                (void*)proxy,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,
+                -1,(struct sockaddr*)&proxy->sys_addr.p_addr,
+                sizeof(proxy->sys_addr.p_addr));
+    if(proxy->listener==NULL){
+        paxos_log("cannot set up the listener\n");
+        goto proxy_exit_error;
+    }
+
+
     if(proxy->fake){ 
         proxy->con_node = system_initialize(node_id,start_mode,
                 config_path,fake_update_state,proxy);
@@ -379,18 +410,11 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 
     pthread_create(&proxy->sub_thread,NULL,t_consensus,proxy->con_node);
 
-    proxy->sig_handler = evsignal_new(proxy->base,SIGTERM,proxy_singnal_handler,proxy);
-    evsignal_add(proxy->sig_handler,NULL);
+    //proxy->sig_handler = evsignal_new(proxy->base,SIGTERM,proxy_singnal_handler,proxy);
+    //evsignal_add(proxy->sig_handler,NULL);
+    hack_arg = proxy;
+    signal(SIGTERM,proxy_singnal_handler_sys);
 
-    proxy->listener =
-        evconnlistener_new_bind(proxy->base,proxy_on_accept,
-                (void*)proxy,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,
-                -1,(struct sockaddr*)&proxy->sys_addr.p_addr,
-                sizeof(proxy->sys_addr.p_sock_len));
-    if(!proxy->listener){
-        paxos_log("cannot set up the listener\n");
-        goto proxy_exit_error;
-    }
     LEAVE_FUNC
 	return proxy;
 

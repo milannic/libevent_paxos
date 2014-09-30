@@ -29,6 +29,7 @@ typedef uint64_t hk_t;
 typedef uint64_t sec_t;
 typedef uint16_t nid_t;
 typedef uint16_t nc_t;
+typedef uint64_t counter_t;
 
 // record number
 typedef uint64_t rec_no_t;
@@ -40,6 +41,7 @@ struct proxy_node_t;
 // hash table of socket pair
 typedef struct socket_pair_t{
     hk_t key;
+    counter_t counter;
     struct proxy_node_t* proxy;
     struct bufferevent* p_s;
     struct bufferevent* p_c;
@@ -96,6 +98,7 @@ typedef struct proxy_msg_header_t{
     proxy_action action;
     struct timeval created_time;
     hk_t connection_id;
+    counter_t counter;
 }proxy_msg_header;
 #define PROXY_MSG_HEADER_SIZE (sizeof(proxy_msg_header))
 
