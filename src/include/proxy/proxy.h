@@ -13,10 +13,7 @@
  *         Author:  YOUR NAME (), 
  *   Organization:  
  *
- * =====================================================================================
- */
-#ifndef PROXY_H
-#define PROXY_H
+ * ===================================================================================== */ #ifndef PROXY_H #define PROXY_H
 
 #include "../util/common-header.h"
 #include "../rsm-interface.h"
@@ -96,6 +93,7 @@ typedef enum proxy_action_t{
 
 typedef struct proxy_msg_header_t{
     proxy_action action;
+    struct timeval received_time;
     struct timeval created_time;
     hk_t connection_id;
     counter_t counter;

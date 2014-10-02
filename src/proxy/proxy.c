@@ -92,25 +92,22 @@ static void fake_update_state(int data_size,void* data,void* arg){
     }
     struct timeval endtime;
     gettimeofday(&endtime,NULL);
+    fprintf(output,"\n%lu.%lu,%lu.%lu,%lu.%lu,%lu.%lu\n",header->received_time.tv_sec,
+            header->received_time.tv_usec,header->created_time.tv_sec,
+                    header->created_time.tv_usec,endtime.tv_sec,endtime.tv_usec,
+                  endtime.tv_sec,endtime.tv_usec);
     switch(header->action){
         case P_CONNECT:
-            fprintf(output,"\n%lu:%lu -----> %lu:%lu.\n",header->created_time.tv_sec,
-                    header->created_time.tv_usec,endtime.tv_sec,endtime.tv_usec);
-            fprintf(output,"%u : connection %lu connects.\n",
-                    global_req_count++,header->connection_id);
+            fprintf(output,"%lu,connects.\n",
+                    header->connection_id);
             break;
         case P_SEND:
-            fprintf(output,"\n%lu:%lu -----> %lu:%lu.\n",header->created_time.tv_sec,
-                    header->created_time.tv_usec,endtime.tv_sec,endtime.tv_usec);
-            fprintf(output,"\n%u : connection %lu sends data %s.\n",
-                    global_req_count++,
+            fprintf(output,"%lu,sends data:%s.\n",
                     header->connection_id,((proxy_send_msg*)header)->data);
             break;
         case P_CLOSE:
-            fprintf(output,"\n%lu:%lu -----> %lu:%lu.\n",header->created_time.tv_sec,
-                    header->created_time.tv_usec,endtime.tv_sec,endtime.tv_usec);
-            fprintf(output,"\n%u : connection %lu closes.\n",
-                    global_req_count++,header->connection_id);
+            fprintf(output,"%lu,closes.\n",
+                    header->connection_id);
             break;
         default:
             break;
@@ -184,11 +181,14 @@ static void client_process_data(socket_pair* pair,struct bufferevent* bev,size_t
     evbuffer_remove(evb,msg_buf,CLIENT_MSG_HEADER_SIZE+data_size);
     client_msg_header* msg_header = msg_buf;
     proxy_node* proxy = pair->proxy;
+    struct timeval recv_time;
     switch(msg_header->type){
         case C_SEND_WR:
+            gettimeofday(&recv_time,NULL);
             paxos_log("received msg from client, the message is %s.\n",((client_msg*)msg_header)->data);
             con_msg = build_req_sub_msg(pair->key,pair->counter++,P_SEND,
                     msg_header->data_size,((client_msg*)msg_header)->data);
+            ((proxy_send_msg*)con_msg->data)->header.received_time = recv_time;
             if(NULL!=con_msg && NULL!=proxy->con_conn){
                 bufferevent_write(proxy->con_conn,con_msg,REQ_SUB_SIZE(con_msg));
             }
@@ -237,7 +237,10 @@ static void client_side_on_read(struct bufferevent* bev,void* arg){
 static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
+    struct timeval recv_time;
+    gettimeofday(&recv_time,NULL);
     req_sub_msg* close_msg = build_req_sub_msg(pair->key,pair->counter++,P_CLOSE,0,NULL);
+    ((proxy_close_msg*)close_msg->data)->header.received_time = recv_time;
     if(NULL!=close_msg && NULL!=proxy->con_conn){
         bufferevent_write(proxy->con_conn,close_msg,REQ_SUB_SIZE(close_msg));
         free(close_msg);
@@ -269,9 +272,9 @@ static req_sub_msg* build_req_sub_msg(hk_t s_key,counter_t counter,int type,size
             send_msg->header.action = P_SEND;
             send_msg->header.connection_id = s_key;
             send_msg->header.counter = counter;
-            gettimeofday(&send_msg->header.created_time,NULL);
             send_msg->data_size = data_size;
             memcpy(send_msg->data,data,data_size);
+            gettimeofday(&send_msg->header.created_time,NULL);
             break;
         case P_CLOSE:
             msg = (req_sub_msg*)malloc(SYS_MSG_HEADER_SIZE+PROXY_CONNECT_MSG_SIZE);
@@ -315,7 +318,10 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
         bufferevent_enable(new_conn->p_c,EV_READ|EV_PERSIST|EV_WRITE);
         MY_HASH_SET(new_conn,proxy->hash_map);
         // connect operation should be consistent among all the proxies.
+        struct timeval recv_time;
+        gettimeofday(&recv_time,NULL);
         req_msg = build_req_sub_msg(new_conn->key,new_conn->counter++,P_CONNECT,0,NULL); 
+        ((proxy_connect_msg*)req_msg->data)->header.received_time = recv_time;
         bufferevent_write(proxy->con_conn,req_msg,REQ_SUB_SIZE(req_msg));
     }
     if(req_msg!=NULL){
