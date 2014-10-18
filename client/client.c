@@ -80,7 +80,8 @@ int main ( int argc, char *argv[] )
     client_msg *request = (client_msg*)malloc(CLIENT_MSG_HEADER_SIZE+13);
     srand(time(NULL)+node_id);
     for(int index=0;index<repeat_time;index++){
-        int s_time = sleep_interval*((double)rand()/(double)RAND_MAX);
+//        int s_time = sleep_interval*((double)rand()/(double)RAND_MAX);
+        int s_time = sleep_interval;
         //printf("sleep time is %u\n",s_time);
         if(sleep_type==0)
         {
