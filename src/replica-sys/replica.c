@@ -504,6 +504,8 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = 0;
     len = evbuffer_get_length(input);
+    paxos_log("Enter Consensus Communication Module.\n");
+    int counter = 0;
     debug_log("there is %u bytes data in the buffer in total\n",
             (unsigned)len);
     while(len>=SYS_MSG_HEADER_SIZE){
@@ -513,6 +515,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
         int data_size = buf->data_size;
         if(len>=(SYS_MSG_HEADER_SIZE+data_size)){
            my_node->msg_cb(my_node,bev,data_size); 
+           counter++;
         }else{
             break;
         }
@@ -520,6 +523,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
         buf=NULL;
         len = evbuffer_get_length(input);
     }
+    paxos_log("This Function Call Process %u Requests In Total.\n",counter);
     if(NULL!=buf){free(buf);}
     return;
 }
