@@ -75,7 +75,7 @@ static hk_t gen_key(nid_t node_id,nc_t node_count,sec_t time){
 
 static void update_state(int data_size,void* data,void* arg){
     ENTER_FUNC
-    paxos_log("To Be Done.\n");
+    debug_log("To Be Done.\n");
     LEAVE_FUNC
     return;
 }
@@ -131,10 +131,10 @@ void consensus_on_event(struct bufferevent* bev,short ev,void* arg){
     ENTER_FUNC
     proxy_node* proxy = arg;
     if(ev&BEV_EVENT_CONNECTED){
-        paxos_log("Connected to Consensus.\n");
+        debug_log("Connected to Consensus.\n");
     }else if((ev & BEV_EVENT_EOF )||(ev&BEV_EVENT_ERROR)){
         int err = EVUTIL_SOCKET_ERROR();
-		paxos_log("%s.\n",evutil_socket_error_to_string(err));
+		debug_log("%s.\n",evutil_socket_error_to_string(err));
         bufferevent_free(bev);
         proxy->con_conn = NULL;
         event_add(proxy->re_con,&reconnect_timeval);
@@ -185,7 +185,7 @@ static void client_process_data(socket_pair* pair,struct bufferevent* bev,size_t
     switch(msg_header->type){
         case C_SEND_WR:
             gettimeofday(&recv_time,NULL);
-            paxos_log("received msg from client, the message is %s.\n",((client_msg*)msg_header)->data);
+            debug_log("received msg from client, the message is %s.\n",((client_msg*)msg_header)->data);
             con_msg = build_req_sub_msg(pair->key,pair->counter++,P_SEND,
                     msg_header->data_size,((client_msg*)msg_header)->data);
             ((proxy_send_msg*)con_msg->data)->header.received_time = recv_time;
@@ -194,7 +194,7 @@ static void client_process_data(socket_pair* pair,struct bufferevent* bev,size_t
             }
             break;
         default:
-            paxos_log("Unknown Client Msg Type %d\n",
+            debug_log("Unknown Client Msg Type %d\n",
                     msg_header->type);
             goto client_process_data_exit;
     }
@@ -301,9 +301,9 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
         fd,struct sockaddr *address,int socklen,void *arg){
     req_sub_msg* req_msg = NULL;
     proxy_node* proxy = arg;
-    paxos_log( "In proxy: a client connection is established.%d\n",fd);
+    debug_log( "In proxy: a client connection is established.%d\n",fd);
     if(proxy->con_conn==NULL){
-        paxos_log("In proxy: We have lost the connection to consensus component now.\n");
+        debug_log("In proxy: We have lost the connection to consensus component now.\n");
         close(fd);
     }else{
         socket_pair* new_conn = malloc(sizeof(socket_pair));
@@ -334,10 +334,10 @@ static void proxy_singnal_handler_sys(int sig){
     ENTER_FUNC
     proxy_node* proxy = hack_arg;
     if(sig&SIGTERM){
-        paxos_log("Node Proxy Received SIGTERM .Now Quit.\n");
+        debug_log("Node Proxy Received SIGTERM .Now Quit.\n");
         if(proxy->sub_thread!=0){
             pthread_kill(proxy->sub_thread,SIGQUIT);
-            paxos_log("wating consensus comp to quit.\n");
+            debug_log("wating consensus comp to quit.\n");
             pthread_join(proxy->sub_thread,NULL);
         }
     }
@@ -350,10 +350,10 @@ static void proxy_singnal_handler(evutil_socket_t fid,short what,void* arg){
     ENTER_FUNC
     proxy_node* proxy = arg;
     if(what&EV_SIGNAL){
-        paxos_log("Node Proxy Received SIGTERM .Now Quit.\n");
+        debug_log("Node Proxy Received SIGTERM .Now Quit.\n");
         if(proxy->sub_thread!=0){
             pthread_kill(proxy->sub_thread,SIGQUIT);
-            paxos_log("wating consensus comp to quit.\n");
+            debug_log("wating consensus comp to quit.\n");
             pthread_join(proxy->sub_thread,NULL);
         }
     }
@@ -369,14 +369,14 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     proxy_node* proxy = (proxy_node*)malloc(sizeof(proxy_node));
 
     if(NULL==proxy){
-        paxos_log("cannot malloc the proxy.\n");
+        debug_log("cannot malloc the proxy.\n");
         goto proxy_exit_error;
     }
 
     memset(proxy,0,sizeof(proxy_node));
 
     if(pthread_mutex_init(&proxy->lock,NULL)){
-        paxos_log("cannot init the lock.\n");
+        debug_log("cannot init the lock.\n");
         goto proxy_exit_error;
     }
     
@@ -405,7 +405,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
                 -1,(struct sockaddr*)&proxy->sys_addr.p_addr,
                 sizeof(proxy->sys_addr.p_addr));
     if(proxy->listener==NULL){
-        paxos_log("cannot set up the listener\n");
+        debug_log("cannot set up the listener\n");
         goto proxy_exit_error;
     }
 
@@ -419,7 +419,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     }
 
     if(NULL==proxy->con_node){
-        paxos_log("cannot initialize node\n");
+        debug_log("cannot initialize node\n");
         goto proxy_exit_error;
     }
 
@@ -439,7 +439,7 @@ proxy_exit_error:
             // to do
             if(proxy->sub_thread!=0){
                 pthread_kill(proxy->sub_thread,SIGQUIT);
-                paxos_log("wating consensus comp to quit.\n");
+                debug_log("wating consensus comp to quit.\n");
                 pthread_join(proxy->sub_thread,NULL);
             }
         }

@@ -76,7 +76,7 @@ static void node_singal_handler(evutil_socket_t fid,short what,void* arg){
     ENTER_FUNC
     node* my_node = arg;
     if(what&EV_SIGNAL){
-        paxos_log("Node %d Received Kill Singal.Now Quit.\n",my_node->node_id);
+        debug_log("Node %d Received Kill Singal.Now Quit.\n",my_node->node_id);
     }
     event_base_loopexit(my_node->base,NULL);
     LEAVE_FUNC
@@ -100,16 +100,16 @@ static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
 static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg){
     peer* peer_node = (peer*)arg;
     if(ev&BEV_EVENT_CONNECTED){
-        paxos_log("Connected to Node %d\n",peer_node->peer_id);
+        debug_log("Connected to Node %d\n",peer_node->peer_id);
         peer_node->active = 1;
     }else if((ev & BEV_EVENT_EOF )||(ev&BEV_EVENT_ERROR)){
         if(peer_node->active){
             peer_node->active = 0;
-            paxos_log("Lost Connection With Node %d \n",peer_node->peer_id);
+            debug_log("Lost Connection With Node %d \n",peer_node->peer_id);
         }
         peer_node->my_buff_event = NULL;
         int err = EVUTIL_SOCKET_ERROR();
-		paxos_log("%s (%d)\n",evutil_socket_error_to_string(err),peer_node->peer_id);
+		debug_log("%s (%d)\n",evutil_socket_error_to_string(err),peer_node->peer_id);
         bufferevent_free(bev);
         event_add(peer_node->reconnect,&reconnect_timeval);
     }
@@ -140,9 +140,9 @@ static void connect_peers(node* my_node){
 
 
 static void lost_connection_with_leader(node* my_node){
-    paxos_log("Node %u Lost Connection With The Leader\n",
+    debug_log("Node %u Lost Connection With The Leader\n",
             my_node->node_id);
-    paxos_log("Node %u Will Start A Leader Election\n",
+    debug_log("Node %u Will Start A Leader Election\n",
             my_node->node_id);
     return;
 }
@@ -173,7 +173,7 @@ static void expected_leader_ping_period(int fd,short what,void* arg){
 
 
 static void leader_ping_period(int fd,short what,void* arg){
-    paxos_log("Leader Tries To Ping Other Nodes\n");
+    debug_log("Leader Tries To Ping Other Nodes\n");
     node* my_node = arg; 
     // at first check whether I am the leader
     if(my_node->cur_view.leader_id!=my_node->node_id){
@@ -228,7 +228,7 @@ static int initialize_expect_ping(node* my_node){
 }
 
 static void make_progress_on(int fd,short what,void* arg){
-    paxos_log("Leader Tries To Ping Other Nodes\n");
+    debug_log("Leader Tries To Ping Other Nodes\n");
     node* my_node = arg; 
     // at first check whether I am the leader
     if(my_node->cur_view.leader_id!=my_node->node_id){
@@ -345,9 +345,9 @@ static void replica_on_error_cb(struct bufferevent* bev,short ev,void *arg){
 
 static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd,struct sockaddr *address,int socklen,void *arg){
     node* my_node = arg;
-    paxos_log( "In consensus,Connection is established.\n");
+    debug_log( "In consensus,Connection is established.\n");
     if(current_connection>=MAX_ACCEPT_CONNECTIONS){
-        paxos_log("it has exceeded the predefined maximal concurrent connections\n");
+        debug_log("it has exceeded the predefined maximal concurrent connections\n");
         close(fd);
     }else{
         struct bufferevent* new_buff_event = bufferevent_socket_new(my_node->base,fd,BEV_OPT_CLOSE_ON_FREE);
@@ -487,7 +487,7 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
             handle_request_submit(my_node,(req_sub_msg*)msg_buf,bev);
             break;
         default:
-            paxos_log("unknown msg type %d\n",
+            debug_log("unknown msg type %d\n",
                     msg_header->type);
             goto handle_msg_exit;
     }
@@ -618,7 +618,7 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
 
     DEBUG_POINT(5)
     if(initialize_node(my_node,user_cb,arg)){
-        paxos_log("cannot initialize node\n");
+        debug_log("cannot initialize node\n");
         goto exit_error;
     }
 
@@ -629,7 +629,7 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
 
     DEBUG_POINT(6);
     if(!my_node->listener){
-        paxos_log("cannot set up the listener\n");
+        debug_log("cannot set up the listener\n");
         goto exit_error;
     }
 

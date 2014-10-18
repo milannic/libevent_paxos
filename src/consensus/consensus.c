@@ -278,6 +278,11 @@ static void update_record(request_record* record,uint32_t node_id){
 static int reached_quorum(request_record* record,int group_size){
     // this may be compatibility issue 
     //debug_log("the record bit map is %x\n",record->bit_map);
+    debug_log("current record's bitmap is %lu.\n",record->bit_map);
+    debug_log("current group size is %u.\n",group_size);
+    debug_log("current group size is %u.\n",group_size/2);
+    debug_log("current group size is %u.\n",group_size/2+1);
+    debug_log("current group size is %u.\n",__builtin_popcountl(record->bit_map));
     if(__builtin_popcountl(record->bit_map)>=((group_size/2)+1)){
         return 1;
     }else{
@@ -679,6 +684,7 @@ void consensus_make_progress(struct consensus_component_t* comp){
     if(LEADER!=comp->my_role){
         goto make_progress_exit;
     }
+    leader_try_to_execute(comp);
     debug_log("Let's make progress\n");
     if((view_stamp_comp(&comp->highest_committed_vs,&comp->highest_seen_vs)<0)&& (comp->highest_seen_vs.view_id==comp->cur_view->view_id)){
         view_stamp temp;

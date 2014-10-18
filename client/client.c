@@ -32,8 +32,10 @@ int main ( int argc, char *argv[] )
     int server_port;
     int c;
     int node_id=9;
-    int repeat_time=0;
-    while((c=getopt(argc,argv,"n:s:p:r:"))!=-1){
+    int repeat_time=1000;
+    int sleep_interval=20;
+    int sleep_type = 0;
+    while((c=getopt(argc,argv,"n:s:p:r:i:t:"))!=-1){
         switch(c){
             case 'n':
                 node_id = atoi(optarg);
@@ -47,6 +49,12 @@ int main ( int argc, char *argv[] )
             case 'r':
                 repeat_time= atoi(optarg);
                 break;
+            case 'i':
+                sleep_interval= atoi(optarg);
+                break;
+            case 't':
+                sleep_type = atoi(optarg);
+                break;
             case '?':
                 fprintf(stderr,"Option -%c needs requires an argument\n",optopt);
                 break;
@@ -54,10 +62,6 @@ int main ( int argc, char *argv[] )
                 fprintf(stderr,"Unknown Option %c\n",c);
                 goto main_exit_error;
         }
-    }
-    if(argc<9 || optind>argc){
-        fprintf(stderr,"Parameter Error\n");
-        goto main_exit_error;
     }
     fprintf(stderr,"the node id is %d\n",node_id);
     fprintf(stderr,"the server address is %s\n",server_address);
@@ -75,10 +79,15 @@ int main ( int argc, char *argv[] )
     int ret;
     client_msg *request = (client_msg*)malloc(CLIENT_MSG_HEADER_SIZE+13);
     srand(time(NULL)+node_id);
-    for(int index=0;index<1000;index++){
-        int s_time = 20*((double)rand()/(double)RAND_MAX);
-        printf("sleep time is %u\n",s_time);
-        usleep(s_time);
+    for(int index=0;index<repeat_time;index++){
+        int s_time = sleep_interval*((double)rand()/(double)RAND_MAX);
+        //printf("sleep time is %u\n",s_time);
+        if(sleep_type==0)
+        {
+            usleep(s_time);
+        }else{
+            sleep(s_time);
+        }
         request->header.type = C_SEND_WR;
         request->header.data_size = 13;
         request->data[0] = 'c';

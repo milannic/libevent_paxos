@@ -145,15 +145,15 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
         goto goto_config_error;
     }
 
-    paxos_log("test %d.\n",cur_node->node_id);
-    paxos_log("test %d.\n",peer_port);
+    debug_log("test %d.\n",cur_node->node_id);
+    debug_log("test %d.\n",peer_port);
 
     cur_node->sys_addr.p_addr.sin_port = htons(peer_port);
     cur_node->sys_addr.p_addr.sin_family = AF_INET;
     inet_pton(AF_INET,peer_ipaddr,&cur_node->sys_addr.p_addr.sin_addr);
     cur_node->sys_addr.p_sock_len = sizeof(cur_node->sys_addr.p_addr);
 
-    paxos_log("test %lu.\n",cur_node->sys_addr.p_sock_len);
+    debug_log("test %lu.\n",cur_node->sys_addr.p_sock_len);
 
     const char* db_name;
     if(!config_setting_lookup_string(pro_ele,"db_name",&db_name)){
