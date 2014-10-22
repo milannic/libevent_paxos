@@ -25,15 +25,6 @@ static rec_no_t highest_id=0;
 static struct timeval reconnect_timeval = {2,0};
 static void* hack_arg=NULL;
 
-typedef struct request_record_t{
-    struct timeval created_time; // data created timestamp
-    char is_closed;
-    uint64_t bit_map; // now we assume the maximal replica group size is 64;
-    size_t data_size; // data size
-    char data[0];     // real data
-}__attribute__((packed))request_record;
-#define REQ_RECORD_SIZE(M) (sizeof(request_record)+(M->data_size)) 
-
 //helper function
 static hk_t gen_key(nid_t,nc_t,sec_t);
 
@@ -412,10 +403,10 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 
     if(proxy->fake){ 
         proxy->con_node = system_initialize(node_id,start_mode,
-                config_path,fake_update_state,proxy);
+                config_path,1,fake_update_state,proxy);
     }else{
         proxy->con_node = system_initialize(node_id,start_mode,
-                config_path,update_state,proxy);
+                config_path,0,update_state,proxy);
     }
 
     if(NULL==proxy->con_node){

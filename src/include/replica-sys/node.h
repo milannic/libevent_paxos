@@ -15,8 +15,8 @@
  *
  * =====================================================================================
  */
-#ifndef SERVER_H
-#define SERVER_H
+#ifndef NODE_H
+#define NODE_H 
 #include "../util/common-header.h"
 #include "../consensus/consensus.h"
 #include "message.h"
@@ -83,5 +83,9 @@ typedef struct node_t{
     char* db_name;
     //database* my_db
 }node;
+
+struct node_t* system_initialize(int node_id,const char* start_mode,const char* config_path,int deliver_mode,void(*user_cb)(int data_size,void* data,void* arg),void* arg);
+void system_run(struct node_t* replica);
+void system_exit(struct node_t* replica);
 
 #endif

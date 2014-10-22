@@ -42,6 +42,7 @@ typedef struct consensus_component_t{
     con_role my_role;
     uint32_t node_id;
 
+    int deliver_mode;
     uint32_t group_size;
     struct node_t* my_node;
 
@@ -94,8 +95,8 @@ static void send_missing_req(consensus_component*,view_stamp*);
 static int isLeader(consensus_component*);
 
 
-static void deliever_msg_vs(consensus_component*,const view_stamp*);
-static void deliever_msg_data(consensus_component*,view_stamp*);
+//static void deliver_msg_vs(consensus_component*,const view_stamp*);
+static void deliver_msg_data(consensus_component*,view_stamp*);
 
 void consensus_handle_msg(consensus_component* comp,size_t data_size,void* data){
     consensus_msg_header* header = data;
@@ -136,7 +137,7 @@ view_stamp consensus_get_highest_seen_req(consensus_component* comp){
 
 
 consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
-        const char* db_name,int group_size,
+        const char* db_name,int deliver_mode,int group_size,
         view* cur_view,user_cb u_cb,up_call uc,void* arg){
     consensus_component* comp = (consensus_component*)
         malloc(sizeof(consensus_component));
@@ -147,6 +148,7 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
         }
         comp->my_node = node;
         comp->node_id = node_id;
+        comp->deliver_mode = deliver_mode;
         comp->group_size = group_size;
         comp->cur_view = cur_view;
         if(comp->cur_view->leader_id == comp->node_id){
@@ -587,7 +589,7 @@ static void leader_try_to_execute(consensus_component* comp){
 
             if(exec_flag){
                 view_stamp vs = ltovs(index);
-                deliever_msg_data(comp,&vs);
+                deliver_msg_data(comp,&vs);
                 view_stamp_inc(&comp->highest_committed_vs);
             }
         }else{
@@ -644,7 +646,7 @@ static void try_to_execute(consensus_component* comp){
             send_missing_req(comp,&missing_vs);
         }
         if(exec_flag){
-            deliever_msg_data(comp,&missing_vs);
+            deliver_msg_data(comp,&missing_vs);
 //            record_data->is_closed = 1;
 //            store_record(comp->db_ptr,sizeof(index),&index,REQ_RECORD_SIZE(record_data),record_data);
             view_stamp_inc(&comp->highest_committed_vs);
@@ -720,31 +722,30 @@ make_progress_exit:
     return;
 };
 
-static void deliever_msg_vs(consensus_component* comp,const view_stamp* vs){
-    // in order to accelerate deliver process of the program
-    // we may just give the record number instead of the real data 
-    // to the proxy, and then the proxy will take the overhead of database operation
-    view_stamp* vs_dest = (view_stamp*)malloc(sizeof(view_stamp));
-    memcpy(vs_dest,vs,sizeof(view_stamp));
-    comp->ucb(sizeof(view_stamp),vs_dest,comp->up_para);
-    return;
-}
-
-static void deliever_msg_data(consensus_component* comp,view_stamp* vs){
+static void deliver_msg_data(consensus_component* comp,view_stamp* vs){
 
     // in order to accelerate deliver process of the program
     // we may just give the record number instead of the real data 
     // to the proxy, and then the proxy will take the overhead of database operation
     
     db_key_type vstokey = vstol(vs);
-    request_record* data = NULL;
-    size_t data_size=0;
-    retrieve_record(comp->db_ptr,sizeof(db_key_type),&vstokey,&data_size,(void**)&data);
-    debug_log("node %d deliever view stamp %u : %u to the user.\n",
-    comp->node_id,vs->view_id,vs->req_id);
-    if(NULL!=data){
+    if(comp->deliver_mode==1)
+    {
+        request_record* data = NULL;
+        size_t data_size=0;
+        retrieve_record(comp->db_ptr,sizeof(db_key_type),&vstokey,&data_size,(void**)&data);
+        debug_log("node %d deliver view stamp %u : %u to the user.\n",
+        comp->node_id,vs->view_id,vs->req_id);
+        if(NULL!=data){
+            if(comp->ucb!=NULL){
+                comp->ucb(data->data_size,data->data,comp->up_para);
+            }else{
+                debug_log("no such call back func\n");
+            }
+        }
+    }else{
         if(comp->ucb!=NULL){
-            comp->ucb(data->data_size,data->data,comp->up_para);
+            comp->ucb(sizeof(db_key_type),&vstokey,comp->up_para);
         }else{
             debug_log("no such call back func\n");
         }
