@@ -34,6 +34,10 @@ static void fake_update_state(int,void*,void*);
 static void usage();
 
 static void proxy_do_action(int fd,short whaDB_t,void* arg);
+static void do_action_to_server(int data_size,void* data,void* arg);
+static void do_action_connect(int data_size,void* data,void* arg);
+static void do_action_send(int data_size,void* data,void* arg);
+static void do_action_close(int data_size,void* data,void* arg);
 
 static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
         fd,struct sockaddr *address,int socklen,void *arg);
@@ -101,6 +105,68 @@ static void proxy_do_action(int fd,short what,void* arg){
     evtimer_add(proxy->do_action,&proxy->action_period);
     LEAVE_FUNC
 }
+
+static void do_action_to_server(int data_size,void* data,void* arg){
+    ENTER_FUNC
+    proxy_node* proxy = arg;
+    proxy_msg_header* header = data;
+    FILE* output = proxy->log_file;
+    if(output==NULL){
+        output = stdout;
+    }
+    struct timeval endtime;
+    gettimeofday(&endtime,NULL);
+    fprintf(output,"\n%lu.%lu,%lu.%lu,%lu.%lu,%lu.%lu\n",header->received_time.tv_sec,
+            header->received_time.tv_usec,header->created_time.tv_sec,
+                    header->created_time.tv_usec,endtime.tv_sec,endtime.tv_usec,
+                  endtime.tv_sec,endtime.tv_usec);
+    switch(header->action){
+        case P_CONNECT:
+            fprintf(output,"%lu,connects.\n",
+                    header->connection_id);
+            do_action_connect(data_size,data,arg);
+            break;
+        case P_SEND:
+            fprintf(output,"%lu,sends data:%s.\n",
+                    header->connection_id,((proxy_send_msg*)header)->data);
+            do_action_send(data_size,data,arg);
+            break;
+        case P_CLOSE:
+            fprintf(output,"%lu,closes.\n",
+                    header->connection_id);
+            do_action_close(data_size,data,arg);
+            break;
+        default:
+            break;
+    }
+    LEAVE_FUNC
+    return;
+}
+// when we have seen a connect method;
+static void do_action_connect(int data_size,void* data,void* arg){
+    proxy_node* proxy = arg;
+    proxy_msg_header* header = data;
+    socket_pair* ret = NULL;
+    MY_HASH_GET(&header->connection_id,proxy->hash_map,ret);
+    if(NULL==ret){
+        ret = malloc(sizeof(socket_pair));
+        memset(ret,0,sizeof(socket_pair));
+        ret->key = header->connection_id;
+        ret->counter = 0;
+        ret->proxy = proxy;
+        MY_HASH_SET(ret,proxy->hash_map);
+    }
+    if(ret->p_s==NULL){
+        ret->p_s = bufferevent_socket_new(proxy->base,-1,BEV_OPT_CLOSE_ON_FREE);
+        bufferevent_setcb(ret->p_s,server_side_on_read,NULL,server_side_on_err,ret);
+        bufferevent_enable(ret->p_s,EV_READ|EV_PERSIST|EV_WRITE);
+        bufferevent_socket_connect(ret->p_s,(struct sockaddr*)&proxy->sys_addr.s_addr,proxy->sys_addr.s_sock_len);
+    }else{
+        debug_log("why there is an existing connection?\n");
+    }
+}
+static void do_action_send(int data_size,void* data,void* arg);
+static void do_action_close(int data_size,void* data,void* arg);
 
 static void update_state(int data_size,void* data,void* arg){
     ENTER_FUNC
@@ -342,6 +408,7 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
         close(fd);
     }else{
         socket_pair* new_conn = malloc(sizeof(socket_pair));
+        memset(new_conn,0,sizeof(socket_pair));
         struct timeval cur;
         gettimeofday(&cur,NULL);
         new_conn->key = gen_key(proxy->node_id,proxy->pair_count++,
