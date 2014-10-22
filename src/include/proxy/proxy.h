@@ -76,6 +76,9 @@ typedef struct proxy_node_t{
     // in the loop of libevent logical, we must give a way to periodically
     // invoke our actively working function
     struct event* do_action;
+    struct timeval action_period;
+    db_key_type cur_rec;
+    db_key_type highest_rec;
     // consensus module
     pthread_t sub_thread;
     struct node_t* con_node;
@@ -83,6 +86,7 @@ typedef struct proxy_node_t{
     struct event* re_con;
     FILE* log_file;
     char* db_name;
+    db* db_ptr;
     // for call back of the thread;
     pthread_mutex_t lock;
 

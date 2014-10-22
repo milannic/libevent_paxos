@@ -33,6 +33,8 @@ static void update_state(int,void*,void*);
 static void fake_update_state(int,void*,void*);
 static void usage();
 
+static void proxy_do_action(int fd,short whaDB_t,void* arg);
+
 static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
         fd,struct sockaddr *address,int socklen,void *arg);
 static void consensus_on_event(struct bufferevent* bev,short ev,void* arg);
@@ -64,9 +66,51 @@ static hk_t gen_key(nid_t node_id,nc_t node_count,sec_t time){
     return key;
 }
 
+static void cross_view(proxy_node* proxy){
+    ENTER_FUNC
+    proxy->cur_rec = proxy->cur_rec>>32;
+    proxy->cur_rec++;
+    proxy->cur_rec = proxy->cur_rec<<32;
+    proxy->cur_rec++;
+    LEAVE_FUNC
+};
+
+static void proxy_do_action(int fd,short what,void* arg){
+    ENTER_FUNC
+    proxy_node* proxy = arg;
+    request_record* data = NULL;
+    size_t data_size=0;
+    debug_log("in do action,the current rec is %lu.\n",proxy->cur_rec);
+    db_key_type cur_higest;
+    pthread_mutex_lock(&proxy->lock);
+    cur_higest = proxy->highest_rec;
+    pthread_mutex_unlock(&proxy->lock);
+    debug_log("in do action,the highest rec is %lu.\n",cur_higest);
+    while(proxy->cur_rec<=cur_higest){
+        data = NULL;
+        data_size = 0;
+        retrieve_record(proxy->db_ptr,sizeof(db_key_type),&proxy->cur_rec,&data_size,(void**)&data);
+        if(NULL==data){
+            cross_view(proxy);
+        }else{
+            fake_update_state(data->data_size,data->data,proxy);
+            proxy->cur_rec++;
+        }
+        debug_log("in do action,the current rec is %lu.\n",proxy->cur_rec);
+    }
+    evtimer_add(proxy->do_action,&proxy->action_period);
+    LEAVE_FUNC
+}
+
 static void update_state(int data_size,void* data,void* arg){
     ENTER_FUNC
-    debug_log("To Be Done.\n");
+    debug_log("in update state,the current rec is %lu.\n",*((db_key_type*)(data)));
+    proxy_node* proxy = arg;
+    db_key_type* rec_no = data;
+    pthread_mutex_lock(&proxy->lock);
+    proxy->highest_rec = (proxy->highest_rec<*rec_no)?*rec_no:proxy->highest_rec;
+    debug_log("in update state,the highest rec is %lu.\n",proxy->highest_rec);
+    pthread_mutex_unlock(&proxy->lock);
     LEAVE_FUNC
     return;
 }
@@ -385,8 +429,16 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     proxy->fake = fake_mode;
     proxy->base = base;
     proxy->node_id = node_id;
-
+    proxy->action_period.tv_sec = 0;
+    proxy->action_period.tv_usec = 1000000;
+    proxy->do_action = evtimer_new(proxy->base,proxy_do_action,(void*)proxy);
     if(proxy_read_config(proxy,config_path)){
+        goto proxy_exit_error;
+    }
+    // Open database 
+    proxy->db_ptr = initialize_db(proxy->db_name,0);
+    // if we cannot create the database and the proxy runs not in the fake mode, then we will fail 
+    if(proxy->db_ptr==NULL && !proxy->fake){
         goto proxy_exit_error;
     }
     // ensure the value is NULL at first
@@ -403,10 +455,10 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 
     if(proxy->fake){ 
         proxy->con_node = system_initialize(node_id,start_mode,
-                config_path,1,fake_update_state,proxy);
+                config_path,1,fake_update_state,proxy->db_ptr,proxy);
     }else{
         proxy->con_node = system_initialize(node_id,start_mode,
-                config_path,0,update_state,proxy);
+                config_path,0,update_state,NULL,proxy);
     }
 
     if(NULL==proxy->con_node){
@@ -445,6 +497,7 @@ void proxy_run(proxy_node* proxy){
     proxy->re_con = evtimer_new(proxy->base,
             reconnect_on_timeout,proxy);
     connect_consensus(proxy);
+    evtimer_add(proxy->do_action,&proxy->action_period);
     event_base_dispatch(proxy->base);
     proxy_exit(proxy);
     LEAVE_FUNC

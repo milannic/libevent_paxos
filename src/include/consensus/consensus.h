@@ -34,7 +34,7 @@ typedef enum con_role_t{
 }con_role;
 
 struct consensus_component_t* init_consensus_comp(struct node_t*,uint32_t,
-        const char*,int,int,
+        const char*,int,void*,int,
         view*,user_cb,up_call,void*);
 
 void consensus_handle_msg(struct consensus_component_t*,size_t,void*);

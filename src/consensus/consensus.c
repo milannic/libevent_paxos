@@ -137,14 +137,19 @@ view_stamp consensus_get_highest_seen_req(consensus_component* comp){
 
 
 consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
-        const char* db_name,int deliver_mode,int group_size,
+        const char* db_name,int deliver_mode,void* db_ptr,int group_size,
         view* cur_view,user_cb u_cb,up_call uc,void* arg){
+    ENTER_FUNC
     consensus_component* comp = (consensus_component*)
         malloc(sizeof(consensus_component));
     if(NULL!=comp){
-        comp->db_ptr = initialize_db(db_name,0);
-        if(NULL==comp->db_ptr){
-            goto consensus_error_exit;
+        if(deliver_mode==50){
+            comp->db_ptr = db_ptr;
+        }else{
+            comp->db_ptr = initialize_db(db_name,0);
+            if(NULL==comp->db_ptr){
+                goto consensus_error_exit;
+            }
         }
         comp->my_node = node;
         comp->node_id = node_id;
@@ -170,11 +175,12 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
     }
 consensus_error_exit:
     if(comp!=NULL){
-        if(NULL!=comp->db_ptr){
+        if(NULL!=comp->db_ptr && comp->deliver_mode == 1){
             close_db(comp->db_ptr,0);
         }
         free(comp);
     }
+LEAVE_FUNC
 consensus_init_exit:
     return comp;
 }

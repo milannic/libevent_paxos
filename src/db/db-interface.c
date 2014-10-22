@@ -41,8 +41,10 @@ void mk_path(char* dest,const char* prefix,const char* db_name){
 }
 
 db* initialize_db(const char* db_name,uint32_t flag){
+    ENTER_FUNC
     db* db_ptr=NULL;
     DB* b_db;
+    DB_ENV* dbenv;
     int ret;
     char* full_path = NULL;
     if((ret=mkdir(db_dir,S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))!=0){
@@ -53,14 +55,23 @@ db* initialize_db(const char* db_name,uint32_t flag){
     }
     full_path = (char*)malloc(strlen(db_dir) + strlen(db_name)+2);
     mk_path(full_path,db_dir,db_name);
+	if ((ret = db_env_create(&dbenv,0)) != 0) {
+		dbenv->err(dbenv, ret, "environment created: %s", db_dir);
+        goto db_init_return;
+	}
+	if ((ret = dbenv->open(dbenv,db_dir,DB_CREATE|DB_INIT_CDB|DB_INIT_MPOOL|DB_THREAD, 0)) != 0) {
+		dbenv->err(dbenv, ret, "environment open: %s", db_dir);
+        goto db_init_return;
+	}
+    DEBUG_POINT(1);
     /* Initialize the DB handle */
-    if((ret = db_create(&b_db, NULL,flag))!=0){
+    if((ret = db_create(&b_db,dbenv,flag))!=0){
         paxos_log("%s:\n",db_strerror(ret));
         goto db_init_return;
     }
 
     debug_log("The Path To The Database Will Be %s.\n",full_path);
-    if((ret = b_db->open(b_db,NULL,full_path,NULL,DB_BTREE,DB_CREATE,0))!=0){
+    if((ret = b_db->open(b_db,NULL,db_name,NULL,DB_BTREE,DB_THREAD|DB_CREATE,0))!=0){
         b_db->err(b_db,ret,"%s","test.db");
         goto db_init_return;
     }
@@ -75,6 +86,7 @@ db_init_return:
         debug_log("DB Initialization Finished\n");
         ;
     }
+    LEAVE_FUNC;
     return db_ptr;
 }
 
@@ -126,6 +138,7 @@ int retrieve_record(db* db_p,size_t key_size,void* key_data,size_t* data_size,vo
     memset(&db_data,0,sizeof(db_data));
     key.data = key_data;
     key.size = key_size;
+    db_data.flags = DB_DBT_MALLOC;
     if((ret=b_db->get(b_db,NULL,&key,&db_data,0))==0){
         debug_log("db : get record %ld from database.\n",*(uint64_t*)key_data);
     }else{
