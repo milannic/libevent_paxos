@@ -97,7 +97,7 @@ static void proxy_do_action(int fd,short what,void* arg){
         if(NULL==data){
             cross_view(proxy);
         }else{
-            fake_update_state(data->data_size,data->data,proxy);
+            do_action_to_server(data->data_size,data->data,proxy);
             proxy->cur_rec++;
         }
         debug_log("in do action,the current rec is %lu.\n",proxy->cur_rec);
@@ -144,6 +144,7 @@ static void do_action_to_server(int data_size,void* data,void* arg){
 }
 // when we have seen a connect method;
 static void do_action_connect(int data_size,void* data,void* arg){
+    ENTER_FUNC
     proxy_node* proxy = arg;
     proxy_msg_header* header = data;
     socket_pair* ret = NULL;
@@ -164,9 +165,56 @@ static void do_action_connect(int data_size,void* data,void* arg){
     }else{
         debug_log("why there is an existing connection?\n");
     }
+    LEAVE_FUNC
+    return;
 }
-static void do_action_send(int data_size,void* data,void* arg);
-static void do_action_close(int data_size,void* data,void* arg);
+// when we have seen a send method,and since we have seen the same request
+// sequence on all the machine, then this time, we must have already set up the
+// connection with the server
+static void do_action_send(int data_size,void* data,void* arg){
+    ENTER_FUNC
+    proxy_node* proxy = arg;
+    proxy_send_msg* msg = data;
+    socket_pair* ret = NULL;
+    MY_HASH_GET(&msg->header.connection_id,proxy->hash_map,ret);
+    // this is error, TO-DO:error handler
+    if(NULL==ret){
+        goto do_action_send_exit;
+    }else{
+        if(NULL==ret->p_s){
+            goto do_action_send_exit;
+        }else{
+            bufferevent_write(ret->p_s,msg->data,msg->data_size);
+        }
+    }
+do_action_send_exit:
+    LEAVE_FUNC
+    return;
+}
+
+static void do_action_close(int data_size,void* data,void* arg){
+    ENTER_FUNC
+    proxy_node* proxy = arg;
+    proxy_close_msg* msg = data;
+    socket_pair* ret = NULL;
+    MY_HASH_GET(&msg->header.connection_id,proxy->hash_map,ret);
+    // this is error, TO-DO:error handler
+    if(NULL==ret){
+        goto do_action_close_exit;
+    }else{
+        if(ret->p_s!=NULL){
+            bufferevent_free(ret->p_s);
+            ret->p_s = NULL;
+        }
+        if(ret->p_c!=NULL){
+            bufferevent_free(ret->p_c);
+            ret->p_c = NULL;
+        }
+    }
+do_action_close_exit:
+    LEAVE_FUNC
+    return;
+}
 
 static void update_state(int data_size,void* data,void* arg){
     ENTER_FUNC
@@ -265,9 +313,47 @@ void reconnect_on_timeout(int fd,short what,void* arg){
 
 
 static void server_side_on_read(struct bufferevent* bev,void* arg){
+    ENTER_FUNC
+    socket_pair* pair = arg;
+    struct evbuffer* input = bufferevent_get_input(bev);
+    size_t len = 0;
+    int cur_len = 0;
+    void* msg = NULL;
+    len = evbuffer_get_length(input);
+    debug_log("there is %u bytes data in the buffer in total\n",
+            (unsigned)len);
+    // every time we just send 1024 bytes data to the client
+    while(len>0){
+        cur_len = (len>1024)?1024:len;
+        msg = (void*)malloc(cur_len);
+        if(NULL==msg){goto server_side_on_read_exit;}
+        evbuffer_remove(input,msg,cur_len);
+        if(pair->p_c!=NULL){
+            bufferevent_write(pair->p_c,msg,cur_len);
+        }
+        free(msg);
+        msg=NULL;
+        len = evbuffer_get_length(input);
+    }
+server_side_on_read_exit:
+    LEAVE_FUNC
     return;
 }
+
+// how to handle this? what if in a certain replica,whether we should replica
+// this request to all the other replicas?
+
 static void server_side_on_err(struct bufferevent* bev,short what,void* arg){
+    socket_pair* pair = arg;
+    proxy_node* proxy = pair->proxy;
+    struct timeval recv_time;
+    gettimeofday(&recv_time,NULL);
+    req_sub_msg* close_msg = build_req_sub_msg(pair->key,pair->counter++,P_CLOSE,0,NULL);
+    ((proxy_close_msg*)close_msg->data)->header.received_time = recv_time;
+    if(NULL!=close_msg && NULL!=proxy->con_conn){
+        bufferevent_write(proxy->con_conn,close_msg,REQ_SUB_SIZE(close_msg));
+        free(close_msg);
+    }
     return;
 }
 
