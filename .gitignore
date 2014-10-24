@@ -13,3 +13,4 @@ test/.db
 .settings
 .db
 *.log
+lib*.so*
