@@ -6,13 +6,14 @@ SOURCES:=$(shell find ./src -type f \( -name *.h -o -name *.c \) )
 default:
 	cd target;$(MAKE) all;cd ..;
 	cd client;$(MAKE) all;cd ..;
+	cd simple-sc;$(MAKE) all;cd ..;
+	cd client-ld-preload;$(MAKE) all;cd ..;
 
-debug:
-	cd target;$(MAKE) all;cd ..;
-	cd client;$(MAKE) all;cd ..;
 clean:
 	cd target;$(MAKE) clean;cd ..;
 	cd client;$(MAKE) clean;cd ..;
+	cd simple-sc;$(MAKE) clean;cd ..;
+	cd client-ld-preload;$(MAKE) clean;cd ..;
 	@rm -rf .db
 
 test:

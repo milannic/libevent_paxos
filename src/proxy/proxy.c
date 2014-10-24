@@ -344,16 +344,22 @@ server_side_on_read_exit:
 // this request to all the other replicas?
 
 static void server_side_on_err(struct bufferevent* bev,short what,void* arg){
+    ENTER_FUNC
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
     struct timeval recv_time;
-    gettimeofday(&recv_time,NULL);
-    req_sub_msg* close_msg = build_req_sub_msg(pair->key,pair->counter++,P_CLOSE,0,NULL);
-    ((proxy_close_msg*)close_msg->data)->header.received_time = recv_time;
-    if(NULL!=close_msg && NULL!=proxy->con_conn){
-        bufferevent_write(proxy->con_conn,close_msg,REQ_SUB_SIZE(close_msg));
-        free(close_msg);
+    if(what & BEV_EVENT_CONNECTED){
+        debug_log("connection has established between %lu and the real server.\n",pair->key);
+    }else if((what & BEV_EVENT_EOF) || ( what & BEV_EVENT_ERROR)){
+        gettimeofday(&recv_time,NULL);
+        req_sub_msg* close_msg = build_req_sub_msg(pair->key,pair->counter++,P_CLOSE,0,NULL);
+        ((proxy_close_msg*)close_msg->data)->header.received_time = recv_time;
+        if(NULL!=close_msg && NULL!=proxy->con_conn){
+            bufferevent_write(proxy->con_conn,close_msg,REQ_SUB_SIZE(close_msg));
+            free(close_msg);
+        }
     }
+    LEAVE_FUNC
     return;
 }
 
@@ -422,16 +428,23 @@ static void client_side_on_read(struct bufferevent* bev,void* arg){
 };
 
 static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
+    ENTER_FUNC
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
     struct timeval recv_time;
-    gettimeofday(&recv_time,NULL);
-    req_sub_msg* close_msg = build_req_sub_msg(pair->key,pair->counter++,P_CLOSE,0,NULL);
-    ((proxy_close_msg*)close_msg->data)->header.received_time = recv_time;
-    if(NULL!=close_msg && NULL!=proxy->con_conn){
-        bufferevent_write(proxy->con_conn,close_msg,REQ_SUB_SIZE(close_msg));
-        free(close_msg);
+    if(what&BEV_EVENT_CONNECTED){
+        debug_log("client %lu connects.\n",pair->key);
+
+    }else if((what & BEV_EVENT_EOF) || ( what & BEV_EVENT_ERROR)){
+        gettimeofday(&recv_time,NULL);
+        req_sub_msg* close_msg = build_req_sub_msg(pair->key,pair->counter++,P_CLOSE,0,NULL);
+        ((proxy_close_msg*)close_msg->data)->header.received_time = recv_time;
+        if(NULL!=close_msg && NULL!=proxy->con_conn){
+            bufferevent_write(proxy->con_conn,close_msg,REQ_SUB_SIZE(close_msg));
+            free(close_msg);
+        }
     }
+    LEAVE_FUNC
     return;
 }
 

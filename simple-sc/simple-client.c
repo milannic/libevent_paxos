@@ -82,15 +82,16 @@ int main ( int argc, char *argv[] )
 
     srand(time(NULL)+node_id);
     for(int index=0;index<repeat_time;index++){
+        fprintf(stderr,"the %d th operation.\n",index);
 //        int s_time = sleep_interval*((double)rand()/(double)RAND_MAX);
-        int s_time = sleep_interval;
+//        int s_time = sleep_interval;
         //printf("sleep time is %u\n",s_time);
-        if(sleep_type==0)
-        {
-            usleep(s_time);
-        }else{
-            sleep(s_time);
-        }
+//        if(sleep_type==0)
+//        {
+//            usleep(s_time);
+//        }else{
+//            sleep(s_time);
+//        }
         request->header.type = C_SEND_WR;
         request->header.data_size = 13;
         request->data[0] = 'c';
@@ -108,14 +109,15 @@ int main ( int argc, char *argv[] )
         request->data[12] = '\0';
 
         if((ret=send(my_socket,request,CLIENT_MSG_SIZE(request),0))<0){
-            goto main_exit_error;
+            fprintf(stderr,"cannot send anything : %s .\n",strerror(errno));
+            //goto main_exit_error;
         }
-        printf("send message %s\n",request->data);
+        fprintf(stderr,"send message %s\n",request->data);
         if((ret=recv(my_socket,recv_msg,2000,0))<0){
-            goto main_exit_error;
+            fprintf(stderr,"cannot recv anything : %s .\n",strerror(errno));
+            //goto main_exit_error;
         }
-        printf("recv message %s\n",recv_msg);
-
+        fprintf(stderr,"recv message %s\n",recv_msg);
     }
     return EXIT_SUCCESS;
 main_exit_error:
