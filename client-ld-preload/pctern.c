@@ -55,7 +55,7 @@
 #endif
 
 #ifndef LD_DEBUG
-#define LD_DEBUG 0
+#define LD_DEBUG 1
 #endif
 
 
@@ -76,19 +76,21 @@ ssize_t send(int socket, const void *buffer, size_t length, int flags){
         request->header.type = C_SEND_WR;
         request->header.data_size = length;
         memcpy(request->data,buffer,length);
-        ret = fp_send(socket,buffer,length,flags);
+        ret = fp_send(socket,request,CLIENT_MSG_HEADER_SIZE+length,flags);
         if(ret>0){
             ret = ret-CLIENT_MSG_HEADER_SIZE;
         }
         leave_sys();
+        fprintf(stderr,"now I am finished the fake %s function\n",__FUNCTION__);
     }else{
 #if LD_DEBUG
         fprintf(stderr,"now I am calling the real %s function\n",__FUNCTION__);
 #endif
         RESOLVE(send);
         ret = fp_send(socket,buffer,length,flags);
+        fprintf(stderr,"now I am finished the fake %s function\n",__FUNCTION__);
     }
-     return ret;
+    return ret;
 };
 
 

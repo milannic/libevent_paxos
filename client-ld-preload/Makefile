@@ -1,5 +1,6 @@
 CC=gcc
 LIB_NAME="./libclilib.so"
+LDFLAGS=-lpthread -lrt -ldl
 
 target = libclilib.so.1.0 \
 
