@@ -324,7 +324,8 @@ static void server_side_on_read(struct bufferevent* bev,void* arg){
             (unsigned)len);
     // every time we just send 1024 bytes data to the client
     while(len>0){
-        cur_len = (len>1024)?1024:len;
+        //cur_len = (len>1024)?1024:len;
+        cur_len = len;
         msg = (void*)malloc(cur_len);
         if(NULL==msg){goto server_side_on_read_exit;}
         evbuffer_remove(input,msg,cur_len);

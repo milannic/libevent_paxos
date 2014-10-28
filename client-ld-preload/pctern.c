@@ -55,40 +55,52 @@
 #endif
 
 #ifndef LD_DEBUG
-#define LD_DEBUG 1
+#define LD_DEBUG 0
 #endif
 
 
 
 static ssize_t (*fp_send)(int socket, const void *buffer, size_t length, int flags);
+
 ssize_t send(int socket, const void *buffer, size_t length, int flags){
     ssize_t ret =-1;
 #if LD_DEBUG
     fprintf(stderr,"now check_sys() = %d \n",check_sys());
 #endif
     if(!check_sys()){
+
 #if LD_DEBUG
         fprintf(stderr,"now I am calling the fake %s function\n",__FUNCTION__);
 #endif
         enter_sys();
         RESOLVE(send);
-        client_msg *request = (client_msg*)malloc(CLIENT_MSG_HEADER_SIZE+length);
+        client_msg *request = NULL;
+        request = (client_msg*)malloc(CLIENT_MSG_HEADER_SIZE+length);
+        if(request==NULL){
+            leave_sys();
+            return ret;
+        }
         request->header.type = C_SEND_WR;
         request->header.data_size = length;
         memcpy(request->data,buffer,length);
         ret = fp_send(socket,request,CLIENT_MSG_HEADER_SIZE+length,flags);
+        if(request!=NULL){free(request);};
         if(ret>0){
             ret = ret-CLIENT_MSG_HEADER_SIZE;
         }
         leave_sys();
+#if LD_DEBUG
         fprintf(stderr,"now I am finished the fake %s function\n",__FUNCTION__);
+#endif
     }else{
 #if LD_DEBUG
         fprintf(stderr,"now I am calling the real %s function\n",__FUNCTION__);
 #endif
         RESOLVE(send);
         ret = fp_send(socket,buffer,length,flags);
+#if LD_DEBUG
         fprintf(stderr,"now I am finished the fake %s function\n",__FUNCTION__);
+#endif
     }
     return ret;
 };
