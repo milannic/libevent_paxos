@@ -24,7 +24,7 @@
 APP_INS_NUM=${1}
 
 
-if [ $# -lt 0 ];then 
+if [ $# -lt 1 ];then 
     APP_INS_NUM=5452
 fi
 
@@ -46,10 +46,10 @@ rm -rf install
 
 
 # download and extract
-if [ ! -f ../postgresql-$APP_VER.tar.gz ]; then
+if [ ! -f ./postgresql-$APP_VER.tar.gz ]; then
     wget http://ftp.postgresql.org/pub/source/v9.3.5/postgresql-$APP_VER.tar.gz
 fi
-tar zxvf ../postgresql-$APP_VER.tar.gz
+tar zxvf ./postgresql-$APP_VER.tar.gz
 
 # build postgresql
 cd postgresql-$APP_VER
