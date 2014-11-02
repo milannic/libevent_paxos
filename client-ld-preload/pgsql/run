@@ -26,7 +26,7 @@ APP_INS_NUM=${1}
 
 echo ${APP_INS_NUM}
 
-if [ $# -lt 0 ];then 
+if [ $# -lt 1 ];then 
     APP_INS_NUM=5452
 fi
 
