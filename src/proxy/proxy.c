@@ -84,12 +84,16 @@ static void proxy_do_action(int fd,short what,void* arg){
     proxy_node* proxy = arg;
     request_record* data = NULL;
     size_t data_size=0;
-    debug_log("in do action,the current rec is %lu.\n",proxy->cur_rec);
+    if(proxy->debug_log){
+        debug_log("in do action,the current rec is %lu.\n",proxy->cur_rec);
+    }
     db_key_type cur_higest;
     pthread_mutex_lock(&proxy->lock);
     cur_higest = proxy->highest_rec;
     pthread_mutex_unlock(&proxy->lock);
-    debug_log("in do action,the highest rec is %lu.\n",cur_higest);
+    if(proxy->debug_log){
+        debug_log("in do action,the highest rec is %lu.\n",cur_higest);
+    }
     while(proxy->cur_rec<=cur_higest){
         data = NULL;
         data_size = 0;
@@ -100,7 +104,9 @@ static void proxy_do_action(int fd,short what,void* arg){
             do_action_to_server(data->data_size,data->data,proxy);
             proxy->cur_rec++;
         }
-        debug_log("in do action,the current rec is %lu.\n",proxy->cur_rec);
+        if(proxy->debug_log){
+            debug_log("in do action,the current rec is %lu.\n",proxy->cur_rec);
+        }
     }
     evtimer_add(proxy->do_action,&proxy->action_period);
     LEAVE_FUNC
@@ -110,30 +116,29 @@ static void do_action_to_server(int data_size,void* data,void* arg){
     ENTER_FUNC
     proxy_node* proxy = arg;
     proxy_msg_header* header = data;
-    FILE* output = proxy->log_file;
+    FILE* output = proxy->s_log_file;
     if(output==NULL){
         output = stdout;
     }
     struct timeval endtime;
     gettimeofday(&endtime,NULL);
-    fprintf(output,"\n%lu.%lu,%lu.%lu,%lu.%lu,%lu.%lu\n",header->received_time.tv_sec,
-            header->received_time.tv_usec,header->created_time.tv_sec,
-                    header->created_time.tv_usec,endtime.tv_sec,endtime.tv_usec,
-                  endtime.tv_sec,endtime.tv_usec);
+    if(proxy->ts_log){
+        fprintf(output,"\n %lu : %lu.%lu,%lu.%lu,%lu.%lu,%lu.%lu\n",header->connection_id,
+            header->received_time.tv_sec,header->received_time.tv_usec,
+            header->created_time.tv_sec,header->created_time.tv_usec,
+            endtime.tv_sec,endtime.tv_usec,endtime.tv_sec,endtime.tv_usec);
+    }
     switch(header->action){
         case P_CONNECT:
-            fprintf(output,"%lu,connects.\n",
-                    header->connection_id);
+            fprintf(output,"Operation: Connects.\n");
             do_action_connect(data_size,data,arg);
             break;
         case P_SEND:
-            fprintf(output,"%lu,sends data:%s.\n",
-                    header->connection_id,((proxy_send_msg*)header)->data);
+            fprintf(output,"Operation: Sends data: (START):%s:(END)\n",((proxy_send_msg*)header)->data);
             do_action_send(data_size,data,arg);
             break;
         case P_CLOSE:
-            fprintf(output,"%lu,closes.\n",
-                    header->connection_id);
+            fprintf(output,"Operation: Closes.\n");
             do_action_close(data_size,data,arg);
             break;
         default:
@@ -570,6 +575,13 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 
     proxy_node* proxy = (proxy_node*)malloc(sizeof(proxy_node));
 
+    proxy->action_period.tv_sec = 0;
+    proxy->action_period.tv_usec = 1000000;
+
+    if(proxy_read_config(proxy,config_path)){
+        goto proxy_exit_error;
+    }
+
     if(NULL==proxy){
         debug_log("cannot malloc the proxy.\n");
         goto proxy_exit_error;
@@ -596,24 +608,23 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     proxy->fake = fake_mode;
     proxy->base = base;
     proxy->node_id = node_id;
-    proxy->action_period.tv_sec = 0;
-    proxy->action_period.tv_usec = 1000000;
     proxy->do_action = evtimer_new(proxy->base,proxy_do_action,(void*)proxy);
-    if(proxy_read_config(proxy,config_path)){
-        goto proxy_exit_error;
-    }
     // Open database 
     proxy->db_ptr = initialize_db(proxy->db_name,0);
     // if we cannot create the database and the proxy runs not in the fake mode, then we will fail 
+    
     if(proxy->db_ptr==NULL && !proxy->fake){
         goto proxy_exit_error;
     }
+    
     // ensure the value is NULL at first
+    
     proxy->hash_map=NULL;
     proxy->listener = evconnlistener_new_bind(proxy->base,proxy_on_accept,
                 (void*)proxy,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,
                 -1,(struct sockaddr*)&proxy->sys_addr.p_addr,
                 sizeof(proxy->sys_addr.p_addr));
+
     if(proxy->listener==NULL){
         debug_log("cannot set up the listener\n");
         goto proxy_exit_error;

@@ -2,53 +2,17 @@
 
 name = "paxos implementation";
 
-version = 0.02;
+version = 0.01;
 
 author = "Milannic[milannic.cheng.liu@gmail.com]";
 
-
-group_size = 1;
 
 #proxy configuration part
 
 proxy_global_config = {
     max_connections = 10000;
-    time_stamp_log = 1;
-    debug_log = 1;
-    stat_log = 1;
 };
 
-proxy_config =(
-    {
-        ip_address = "127.0.0.1";
-        port       = 9000;
-        db_name    = "node_test_0";
-    
-    },
-    {
-        ip_address = "127.0.0.1";
-        port       = 9001;
-        db_name    = "node_test_1";
-    
-    },
-    {
-        ip_address = "127.0.0.1";
-        port       = 9002;
-        db_name    = "node_test_2";
-    
-    },
-    {
-        ip_address = "127.0.0.1";
-        port       = 9003;
-        db_name    = "node_test_3";
-    
-    },
-    {
-        ip_address = "127.0.0.1";
-        port       = 9004;
-        db_name    = "node_test_4";
-    }
-);
 
 server_config =(
     {
@@ -83,17 +47,48 @@ server_config =(
 );
 
 
+proxy_config =(
+    {
+        ip_address = "127.0.0.1";
+        port       = 9000;
+        db_name    = "node_test_0";
+    
+    },
+    {
+        ip_address = "127.0.0.1";
+        port       = 9001;
+        db_name    = "node_test_1";
+    
+    },
+    {
+        ip_address = "127.0.0.1";
+        port       = 9002;
+        db_name    = "node_test_2";
+    
+    },
+    {
+        ip_address = "127.0.0.1";
+        port       = 9003;
+        db_name    = "node_test_3";
+    
+    },
+    {
+        ip_address = "127.0.0.1";
+        port       = 9004;
+        db_name    = "node_test_4";
+    }
+);
+
+
 
 #consensus component configuration part
+group_size = 1;
 
 consensus_global_config = {
-    reconnect_timeval_s = 2;
-    reconnect_timeval_us = 2;
-    ping_timeval_s = 0;
-    ping_timeval_us = 100;
-    heart_beat_threshold = 10;
+    reconnect_timeval = 2;
+    ping_timeval = 10;
+    heart_beat_threshold = 4;
     max_connections = 10000;
-    debug_log = 1;
 };
 
 consensus_config =(
@@ -127,4 +122,3 @@ consensus_config =(
         db_name    = "node_test_4";
     }
 );
-

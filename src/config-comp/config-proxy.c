@@ -37,7 +37,7 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     }
 
     if(group_size<=cur_node->node_id){
-        paxos_log("invalid node id\n");
+        err_log("Proxy : Invalid Node Id\n");
         goto goto_config_error;
     }
 
@@ -46,7 +46,7 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     consensus_config = config_lookup(&config_file,"consensus_config");
 
     if(NULL==consensus_config){
-        paxos_log("cannot find nodes settings \n");
+        err_log("cannot find nodes settings \n");
         goto goto_config_error;
     }    
 
@@ -54,12 +54,12 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
             config_setting_length(consensus_config));
 
     if(NULL==consensus_config){
-        paxos_log("cannot find node address section \n");
+        err_log("cannot find node address section \n");
         goto goto_config_error;
     }
     config_setting_t *con_ele = config_setting_get_elem(consensus_config,cur_node->node_id);
     if(NULL==con_ele){
-        paxos_log("cannot find current node's address\n");
+        err_log("cannot find current node's address\n");
         goto goto_config_error;
     }
     const char* peer_ipaddr=NULL;
@@ -81,7 +81,7 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     server_config = config_lookup(&config_file,"server_config");
 
     if(NULL==server_config){
-        paxos_log("cannot find nodes settings \n");
+        err_log("cannot find nodes settings \n");
         goto goto_config_error;
     }    
 
@@ -89,12 +89,12 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
             config_setting_length(server_config));
 
     if(NULL==server_config){
-        paxos_log("cannot find node address section \n");
+        err_log("cannot find node address section \n");
         goto goto_config_error;
     }
     config_setting_t *serv_ele = config_setting_get_elem(server_config,cur_node->node_id);
     if(NULL==con_ele){
-        paxos_log("cannot find current node's address\n");
+        err_log("cannot find current node's address\n");
         goto goto_config_error;
     }
 
@@ -118,7 +118,7 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
 
 
     if(NULL==proxy_config){
-        paxos_log("cannot find nodes settings \n");
+        err_log("cannot find nodes settings \n");
         goto goto_config_error;
     }    
 
@@ -126,12 +126,12 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
             config_setting_length(proxy_config));
 
     if(NULL==proxy_config){
-        paxos_log("cannot find node address section \n");
+        err_log("cannot find node address section \n");
         goto goto_config_error;
     }
     config_setting_t *pro_ele = config_setting_get_elem(proxy_config,cur_node->node_id);
     if(NULL==con_ele){
-        paxos_log("cannot find current node's address\n");
+        err_log("cannot find current node's address\n");
         goto goto_config_error;
     }
 
@@ -175,7 +175,7 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     return 0;
 
 goto_config_error:
-    paxos_log("%s:%d - %s\n", config_error_file(&config_file),
+    err_log("%s:%d - %s\n", config_error_file(&config_file),
             config_error_line(&config_file), config_error_text(&config_file));
     config_destroy(&config_file);
     ERR_LEAVE_FUNC

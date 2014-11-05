@@ -67,9 +67,15 @@ typedef struct proxy_node_t{
     proxy_address sys_addr;
     int fake;
 
+    // log option
+    int ts_log;
+    int sys_log;
+    int stat_log;
+
     // libevent part
     struct event_base* base;
     struct evconnlistener* listener;
+    struct timeval recon_period;
     //signal handler
     struct event* sig_handler;
     // DMT part
@@ -84,7 +90,8 @@ typedef struct proxy_node_t{
     struct node_t* con_node;
     struct bufferevent* con_conn;
     struct event* re_con;
-    FILE* log_file;
+    FILE* req_log_file;
+    FILE* sys_log_file;
     char* db_name;
     db* db_ptr;
     // for call back of the thread;

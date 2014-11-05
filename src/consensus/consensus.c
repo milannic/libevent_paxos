@@ -46,6 +46,8 @@ typedef struct consensus_component_t{
     uint32_t group_size;
     struct node_t* my_node;
 
+    FILE* sys_log;
+
     view* cur_view;
     view_stamp highest_seen_vs; 
     view_stamp highest_to_commit_vs;
