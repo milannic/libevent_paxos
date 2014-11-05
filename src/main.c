@@ -30,6 +30,7 @@ static void usage(){
     fprintf(stderr,"        -c path path to configuration file\n");
     fprintf(stderr,"        -l path path to log file of the proxy\n");
     fprintf(stderr,"        -f let the proxy start in fake mode to do debug\n");
+    fprintf(stderr,"        -d enable system internal debug msg.\n");
 }
 
 static int number = 1;
@@ -47,9 +48,10 @@ int main(int argc,char** argv){
     char* log_path = NULL;
     int node_id = -1;
     int fake_mode = 1;
+    int do_logging = 0;
     int c;
 
-    while((c = getopt (argc,argv,"rl:c:n:m:")) != -1){
+    while((c = getopt (argc,argv,"drl:c:n:m:")) != -1){
         switch(c){
             case 'n':
                 node_id = atoi(optarg);
@@ -63,27 +65,30 @@ int main(int argc,char** argv){
             case 'm':
                 start_mode= optarg;
                 if(*start_mode!='s' && *start_mode!='r'){
-                    fprintf(stderr,"Unknown Start Mode\n");
+                    fprintf(stderr,"Unknown Start Mode.\n");
                     usage();
                     exit(1);
                 }
                 break;
             case 'r':
-                fprintf(stderr,"real mode is opened\n");
+                fprintf(stderr,"real mode is opened.\n");
                 fake_mode = 0;
+            case 'd':
+                fprintf(stderr,"internal debug logging is enabled.\n")
+                do_logging = 1;
             case '?':
                 if(optopt == 'n'){
-                    fprintf(stderr,"Option -n requires an argument\n");
+                    fprintf(stderr,"Option -n requires an argument.\n");
                     usage();
                     exit(1);
                 }
                 else if(optopt == 'm'){
-                    fprintf(stderr,"Option -m requires an argument\n");
+                    fprintf(stderr,"Option -m requires an argument.\n");
                     usage();
                     exit(1);
                 }
                 else if(optopt == 'c'){
-                    fprintf(stderr,"Option -c requires an argument\n");
+                    fprintf(stderr,"Option -c requires an argument.\n");
                     usage();
                     exit(1);
                 }
@@ -98,7 +103,7 @@ int main(int argc,char** argv){
         exit(1);
     }
 
-    struct proxy_node_t* proxy = proxy_init(node_id,start_mode,config_path,log_path,fake_mode);
+    struct proxy_node_t* proxy = proxy_init(node_id,start_mode,config_path,log_path,fake_mode,do_logging);
     if(NULL==proxy){
         return 1;
     }else{
