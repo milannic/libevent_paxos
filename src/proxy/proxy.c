@@ -22,7 +22,6 @@
 static void* shared_mem=NULL; 
 static rec_no_t cur_id=0;
 static rec_no_t highest_id=0;
-static struct timeval reconnect_timeval = {2,0};
 static void* hack_arg=NULL;
 
 //helper function
@@ -71,27 +70,25 @@ static hk_t gen_key(nid_t node_id,nc_t node_count,sec_t time){
 }
 
 static void cross_view(proxy_node* proxy){
-    ENTER_FUNC
     proxy->cur_rec = proxy->cur_rec>>32;
     proxy->cur_rec++;
     proxy->cur_rec = proxy->cur_rec<<32;
     proxy->cur_rec++;
-    LEAVE_FUNC
 };
 
 static void proxy_do_action(int fd,short what,void* arg){
-    ENTER_FUNC
+    
     proxy_node* proxy = arg;
     request_record* data = NULL;
     size_t data_size=0;
-    if(proxy->debug_log){
+    if(proxy->sys_log){
         debug_log("in do action,the current rec is %lu.\n",proxy->cur_rec);
     }
     db_key_type cur_higest;
     pthread_mutex_lock(&proxy->lock);
     cur_higest = proxy->highest_rec;
     pthread_mutex_unlock(&proxy->lock);
-    if(proxy->debug_log){
+    if(proxy->sys_log){
         debug_log("in do action,the highest rec is %lu.\n",cur_higest);
     }
     while(proxy->cur_rec<=cur_higest){
@@ -104,19 +101,19 @@ static void proxy_do_action(int fd,short what,void* arg){
             do_action_to_server(data->data_size,data->data,proxy);
             proxy->cur_rec++;
         }
-        if(proxy->debug_log){
+        if(proxy->sys_log){
             debug_log("in do action,the current rec is %lu.\n",proxy->cur_rec);
         }
     }
     evtimer_add(proxy->do_action,&proxy->action_period);
-    LEAVE_FUNC
+    
 }
 
 static void do_action_to_server(int data_size,void* data,void* arg){
-    ENTER_FUNC
+    
     proxy_node* proxy = arg;
     proxy_msg_header* header = data;
-    FILE* output = proxy->s_log_file;
+    FILE* output = proxy->req_log_file;
     if(output==NULL){
         output = stdout;
     }
@@ -144,12 +141,12 @@ static void do_action_to_server(int data_size,void* data,void* arg){
         default:
             break;
     }
-    LEAVE_FUNC
+    
     return;
 }
 // when we have seen a connect method;
 static void do_action_connect(int data_size,void* data,void* arg){
-    ENTER_FUNC
+    
     proxy_node* proxy = arg;
     proxy_msg_header* header = data;
     socket_pair* ret = NULL;
@@ -170,14 +167,14 @@ static void do_action_connect(int data_size,void* data,void* arg){
     }else{
         debug_log("why there is an existing connection?\n");
     }
-    LEAVE_FUNC
+    
     return;
 }
 // when we have seen a send method,and since we have seen the same request
 // sequence on all the machine, then this time, we must have already set up the
 // connection with the server
 static void do_action_send(int data_size,void* data,void* arg){
-    ENTER_FUNC
+    
     proxy_node* proxy = arg;
     proxy_send_msg* msg = data;
     socket_pair* ret = NULL;
@@ -193,12 +190,12 @@ static void do_action_send(int data_size,void* data,void* arg){
         }
     }
 do_action_send_exit:
-    LEAVE_FUNC
+    
     return;
 }
 
 static void do_action_close(int data_size,void* data,void* arg){
-    ENTER_FUNC
+    
     proxy_node* proxy = arg;
     proxy_close_msg* msg = data;
     socket_pair* ret = NULL;
@@ -217,12 +214,12 @@ static void do_action_close(int data_size,void* data,void* arg){
         }
     }
 do_action_close_exit:
-    LEAVE_FUNC
+    
     return;
 }
 
 static void update_state(int data_size,void* data,void* arg){
-    ENTER_FUNC
+    
     debug_log("in update state,the current rec is %lu.\n",*((db_key_type*)(data)));
     proxy_node* proxy = arg;
     db_key_type* rec_no = data;
@@ -230,17 +227,17 @@ static void update_state(int data_size,void* data,void* arg){
     proxy->highest_rec = (proxy->highest_rec<*rec_no)?*rec_no:proxy->highest_rec;
     debug_log("in update state,the highest rec is %lu.\n",proxy->highest_rec);
     pthread_mutex_unlock(&proxy->lock);
-    LEAVE_FUNC
+    
     return;
 }
 
 //fake update state, we take out the data directly without re-
 //visit the database
 static void fake_update_state(int data_size,void* data,void* arg){
-    ENTER_FUNC
+    
     proxy_node* proxy = arg;
     proxy_msg_header* header = data;
-    FILE* output = proxy->log_file;
+    FILE* output = proxy->req_log_file;
     if(output==NULL){
         output = stdout;
     }
@@ -266,23 +263,23 @@ static void fake_update_state(int data_size,void* data,void* arg){
         default:
             break;
     }
-    LEAVE_FUNC
+    
     return;
 }
 
 
 static void* t_consensus(void *arg){
-    ENTER_FUNC
+    
     struct node_t* my_node = arg;
     system_run(my_node);
     system_exit(my_node);
-    LEAVE_FUNC
+    
     return NULL;
 }
 
 //public interface
 void consensus_on_event(struct bufferevent* bev,short ev,void* arg){
-    ENTER_FUNC
+    
     proxy_node* proxy = arg;
     if(ev&BEV_EVENT_CONNECTED){
         debug_log("Connected to Consensus.\n");
@@ -291,20 +288,20 @@ void consensus_on_event(struct bufferevent* bev,short ev,void* arg){
 		debug_log("%s.\n",evutil_socket_error_to_string(err));
         bufferevent_free(bev);
         proxy->con_conn = NULL;
-        event_add(proxy->re_con,&reconnect_timeval);
+        event_add(proxy->re_con,&proxy->recon_period);
     }
-    LEAVE_FUNC
+    
     return;
 }
 
 //void consensus_on_read(struct bufferevent* bev,void*);
 void connect_consensus(proxy_node* proxy){
-    ENTER_FUNC
+    
     proxy->con_conn = bufferevent_socket_new(proxy->base,-1,BEV_OPT_CLOSE_ON_FREE);
     bufferevent_setcb(proxy->con_conn,NULL,NULL,consensus_on_event,proxy);
     bufferevent_enable(proxy->con_conn,EV_READ|EV_WRITE|EV_PERSIST);
     bufferevent_socket_connect(proxy->con_conn,(struct sockaddr*)&proxy->sys_addr.c_addr,proxy->sys_addr.c_sock_len);
-    LEAVE_FUNC
+    
     return;
 }
 
@@ -318,7 +315,7 @@ void reconnect_on_timeout(int fd,short what,void* arg){
 
 
 static void server_side_on_read(struct bufferevent* bev,void* arg){
-    ENTER_FUNC
+    
     socket_pair* pair = arg;
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = 0;
@@ -342,7 +339,7 @@ static void server_side_on_read(struct bufferevent* bev,void* arg){
         len = evbuffer_get_length(input);
     }
 server_side_on_read_exit:
-    LEAVE_FUNC
+    
     return;
 }
 
@@ -350,7 +347,7 @@ server_side_on_read_exit:
 // this request to all the other replicas?
 
 static void server_side_on_err(struct bufferevent* bev,short what,void* arg){
-    ENTER_FUNC
+    
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
     struct timeval recv_time;
@@ -365,12 +362,12 @@ static void server_side_on_err(struct bufferevent* bev,short what,void* arg){
             free(close_msg);
         }
     }
-    LEAVE_FUNC
+    
     return;
 }
 
 static void client_process_data(socket_pair* pair,struct bufferevent* bev,size_t data_size){
-    ENTER_FUNC
+    
     void* msg_buf = (char*)malloc(CLIENT_MSG_HEADER_SIZE+data_size);
     req_sub_msg* con_msg=NULL;
     if(NULL==msg_buf){
@@ -400,13 +397,13 @@ static void client_process_data(socket_pair* pair,struct bufferevent* bev,size_t
 client_process_data_exit:
     if(NULL!=msg_buf){free(msg_buf);}
     if(NULL!=con_msg){free(con_msg);}
-    LEAVE_FUNC
+    
     return;
 };
 
 // check whether there is enough data on the client evbuffer
 static void client_side_on_read(struct bufferevent* bev,void* arg){
-    ENTER_FUNC
+    
     socket_pair* pair = arg;
     client_msg_header* header = NULL;
     struct evbuffer* input = bufferevent_get_input(bev);
@@ -429,12 +426,12 @@ static void client_side_on_read(struct bufferevent* bev,void* arg){
         len = evbuffer_get_length(input);
     }
     if(NULL!=header){free(header);}
-    LEAVE_FUNC
+    
     return;
 };
 
 static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
-    ENTER_FUNC
+    
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
     struct timeval recv_time;
@@ -450,7 +447,7 @@ static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
             free(close_msg);
         }
     }
-    LEAVE_FUNC
+    
     return;
 }
 
@@ -538,7 +535,7 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
 }
 
 static void proxy_singnal_handler_sys(int sig){
-    ENTER_FUNC
+    
     proxy_node* proxy = hack_arg;
     if(sig&SIGTERM){
         debug_log("Node Proxy Received SIGTERM .Now Quit.\n");
@@ -549,12 +546,12 @@ static void proxy_singnal_handler_sys(int sig){
         }
     }
     event_base_loopexit(proxy->base,NULL);
-    LEAVE_FUNC
+    
     return;
 }
 
 static void proxy_singnal_handler(evutil_socket_t fid,short what,void* arg){
-    ENTER_FUNC
+    
     proxy_node* proxy = arg;
     if(what&EV_SIGNAL){
         debug_log("Node Proxy Received SIGTERM .Now Quit.\n");
@@ -565,32 +562,35 @@ static void proxy_singnal_handler(evutil_socket_t fid,short what,void* arg){
         }
     }
     event_base_loopexit(proxy->base,NULL);
-    LEAVE_FUNC
+    
     return;
 }
 
 proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_path,
         const char* log_path,int fake_mode){
-    ENTER_FUNC
+    
 
     proxy_node* proxy = (proxy_node*)malloc(sizeof(proxy_node));
 
-    proxy->action_period.tv_sec = 0;
-    proxy->action_period.tv_usec = 1000000;
-
-    if(proxy_read_config(proxy,config_path)){
-        goto proxy_exit_error;
-    }
-
     if(NULL==proxy){
-        debug_log("cannot malloc the proxy.\n");
+        err_log("PROXY : Cannot Malloc Memory For The Proxy.\n");
         goto proxy_exit_error;
     }
 
     memset(proxy,0,sizeof(proxy_node));
 
+    proxy->action_period.tv_sec = 0;
+    proxy->action_period.tv_usec = 1000000;
+    proxy->recon_period.tv_sec = 2;
+    proxy->recon_period.tv_usec = 0;
+
+    if(proxy_read_config(proxy,config_path)){
+        err_log("PROXY : Configuration File Reading Error.\n");
+        goto proxy_exit_error;
+    }
+
     if(pthread_mutex_init(&proxy->lock,NULL)){
-        debug_log("cannot init the lock.\n");
+        err_log("PROXY : Cannot Init The Lock.\n");
         goto proxy_exit_error;
     }
     
@@ -603,16 +603,18 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 
 //    proxy->log_file = NULL; 
     if(log_path!=NULL){
-        proxy->log_file = fopen(log_path,"w");
+        proxy->sys_log_file = fopen(log_path,"w");
     }
+
     proxy->fake = fake_mode;
     proxy->base = base;
     proxy->node_id = node_id;
     proxy->do_action = evtimer_new(proxy->base,proxy_do_action,(void*)proxy);
+
     // Open database 
     proxy->db_ptr = initialize_db(proxy->db_name,0);
+
     // if we cannot create the database and the proxy runs not in the fake mode, then we will fail 
-    
     if(proxy->db_ptr==NULL && !proxy->fake){
         goto proxy_exit_error;
     }
@@ -633,10 +635,10 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 
     if(proxy->fake){ 
         proxy->con_node = system_initialize(node_id,start_mode,
-                config_path,1,fake_update_state,proxy->db_ptr,proxy);
+                config_path,log_path,1,fake_update_state,proxy->db_ptr,proxy);
     }else{
         proxy->con_node = system_initialize(node_id,start_mode,
-                config_path,0,update_state,NULL,proxy);
+                config_path,log_path,0,update_state,NULL,proxy);
     }
 
     if(NULL==proxy->con_node){
@@ -651,7 +653,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     hack_arg = proxy;
     signal(SIGTERM,proxy_singnal_handler_sys);
 
-    LEAVE_FUNC
+    
 	return proxy;
 
 proxy_exit_error:
@@ -666,25 +668,20 @@ proxy_exit_error:
         }
         free(proxy);
     }
-    ERR_LEAVE_FUNC
     return NULL;
 }
 
 void proxy_run(proxy_node* proxy){
-    ENTER_FUNC
     proxy->re_con = evtimer_new(proxy->base,
             reconnect_on_timeout,proxy);
     connect_consensus(proxy);
     evtimer_add(proxy->do_action,&proxy->action_period);
     event_base_dispatch(proxy->base);
     proxy_exit(proxy);
-    LEAVE_FUNC
     return;
 }
 
 void proxy_exit(proxy_node* proxy){
-    ENTER_FUNC
-    LEAVE_FUNC
     return;
 }
 

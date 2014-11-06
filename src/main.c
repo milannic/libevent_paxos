@@ -39,8 +39,7 @@ static void pseudo_cb(int data_size,void* data){
     fprintf(stdout,"%d : %s\n",number,(char*)data);
     number++;
     fflush(stdout);
-    return;
-}
+    return; }
 
 int main(int argc,char** argv){
     char* start_mode= NULL;

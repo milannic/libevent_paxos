@@ -31,17 +31,14 @@
     fprintf(out,args); \
 }while(0);
 
-#define PROXY_ENTER_FUNC(x) {if(x->debug_log){rec_log("PROXY : Entering %s.\n",__PRETTY_FUNCTION__)}}
-#define PROXY_LEAVE_FUNC(x) {if(x->debug_log){rec_log("PROXY : Leaving %s.\n",__PRETTY_FUNCTION__)}}
+#define PROXY_ENTER(x) {if(x->sys_log){rec_log("PROXY : Entering %s.\n",__PRETTY_FUNCTION__)}}
+#define PROXY_LEAVE(x) {if(x->sys_log){rec_log("PROXY : Leaving %s.\n",__PRETTY_FUNCTION__)}}
+#define PROXY_ERR_LEAVE(x) {if(x->sys_log){rec_log("PROXY : Error Occurred,Before Leaving %s.\n",__PRETTY_FUNCTION__)}}
 
-#define CONSENSUS_ENTER_FUNC(x) {rec_log("CONSENSUS : Entering %s.\n",__PRETTY_FUNCTION__)}
-#define CONSENSUS_LEAVE_FUNC(x) {rec_log("CONSENSUS : Leaving %s.\n",__PRETTY_FUNCTION__)}
+#define CONSENSUS_ENTER(x) {if(x->sys_log){rec_log("CONSENSUS : Entering %s.\n",__PRETTY_FUNCTION__)}}
+#define CONSENSUS_LEAVE(x) {if(x->sys_log){rec_log("CONSENSUS : Leaving %s.\n",__PRETTY_FUNCTION__)}}
+#define CONSENSUS_ERR_LEAVE(x) {if(x->sys_log){rec_log("CONSENSUS : Error Occurred,Before Leaving %s.\n",__PRETTY_FUNCTION__)}}
 
-
-#define ENTER_FUNC {debug_log("Entering %s.\n",__PRETTY_FUNCTION__)}
-#define LEAVE_FUNC {debug_log("Leaving %s.\n",__PRETTY_FUNCTION__)}
-#define ERR_LEAVE_FUNC {debug_log("Error Occured, Before Leaving %s.\n",__PRETTY_FUNCTION__)}
-
-#define DEBUG_POINT(n) {debug_log("Debug Point " #n ".\n")}
+#define DEBUG_POINT(x,n) {if(x->sys_log){rec_log("Debug Point " #n ".\n")}}
 
 #endif

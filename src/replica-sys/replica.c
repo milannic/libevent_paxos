@@ -71,17 +71,15 @@ static int isLeader(node*);
 //implementation level
 
 static void node_singal_handler(evutil_socket_t fid,short what,void* arg){
-    ENTER_FUNC
     node* my_node = arg;
     if(what&EV_SIGNAL){
         debug_log("Node %d Received Kill Singal.Now Quit.\n",my_node->node_id);
     }
     event_base_loopexit(my_node->base,NULL);
-    LEAVE_FUNC
 }
 
 //static void node_sys_sig_handler(int sig){
-//    ENTER_FUNC
+//    
 //    switch(sig){
 //        case SIGTERM:
 //        case SIGHUP:
@@ -90,7 +88,7 @@ static void node_singal_handler(evutil_socket_t fid,short what,void* arg){
 //            paxos_log("catch one singal\n");
 //            break;
 //    }
-//    LEAVE_FUNC
+//    
 //}
 
 static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
@@ -312,7 +310,7 @@ static int isLeader(node* my_node){
 }
 
 static int free_node(node* my_node){
-    ENTER_FUNC
+    
     if(my_node->listener!=NULL){
         evconnlistener_free(my_node->listener);
     }
@@ -328,7 +326,7 @@ static int free_node(node* my_node){
     if(my_node->base!=NULL){
         event_base_free(my_node->base);
     }
-    LEAVE_FUNC
+    
     return 0;
 }
 
@@ -357,7 +355,7 @@ static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd
 
 // consensus part
 static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,int target){
-    ENTER_FUNC
+    
     consensus_msg* msg = build_consensus_msg(data_size,data);
     if(NULL==msg){
         goto send_for_consensus_comp_exit;
@@ -384,7 +382,7 @@ send_for_consensus_comp_exit:
     if(msg!=NULL){
         free(msg);
     }
-    LEAVE_FUNC
+    
     return;
 }
 
@@ -528,7 +526,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
 
 
 int initialize_node(node* my_node,int deliver_mode,void (*user_cb)(size_t data_size,void* data,void* arg),void* db_ptr,void* arg){
-    ENTER_FUNC
+    
     int flag = 1;
     gettimeofday(&my_node->last_ping_msg,NULL);
     if(my_node->cur_view.leader_id==my_node->node_id){
@@ -564,22 +562,20 @@ initialize_node_exit:
         return flag;
 }
 
-node* system_initialize(int node_id,const char* start_mode,const char* config_path,int deliver_mode,void(*user_cb)(int data_size,void* data,void* arg),void* db_ptr,void* arg){
-    ENTER_FUNC
+node* system_initialize(int node_id,const char* start_mode,const char* config_path,const char* log_path,int deliver_mode,void(*user_cb)(int data_size,void* data,void* arg),void* db_ptr,void* arg){
+    
     
 //    signal(SIGINT,node_sys_sig_handler);
 //    signal(SIGHUP,node_sys_sig_handler);
 //    signal(SIGTERM,node_sys_sig_handler);
 //    signal(SIGQUIT,node_sys_sig_handler);
 
-    DEBUG_POINT(1);
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));
     if(NULL==my_node){
         goto exit_error;
     }
 
-    DEBUG_POINT(2);
 
     // set up base
 	struct event_base* base = event_base_new();
@@ -594,7 +590,6 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
     my_node->base = base;
     my_node->node_id = node_id;
 
-    DEBUG_POINT(3)
     //seed, currently the node is the leader
     if(*start_mode=='s'){
         my_node->cur_view.view_id = 1;
@@ -606,7 +601,6 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
         my_node->ev_leader_ping = NULL;
     }
 
-    DEBUG_POINT(4)
     if(consensus_read_config(my_node,config_path)){
         goto exit_error;
     }
@@ -618,7 +612,6 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
     debug_log("current node's db name is %s\n",my_node->db_name);
 #endif
 
-    DEBUG_POINT(5)
     if(initialize_node(my_node,deliver_mode,user_cb,db_ptr,arg)){
         debug_log("cannot initialize node\n");
         goto exit_error;
@@ -629,13 +622,12 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
                 (void*)my_node,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,-1,
                 (struct sockaddr*)&my_node->my_address,sizeof(my_node->my_address));
 
-    DEBUG_POINT(6);
     if(!my_node->listener){
         debug_log("cannot set up the listener\n");
         goto exit_error;
     }
 
-    LEAVE_FUNC
+    
 
 	return my_node;
 
@@ -647,19 +639,15 @@ exit_error:
 }
 
 void system_run(struct node_t* replica){
-    ENTER_FUNC
+    
     debug_log("Node %u Starts Running\n",
             replica->node_id);
     event_base_dispatch(replica->base);
-    LEAVE_FUNC
+    
 }
 
 
 void system_exit(struct node_t* replica){
-    ENTER_FUNC
     event_base_loopexit(replica->base,NULL);
-    DEBUG_POINT(0)
-    DEBUG_POINT(1)
     free_node(replica);
-    LEAVE_FUNC
 }

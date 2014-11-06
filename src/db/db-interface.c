@@ -41,7 +41,6 @@ void mk_path(char* dest,const char* prefix,const char* db_name){
 }
 
 db* initialize_db(const char* db_name,uint32_t flag){
-    ENTER_FUNC
     db* db_ptr=NULL;
     DB* b_db;
     DB_ENV* dbenv;
@@ -63,7 +62,6 @@ db* initialize_db(const char* db_name,uint32_t flag){
 		dbenv->err(dbenv, ret, "environment open: %s", db_dir);
         goto db_init_return;
 	}
-    DEBUG_POINT(1);
     /* Initialize the DB handle */
     if((ret = db_create(&b_db,dbenv,flag))!=0){
         paxos_log("%s:\n",db_strerror(ret));
@@ -86,7 +84,6 @@ db_init_return:
         debug_log("DB Initialization Finished\n");
         ;
     }
-    LEAVE_FUNC;
     return db_ptr;
 }
 

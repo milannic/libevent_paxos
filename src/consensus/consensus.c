@@ -21,7 +21,6 @@
 
 
 static struct timeval re_set_period={2,0};
-
 static struct timeval request_repeat_timeout = {2,0};
 
 typedef struct request_record_t{
@@ -38,8 +37,7 @@ typedef struct view_boundary_t{
 }view_boundary;
 #define VIEW_BOUNDARY_SIZE (sizeof(view_boundary))
 
-typedef struct consensus_component_t{
-    con_role my_role;
+typedef struct consensus_component_t{ con_role my_role;
     uint32_t node_id;
 
     int deliver_mode;
@@ -141,7 +139,7 @@ view_stamp consensus_get_highest_seen_req(consensus_component* comp){
 consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
         const char* db_name,int deliver_mode,void* db_ptr,int group_size,
         view* cur_view,user_cb u_cb,up_call uc,void* arg){
-    ENTER_FUNC
+    
     consensus_component* comp = (consensus_component*)
         malloc(sizeof(consensus_component));
     if(NULL!=comp){
@@ -182,7 +180,7 @@ consensus_error_exit:
         }
         free(comp);
     }
-LEAVE_FUNC
+
 consensus_init_exit:
     return comp;
 }
@@ -229,7 +227,7 @@ static int isLeader(consensus_component* comp){
 
 static int leader_handle_submit_req(struct consensus_component_t* comp,
         size_t data_size,void* data,view_stamp* vs){
-    ENTER_FUNC
+    
     int ret = 1;
     view_stamp next = get_next_view_stamp(comp);
     if(NULL!=vs){
@@ -237,7 +235,6 @@ static int leader_handle_submit_req(struct consensus_component_t* comp,
         vs->req_id = next.req_id;
     }
     db_key_type record_no = vstol(&next);
-    DEBUG_POINT(1);
     request_record* record_data = 
         (request_record*)malloc(data_size+sizeof(request_record));
     gettimeofday(&record_data->created_time,NULL);
@@ -248,14 +245,12 @@ static int leader_handle_submit_req(struct consensus_component_t* comp,
     if(store_record(comp->db_ptr,sizeof(record_no),&record_no,REQ_RECORD_SIZE(record_data),record_data)){
         goto handle_submit_req_exit;
     }    
-    DEBUG_POINT(2);
     accept_req* msg = build_accept_req(comp,REQ_RECORD_SIZE(record_data),record_data,&next);
     if(NULL==msg){
         goto handle_submit_req_exit;
     }
     comp->uc(comp->my_node,ACCEPT_REQ_SIZE(msg),msg,-1);
     free(msg);
-    DEBUG_POINT(3);
     view_stamp_inc(&comp->highest_seen_vs);
     ret = 0;
 handle_submit_req_exit: 
@@ -263,19 +258,19 @@ handle_submit_req_exit:
     if(record_data!=NULL){
         free(record_data);
     }
-    LEAVE_FUNC
+    
     return ret;
 }
 
 static int forward_submit_req(consensus_component* comp,size_t data_size,void* data){
-    ENTER_FUNC
+    
     forward_req* msg = build_forward_req(comp,data_size,data);
     int ret = 1;
     if(msg!=NULL){
         comp->uc(comp->my_node,FORWARD_REQ_SIZE(msg),msg,comp->cur_view->leader_id);
         ret = 0;
     }
-    LEAVE_FUNC
+    
     return ret;
 }
 
@@ -400,7 +395,7 @@ handle_accept_ack_exit:
 };
 
 static void handle_missing_req(consensus_component* comp,void* data){
-    ENTER_FUNC
+    
     debug_log("node %d handle missing req\n",
             comp->node_id);
     missing_req* msg = data;
@@ -416,11 +411,11 @@ static void handle_missing_req(consensus_component* comp,void* data){
         comp->uc(comp->my_node,MISSING_ACK_SIZE(reply),reply,msg->node_id);
         free(reply);
     }
-    LEAVE_FUNC
+    
     return;
 };
 static void handle_missing_ack(consensus_component* comp,void* data){
-    ENTER_FUNC
+    
     missing_ack* msg = data;
     request_record* origin = (request_record*)msg->data;
     debug_log("node %d handle missing ack from node %d \n",
@@ -450,7 +445,7 @@ static void handle_missing_ack(consensus_component* comp,void* data){
     }
     try_to_execute(comp);
 handle_missing_ack_exit:
-    LEAVE_FUNC
+    
     return;
 };
 static void handle_force_exec(consensus_component* comp,void* data){
@@ -469,12 +464,12 @@ handle_force_exec_exit:
 
 
 static void handle_forward_req(consensus_component* comp,void* data){
-    ENTER_FUNC
+    
     if(comp->my_role!=LEADER){goto handle_forward_req_exit;}
     forward_req* msg = data;
     leader_handle_submit_req(comp,msg->data_size,msg->data,NULL);
 handle_forward_req_exit:
-    LEAVE_FUNC
+    
     return;
 }
 
@@ -555,7 +550,7 @@ static void* build_force_exec(consensus_component* comp){
 
 static void* build_forward_req(consensus_component* comp,
         size_t data_size,void* data){
-    ENTER_FUNC
+    
     forward_req* msg = (forward_req*)malloc(sizeof(forward_req)+data_size);
     if(NULL!=msg){
         msg->header.msg_type = FORWARD_REQ;
@@ -563,7 +558,7 @@ static void* build_forward_req(consensus_component* comp,
         msg->data_size = data_size;
         memcpy(msg->data,data,data_size);
     }
-    LEAVE_FUNC
+    
     return msg;
 }
 
@@ -576,7 +571,7 @@ static void leader_try_to_execute(consensus_component* comp){
     request_record* record_data = NULL;
     size_t data_size;
     debug_log("the leader tries to execute\n");
-    debug_log("the end value is %u\n",end);
+    debug_log("the end value is %lu\n",end);
     for(db_key_type index=start;index<=end;index++){
         retrieve_record(comp->db_ptr,sizeof(index),&index,&data_size,(void**)&record_data);
         assert(record_data!=NULL && "The Record Should Be Inserted By The Node Itself!");
