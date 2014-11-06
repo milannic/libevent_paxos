@@ -73,39 +73,27 @@ static int isLeader(node*);
 static void node_singal_handler(evutil_socket_t fid,short what,void* arg){
     node* my_node = arg;
     if(what&EV_SIGNAL){
-        debug_log("Node %d Received Kill Singal.Now Quit.\n",my_node->node_id);
+        safe_rec_log(my_node->sys_log_file,"Node %d Received Kill Singal.Now Quit.\n",my_node->node_id);
     }
     event_base_loopexit(my_node->base,NULL);
 }
-
-//static void node_sys_sig_handler(int sig){
-//    
-//    switch(sig){
-//        case SIGTERM:
-//        case SIGHUP:
-//        case SIGKILL:
-//        case SIGINT:
-//            paxos_log("catch one singal\n");
-//            break;
-//    }
-//    
-//}
 
 static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
 
 static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg){
     peer* peer_node = (peer*)arg;
+    node* my_node = peer_node->my_node;
     if(ev&BEV_EVENT_CONNECTED){
-        debug_log("Connected to Node %d\n",peer_node->peer_id);
+        safe_rec_log(my_node->sys_log_file,"Connected to Node %d\n",peer_node->peer_id);
         peer_node->active = 1;
     }else if((ev & BEV_EVENT_EOF )||(ev&BEV_EVENT_ERROR)){
         if(peer_node->active){
             peer_node->active = 0;
-            debug_log("Lost Connection With Node %d \n",peer_node->peer_id);
+            safe_rec_log(my_node->sys_log_file,"Lost Connection With Node %d \n",peer_node->peer_id);
         }
         peer_node->my_buff_event = NULL;
         int err = EVUTIL_SOCKET_ERROR();
-		debug_log("%s (%d)\n",evutil_socket_error_to_string(err),peer_node->peer_id);
+		safe_rec_log(my_node->sys_log_file,"%s (%d)\n",evutil_socket_error_to_string(err),peer_node->peer_id);
         bufferevent_free(bev);
         event_add(peer_node->reconnect,&reconnect_timeval);
     }
@@ -136,9 +124,9 @@ static void connect_peers(node* my_node){
 
 
 static void lost_connection_with_leader(node* my_node){
-    debug_log("Node %u Lost Connection With The Leader\n",
+    safe_rec_log(my_node->sys_log_file,"Node %u Lost Connection With The Leader\n",
             my_node->node_id);
-    debug_log("Node %u Will Start A Leader Election\n",
+    safe_rec_log(my_node->sys_log_file,"Node %u Will Start A Leader Election\n",
             my_node->node_id);
     return;
 }
@@ -159,8 +147,8 @@ static void expected_leader_ping_period(int fd,short what,void* arg){
         if(timeval_comp(&temp,&cur)>=0){
             event_add(my_node->ev_leader_ping,&expect_ping_timeval);
         }else{
-            debug_log(
-                    "Node %d haven't heard from the leader\n",
+            safe_rec_log(my_node->sys_log_file,
+                    "Node %d Haven't Heard From The Leader\n",
                     my_node->node_id);
             lost_connection_with_leader(my_node);
         }
@@ -169,8 +157,8 @@ static void expected_leader_ping_period(int fd,short what,void* arg){
 
 
 static void leader_ping_period(int fd,short what,void* arg){
-    debug_log("Leader Tries To Ping Other Nodes\n");
     node* my_node = arg; 
+    safe_rec_log(my_node->sys_log_file,"Leader Tries To Ping Other Nodes\n");
     // at first check whether I am the leader
     if(my_node->cur_view.leader_id!=my_node->node_id){
         if(my_node->ev_leader_ping!=NULL){
@@ -187,7 +175,7 @@ static void leader_ping_period(int fd,short what,void* arg){
             if(i!=my_node->node_id && my_node->peer_pool[i].active){
                 struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
                 bufferevent_write(buff,ping_req,PING_REQ_SIZE);
-                debug_log(
+                safe_rec_log(my_node->sys_log_file,
                         "Send Ping Msg To Node %u\n",i);
             }
         }
@@ -224,8 +212,8 @@ static int initialize_expect_ping(node* my_node){
 }
 
 static void make_progress_on(int fd,short what,void* arg){
-    debug_log("Leader Tries To Ping Other Nodes\n");
     node* my_node = arg; 
+    safe_rec_log(my_node->sys_log_file,"Leader Tries To Make Progress.\n");
     // at first check whether I am the leader
     if(my_node->cur_view.leader_id!=my_node->node_id){
         if(my_node->ev_make_progress!=NULL){
@@ -257,7 +245,7 @@ static int initialize_leader_make_progress(node* my_node){
 
 
 static void update_view(node* my_node,view* new_view){
-    debug_log("node %d entered update view\n",
+    safe_rec_log(my_node->sys_log_file,"Node %d Entered Update View\n",
             my_node->node_id);
     int old_leader = isLeader(my_node);
     memcpy(&my_node->cur_view,new_view,sizeof(view));
@@ -269,7 +257,7 @@ static void update_view(node* my_node,view* new_view){
             giveup_leader(my_node);
         }
     }
-    debug_log("node %d 's current view changed to %u \n",
+    safe_rec_log(my_node->sys_log_file,"Node %d 's Current View Changed To %u \n",
             my_node->node_id,
             my_node->cur_view.view_id);
     return;
@@ -341,16 +329,10 @@ static void replica_on_error_cb(struct bufferevent* bev,short ev,void *arg){
 
 static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd,struct sockaddr *address,int socklen,void *arg){
     node* my_node = arg;
-    debug_log( "In consensus,Connection is established.\n");
-    if(current_connection>=MAX_ACCEPT_CONNECTIONS){
-        debug_log("it has exceeded the predefined maximal concurrent connections\n");
-        close(fd);
-    }else{
-        struct bufferevent* new_buff_event = bufferevent_socket_new(my_node->base,fd,BEV_OPT_CLOSE_ON_FREE);
-        bufferevent_setcb(new_buff_event,replica_on_read,NULL,replica_on_error_cb,(void*)my_node);
-        bufferevent_enable(new_buff_event,EV_READ|EV_PERSIST|EV_WRITE);
-        current_connection++;
-    }
+    safe_rec_log(my_node->sys_log_file, "A New Connection Is Established.\n");
+    struct bufferevent* new_buff_event = bufferevent_socket_new(my_node->base,fd,BEV_OPT_CLOSE_ON_FREE);
+    bufferevent_setcb(new_buff_event,replica_on_read,NULL,replica_on_error_cb,(void*)my_node);
+    bufferevent_enable(new_buff_event,EV_READ|EV_PERSIST|EV_WRITE);
 };
 
 // consensus part
@@ -366,7 +348,7 @@ static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,in
             if(i!=my_node->node_id && my_node->peer_pool[i].active){
                 struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
                 bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg));
-                debug_log(
+                safe_rec_log(my_node->sys_log_file,
                         "Send Consensus Msg To Node %u\n",i);
             }
         }
@@ -374,8 +356,8 @@ static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,in
         if(target!=(int)my_node->node_id&&my_node->peer_pool[target].active){
             struct bufferevent* buff = my_node->peer_pool[target].my_buff_event;
             bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg));
-            debug_log(
-                    "Send Consensus Msg To Node %u\n",target);
+            safe_rec_log(my_node->sys_log_file,
+                    "Send Consensus Msg To Node %u.\n",target);
         }
     }
 send_for_consensus_comp_exit:
@@ -390,12 +372,12 @@ static void handle_ping_ack(node* my_node,ping_ack_msg* msg){
     if(my_node->cur_view.view_id < msg->view.view_id){
         update_view(my_node,&msg->view);
     }else{
-        debug_log("ignore ping ack from node %u \n",msg->node_id);
+        safe_rec_log(my_node->sys_log_file,"Ignore Ping Ack From Node %u.\n",msg->node_id);
     }
 }
 
 static void handle_ping_req(node* my_node,ping_req_msg* msg){
-    debug_log("Received Ping Req Msg in node %d\n from node %d\n",
+    safe_rec_log(my_node->sys_log_file,"Received Ping Req Msg In Node %u From Node %u.",
             my_node->node_id,msg->node_id);
     if(my_node->cur_view.view_id < msg->view.view_id){
         update_view(my_node,&msg->view);
@@ -405,8 +387,8 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
             if(NULL!=ping_ack){
                 struct bufferevent* buff = my_node->peer_pool[msg->node_id].my_buff_event;
                 bufferevent_write(buff,ping_ack,PING_REQ_SIZE);
-                debug_log(
-                    "Send Ping Ack To Lagged Node %u\n",msg->node_id);
+                safe_rec_log(my_node->sys_log_file,
+                    "Send Ping Ack To Lagged Node %u.\n",msg->node_id);
                 free(ping_ack);
             }
         } 
@@ -427,7 +409,7 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
             // lagged behind,otherwise the leader is outdated which will be
             // treated as a smaller cur view than what in the msg but when they have 
             // the same view id, which can be ignored
-            debug_log("Received Ping Req From %u in view %u\n",
+            safe_rec_log(my_node->sys_log_file,"Received Ping Req From %u In View %u\n",
                     msg->node_id,msg->view.view_id);
         }
     }
@@ -445,9 +427,9 @@ static void handle_consensus_msg(node* my_node,consensus_msg* msg){
 
 static void handle_request_submit(node* my_node,
         req_sub_msg* msg,struct bufferevent* evb){
-    debug_log("node %d received consensus submit request\n",
+    safe_rec_log(my_node->sys_log_file,"Node %d Received Consensus Submit Request\n",
             my_node->node_id);
-    debug_log("the data size is %lu \n",
+    safe_rec_log(my_node->sys_log_file,"The Data Size Is %lu \n",
             msg->header.data_size);
     if(NULL!=my_node->consensus_comp){
         view_stamp return_vs;
@@ -483,7 +465,7 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
             handle_request_submit(my_node,(req_sub_msg*)msg_buf,bev);
             break;
         default:
-            debug_log("unknown msg type %d\n",
+            safe_rec_log(my_node->sys_log_file,"Unknown Msg Type %d\n",
                     msg_header->type);
             goto handle_msg_exit;
     }
@@ -500,9 +482,9 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = 0;
     len = evbuffer_get_length(input);
-    paxos_log("Enter Consensus Communication Module.\n");
+    safe_rec_log(my_node->sys_log_file,"Enter Consensus Communication Module.\n");
     int counter = 0;
-    debug_log("there is %u bytes data in the buffer in total\n",
+    safe_rec_log(my_node->sys_log_file,"There Is %u Bytes Data In The Buffer In Total.\n",
             (unsigned)len);
     while(len>=SYS_MSG_HEADER_SIZE){
         buf = (sys_msg_header*)malloc(SYS_MSG_HEADER_SIZE);
@@ -519,7 +501,9 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
         buf=NULL;
         len = evbuffer_get_length(input);
     }
-    paxos_log("This Function Call Process %u Requests In Total.\n",counter);
+    if(my_node->stat_log){
+        safe_rec_log(my_node->sys_log_file,"This Function Call Process %u Requests In Total.\n",counter);
+    }
     if(NULL!=buf){free(buf);}
     return;
 }
@@ -564,28 +548,17 @@ initialize_node_exit:
 
 node* system_initialize(int node_id,const char* start_mode,const char* config_path,const char* log_path,int deliver_mode,void(*user_cb)(int data_size,void* data,void* arg),void* db_ptr,void* arg){
     
-    
-//    signal(SIGINT,node_sys_sig_handler);
-//    signal(SIGHUP,node_sys_sig_handler);
-//    signal(SIGTERM,node_sys_sig_handler);
-//    signal(SIGQUIT,node_sys_sig_handler);
 
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));
     if(NULL==my_node){
         goto exit_error;
     }
-
-
     // set up base
 	struct event_base* base = event_base_new();
-
-
     if(NULL==base){
         goto exit_error;
     }
-
-	//int s_fd = socket(AF_INET,SOCK_STREAM,0);
 
     my_node->base = base;
     my_node->node_id = node_id;
@@ -600,20 +573,24 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
         my_node->cur_view.leader_id = 9999;
         my_node->ev_leader_ping = NULL;
     }
+    
+    my_node->config.make_progress_timeval.tv_sec = 2;
+    my_node->config.make_progress_timeval.tv_usec = 0;
+    my_node->config.ping_timeval.tv_sec = 2;
+    my_node->config.ping_timeval.tv_usec = 0;
+    my_node->config.expect_ping_timeval.tv_sec = 8;
+    my_node->config.expect_ping_timeval.tv_usec = 0;
+    my_node->config.reconnect_timeval.tv_sec = 2;
+    my_node->config.reconnect_timeval.tv_usec = 0;
+
 
     if(consensus_read_config(my_node,config_path)){
+        err_log("Consensus Module : Configuration File Reading Failed.\n");
         goto exit_error;
     }
-    
-#if DEBUG
-    char ipv4_address[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET,&my_node->my_address.sin_addr,ipv4_address,INET_ADDRSTRLEN);
-    debug_log("current node's ip address is %s:%d\n",ipv4_address,ntohs(my_node->my_address.sin_port));
-    debug_log("current node's db name is %s\n",my_node->db_name);
-#endif
 
     if(initialize_node(my_node,deliver_mode,user_cb,db_ptr,arg)){
-        debug_log("cannot initialize node\n");
+        err_log("Consensus Module : Network Layer Initialization Failed.\n");
         goto exit_error;
     }
 
@@ -623,12 +600,9 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
                 (struct sockaddr*)&my_node->my_address,sizeof(my_node->my_address));
 
     if(!my_node->listener){
-        debug_log("cannot set up the listener\n");
+        err_log("Consensus Module Cannot Set Up The Listener.\n");
         goto exit_error;
     }
-
-    
-
 	return my_node;
 
 exit_error:
@@ -639,13 +613,10 @@ exit_error:
 }
 
 void system_run(struct node_t* replica){
-    
-    debug_log("Node %u Starts Running\n",
+    safe_rec_log(replica->sys_log_file,"Node %u Starts Running\n",
             replica->node_id);
     event_base_dispatch(replica->base);
-    
 }
-
 
 void system_exit(struct node_t* replica){
     event_base_loopexit(replica->base,NULL);

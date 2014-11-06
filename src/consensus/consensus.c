@@ -44,7 +44,7 @@ typedef struct consensus_component_t{ con_role my_role;
     uint32_t group_size;
     struct node_t* my_node;
 
-    FILE* sys_log;
+    FILE* sys_log_file;
 
     view* cur_view;
     view_stamp highest_seen_vs; 

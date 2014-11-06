@@ -27,18 +27,23 @@
 #define rec_log(out,args...) do { \
     struct timeval tv; \
     gettimeofday(&tv,0); \
-    fprintf(out,"%lu:%lu \t",tv.tv_sec,tv.tv_usec); \
-    fprintf(out,args); \
+    fprintf((out),"%lu:%lu \t",tv.tv_sec,tv.tv_usec); \
+    fprintf((out),args); \
 }while(0);
 
-#define PROXY_ENTER(x) {if(x->sys_log){rec_log("PROXY : Entering %s.\n",__PRETTY_FUNCTION__)}}
-#define PROXY_LEAVE(x) {if(x->sys_log){rec_log("PROXY : Leaving %s.\n",__PRETTY_FUNCTION__)}}
-#define PROXY_ERR_LEAVE(x) {if(x->sys_log){rec_log("PROXY : Error Occurred,Before Leaving %s.\n",__PRETTY_FUNCTION__)}}
+#define safe_rec_log(x,args...) {if(NULL!=(x)){rec_log((x),args);}}
 
-#define CONSENSUS_ENTER(x) {if(x->sys_log){rec_log("CONSENSUS : Entering %s.\n",__PRETTY_FUNCTION__)}}
-#define CONSENSUS_LEAVE(x) {if(x->sys_log){rec_log("CONSENSUS : Leaving %s.\n",__PRETTY_FUNCTION__)}}
-#define CONSENSUS_ERR_LEAVE(x) {if(x->sys_log){rec_log("CONSENSUS : Error Occurred,Before Leaving %s.\n",__PRETTY_FUNCTION__)}}
+#define PROXY_ENTER(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"PROXY : Entering %s.\n",__PRETTY_FUNCTION__)}}
+#define PROXY_LEAVE(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"PROXY : Leaving %s.\n",__PRETTY_FUNCTION__)}}
+#define PROXY_ERR_LEAVE(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"PROXY : Error Occurred,Before Leaving %s.\n",__PRETTY_FUNCTION__)}}
 
-#define DEBUG_POINT(x,n) {if(x->sys_log){rec_log("Debug Point " #n ".\n")}}
+#define CONSENSUS_ENTER(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"CONSENSUS : Entering %s.\n",__PRETTY_FUNCTION__)}}
+#define CONSENSUS_LEAVE(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"CONSENSUS : Leaving %s.\n",__PRETTY_FUNCTION__)}}
+#define CONSENSUS_ERR_LEAVE(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"CONSENSUS : Error Occurred,Before Leaving %s.\n",__PRETTY_FUNCTION__)}}
+
+#define DEBUG_ENTER debug_log("Entering %s.\n",__PRETTY_FUNCTION__)
+#define DEBUG_LEAVE debug_log("Leaving %s.\n",__PRETTY_FUNCTION__)
+
+#define DEBUG_POINT(x,n) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"Debug Point " #n ".\n")}}
 
 #endif

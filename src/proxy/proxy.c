@@ -17,6 +17,7 @@
 #include "../include/proxy/proxy.h"
 #include "../include/config-comp/config-proxy.h"
 #include "../include/replica-sys/message.h"
+#include <sys/stat.h>
 
 
 static void* shared_mem=NULL; 
@@ -602,8 +603,48 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     }
 
 //    proxy->log_file = NULL; 
-    if(log_path!=NULL){
-        proxy->sys_log_file = fopen(log_path,"w");
+
+    int build_log_ret = 0;
+    if(log_path==NULL){
+        log_path = ".";
+    }else{
+        if((build_log_ret=mkdir(log_path,S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))!=0){
+            if(errno!=EEXIST){
+                err_log("PROXY : Log Directory Creation Failed,No Log Will Be Recorded.\n");
+            }else{
+                build_log_ret = 0;
+            }
+        }
+    }
+
+    if(!build_log_ret){
+        if(proxy->sys_log || proxy->stat_log){
+            char* sys_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+20);
+            memset(sys_log_path,0,sizeof(char)*strlen(log_path)+20);
+            err_log("%s.\n",log_path);
+            if(NULL!=sys_log_path){
+                strcat(sys_log_path,log_path);
+                strcat(sys_log_path,"/proxy_sys.log");
+                err_log("%s.\n",sys_log_path);
+                proxy->sys_log_file = fopen(sys_log_path,"w");
+                free(sys_log_path);
+            }
+            if(NULL==proxy->sys_log_file){
+                err_log("PROXY : System Log File Cannot Be Created.\n");
+            }
+        }
+        char* req_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+20);
+        memset(req_log_path,0,sizeof(char)*strlen(log_path)+20);
+        if(NULL!=req_log_path){
+            strcat(req_log_path,log_path);
+            strcat(req_log_path,"/proxy_req.log");
+            err_log("%s.\n",req_log_path);
+            proxy->req_log_file = fopen(req_log_path,"w");
+            free(req_log_path);
+        }
+        if(NULL==proxy->req_log_file){
+            err_log("PROXY : Client Request Log File Cannot Be Created.\n");
+        }
     }
 
     proxy->fake = fake_mode;
@@ -616,11 +657,11 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 
     // if we cannot create the database and the proxy runs not in the fake mode, then we will fail 
     if(proxy->db_ptr==NULL && !proxy->fake){
+        err_log("PROXY : Cannot Set Up The Database.\n");
         goto proxy_exit_error;
     }
     
     // ensure the value is NULL at first
-    
     proxy->hash_map=NULL;
     proxy->listener = evconnlistener_new_bind(proxy->base,proxy_on_accept,
                 (void*)proxy,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,
@@ -628,7 +669,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
                 sizeof(proxy->sys_addr.p_addr));
 
     if(proxy->listener==NULL){
-        debug_log("cannot set up the listener\n");
+        err_log("PROXY : Cannot Set Up The IP Address Listener.\n");
         goto proxy_exit_error;
     }
 
@@ -642,17 +683,16 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     }
 
     if(NULL==proxy->con_node){
-        debug_log("cannot initialize node\n");
+        err_log("PROXY : Cannot Initialize Consensus Component.\n");
         goto proxy_exit_error;
     }
 
     pthread_create(&proxy->sub_thread,NULL,t_consensus,proxy->con_node);
 
-    //proxy->sig_handler = evsignal_new(proxy->base,SIGTERM,proxy_singnal_handler,proxy);
-    //evsignal_add(proxy->sig_handler,NULL);
     hack_arg = proxy;
-    signal(SIGTERM,proxy_singnal_handler_sys);
 
+    //register signal handler
+    signal(SIGTERM,proxy_singnal_handler_sys);
     
 	return proxy;
 
@@ -662,7 +702,7 @@ proxy_exit_error:
             // to do
             if(proxy->sub_thread!=0){
                 pthread_kill(proxy->sub_thread,SIGQUIT);
-                debug_log("wating consensus comp to quit.\n");
+                err_log("PROXY : Wating Consensus Comp To Quit.\n");
                 pthread_join(proxy->sub_thread,NULL);
             }
         }

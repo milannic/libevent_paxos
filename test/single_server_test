@@ -74,27 +74,21 @@ rm -rf ${FILEPATH}/.db
 
 #echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
 #echo "Now We Start The Leader"
-${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_FILE} 1>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_0_${NO} &
+${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_FILE} -l ${FILEPATH}/log 1>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_0_${NO} &
 PRIMARY_PID=$!
 
 
 #echo "Sleep Some Time"
 
-sleep 5
-
 CLIENT_PROGRAM=${FILEPATH}/../client/client.out
 
-${CLIENT_PROGRAM} -n 0 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
-${CLIENT_PROGRAM} -n 1 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
-${CLIENT_PROGRAM} -n 2 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
-${CLIENT_PROGRAM} -n 3 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
-${CLIENT_PROGRAM} -n 4 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
+#${CLIENT_PROGRAM} -n 0 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
+#${CLIENT_PROGRAM} -n 1 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
+#${CLIENT_PROGRAM} -n 2 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
+#${CLIENT_PROGRAM} -n 3 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
+#${CLIENT_PROGRAM} -n 4 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
 
-sleep 3
-
-sleep ${SLEEP_TIME}
+read -p haha
 
 #echo "Kill The Leader"
 kill -15 ${PRIMARY_PID} &>/dev/null
-
-check_output

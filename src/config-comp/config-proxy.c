@@ -47,16 +47,16 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     
     if(NULL!=proxy_global_config){
         long long temp;
-        if(!config_setting_lookup_int64(proxy_global_config,"reconnect_timeval_s",&temp)){
+        if(config_setting_lookup_int64(proxy_global_config,"reconnect_timeval_s",&temp)){
             cur_node->recon_period.tv_sec = temp;
         }
-        if(!config_setting_lookup_int64(proxy_global_config,"reconnect_timeval_us",&temp)){
+        if(config_setting_lookup_int64(proxy_global_config,"reconnect_timeval_us",&temp)){
             cur_node->recon_period.tv_usec = temp;
         }
-        if(!config_setting_lookup_int64(proxy_global_config,"action_timeval_s",&temp)){
+        if(config_setting_lookup_int64(proxy_global_config,"action_timeval_s",&temp)){
             cur_node->action_period.tv_sec = temp;
         }
-        if(!config_setting_lookup_int64(proxy_global_config,"action_timeval_us",&temp)){
+        if(config_setting_lookup_int64(proxy_global_config,"action_timeval_us",&temp)){
             cur_node->action_period.tv_usec = temp;
         }
     }
@@ -72,7 +72,7 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     config_setting_t *pro_ele = config_setting_get_elem(proxy_config,cur_node->node_id);
 
     if(NULL==pro_ele){
-        err_log("PROXY : cannot find current node's address\n");
+        err_log("PROXY : Cannot Find Current Node's Address\n");
         goto goto_config_error;
     }
 
