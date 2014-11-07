@@ -136,7 +136,7 @@ view_stamp consensus_get_highest_seen_req(consensus_component* comp){
 }
 
 
-consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
+consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id, FILE* log,
         const char* db_name,int deliver_mode,void* db_ptr,int group_size,
         view* cur_view,user_cb u_cb,up_call uc,void* arg){
     
@@ -151,6 +151,7 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id,
                 goto consensus_error_exit;
             }
         }
+        comp->sys_log_file = log;
         comp->my_node = node;
         comp->node_id = node_id;
         comp->deliver_mode = deliver_mode;

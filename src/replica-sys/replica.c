@@ -4,11 +4,6 @@
 
 int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; 
 static unsigned current_connection = 3;
-struct timeval reconnect_timeval = {2,0};
-struct timeval ping_timeval = {2,0};
-struct timeval expect_ping_timeval = {8,0};
-struct timeval make_progress_timeval = {2,0};
-int heart_beat_threshold = 4;
 
 static void usage(){
     paxos_log("Usage : -n NODE_ID\n");
@@ -509,7 +504,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
 }
 
 
-int initialize_node(node* my_node,int deliver_mode,void (*user_cb)(size_t data_size,void* data,void* arg),void* db_ptr,void* arg){
+int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*user_cb)(size_t data_size,void* data,void* arg),void* db_ptr,void* arg){
     
     int flag = 1;
     gettimeofday(&my_node->last_ping_msg,NULL);
@@ -526,6 +521,33 @@ int initialize_node(node* my_node,int deliver_mode,void (*user_cb)(size_t data_s
             goto initialize_node_exit;
         }
     }
+
+    int build_log_ret = 0;
+    if(log_path==NULL){
+        log_path = ".";
+    }else{
+        if((build_log_ret=mkdir(log_path,S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))!=0){
+            if(errno!=EEXIST){
+                err_log("CONSENSUS MODULE : Log Directory Creation Failed,No Log Will Be Recorded.\n");
+            }else{
+                build_log_ret = 0;
+            }
+        }
+    }
+    if(!build_log_ret){
+        if(my_node->sys_log || my_node->stat_log){
+            char* sys_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+20);
+            memset(sys_log_path,0,sizeof(char)*strlen(log_path)+20);
+            if(NULL!=sys_log_path){
+                sprintf(sys_log_path,"%s/node%u-consensus-sys.log",log_path,proxy->node_id);
+                my_node->sys_log_file = fopen(sys_log_path,"w");
+                free(sys_log_path);
+            }
+            if(NULL==my_node->sys_log_file){
+                err_log("CONSENSUS MODULE : System Log File Cannot Be Created.\n");
+            }
+        }
+    }
      
     my_node->signal_handler = evsignal_new(my_node->base,
             SIGQUIT,node_singal_handler,my_node);
@@ -535,8 +557,9 @@ int initialize_node(node* my_node,int deliver_mode,void (*user_cb)(size_t data_s
     connect_peers(my_node);
     my_node->consensus_comp = NULL;
 
+    FILE* para_file = (!my_node->sys_log)?NULL:my_node->sys_log_file;
     my_node->consensus_comp = init_consensus_comp(my_node,
-            my_node->node_id,my_node->db_name,deliver_mode,db_ptr,my_node->group_size,
+            my_node->node_id,para_file,my_node->db_name,deliver_mode,db_ptr,my_node->group_size,
             &my_node->cur_view,user_cb,send_for_consensus_comp,arg);
     if(NULL==my_node->consensus_comp){
         goto initialize_node_exit;
@@ -585,14 +608,18 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
 
 
     if(consensus_read_config(my_node,config_path)){
-        err_log("Consensus Module : Configuration File Reading Failed.\n");
+        err_log("CONSENSUS MODULE : Configuration File Reading Failed.\n");
         goto exit_error;
     }
 
-    if(initialize_node(my_node,deliver_mode,user_cb,db_ptr,arg)){
-        err_log("Consensus Module : Network Layer Initialization Failed.\n");
+
+    if(initialize_node(my_node,log_path,deliver_mode,user_cb,db_ptr,arg)){
+        err_log("CONSENSUS MODULE : Network Layer Initialization Failed.\n");
         goto exit_error;
     }
+
+
+
 
     my_node->listener =
         evconnlistener_new_bind(base,replica_on_accept,
@@ -600,7 +627,7 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
                 (struct sockaddr*)&my_node->my_address,sizeof(my_node->my_address));
 
     if(!my_node->listener){
-        err_log("Consensus Module Cannot Set Up The Listener.\n");
+        err_log("CONSENSUS MODULE : Cannot Set Up The Listener.\n");
         goto exit_error;
     }
 	return my_node;

@@ -33,7 +33,7 @@ typedef enum con_role_t{
     SECONDARY = 1,
 }con_role;
 
-struct consensus_component_t* init_consensus_comp(struct node_t*,uint32_t,
+struct consensus_component_t* init_consensus_comp(struct node_t*,uint32_t,FILE*,
         const char*,int,void*,int,
         view*,user_cb,up_call,void*);
 

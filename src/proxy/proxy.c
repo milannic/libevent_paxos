@@ -18,6 +18,8 @@
 #include "../include/config-comp/config-proxy.h"
 #include "../include/replica-sys/message.h"
 #include <sys/stat.h>
+#include <stdio.h>
+#include<stdlib.h>
 
 
 static void* shared_mem=NULL; 
@@ -623,8 +625,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
             memset(sys_log_path,0,sizeof(char)*strlen(log_path)+20);
             err_log("%s.\n",log_path);
             if(NULL!=sys_log_path){
-                strcat(sys_log_path,log_path);
-                strcat(sys_log_path,"/proxy_sys.log");
+                sprintf(sys_log_path,"%s/node%u-proxy-sys.log",log_path,proxy->node_id);
                 err_log("%s.\n",sys_log_path);
                 proxy->sys_log_file = fopen(sys_log_path,"w");
                 free(sys_log_path);
@@ -636,8 +637,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
         char* req_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+20);
         memset(req_log_path,0,sizeof(char)*strlen(log_path)+20);
         if(NULL!=req_log_path){
-            strcat(req_log_path,log_path);
-            strcat(req_log_path,"/proxy_req.log");
+            sprintf(req_log_path,"%s/node%u-proxy-req.log",log_path,proxy->node_id);
             err_log("%s.\n",req_log_path);
             proxy->req_log_file = fopen(req_log_path,"w");
             free(req_log_path);
@@ -672,7 +672,6 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
         err_log("PROXY : Cannot Set Up The IP Address Listener.\n");
         goto proxy_exit_error;
     }
-
 
     if(proxy->fake){ 
         proxy->con_node = system_initialize(node_id,start_mode,

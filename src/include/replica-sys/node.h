@@ -85,6 +85,7 @@ typedef struct node_t{
     //databse part
     char* db_name;
     FILE* sys_log_file;
+
     //database* my_db
 }node;
 
