@@ -1,14 +1,15 @@
 #include "../include/util/common-header.h"
 #include "../include/replica-sys/node.h"
 #include "../include/config-comp/config-comp.h"
+#include <sys/stat.h>
 
 int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; 
 static unsigned current_connection = 3;
 
 static void usage(){
-    paxos_log("Usage : -n NODE_ID\n");
-    paxos_log("        -m [sr] Start Mode seed|recovery\n");
-    paxos_log("        -c path path to configuration file\n");
+    err_log("Usage : -n NODE_ID\n");
+    err_log("        -m [sr] Start Mode seed|recovery\n");
+    err_log("        -c path path to configuration file\n");
 }
 
 //msg handler
@@ -68,7 +69,7 @@ static int isLeader(node*);
 static void node_singal_handler(evutil_socket_t fid,short what,void* arg){
     node* my_node = arg;
     if(what&EV_SIGNAL){
-        safe_rec_log(my_node->sys_log_file,"Node %d Received Kill Singal.Now Quit.\n",my_node->node_id);
+        SYS_LOG(my_node,"Node %d Received Kill Singal.Now Quit.\n",my_node->node_id);
     }
     event_base_loopexit(my_node->base,NULL);
 }
@@ -79,18 +80,18 @@ static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg){
     peer* peer_node = (peer*)arg;
     node* my_node = peer_node->my_node;
     if(ev&BEV_EVENT_CONNECTED){
-        safe_rec_log(my_node->sys_log_file,"Connected to Node %d\n",peer_node->peer_id);
+        SYS_LOG(my_node,"Connected to Node %d\n",peer_node->peer_id);
         peer_node->active = 1;
     }else if((ev & BEV_EVENT_EOF )||(ev&BEV_EVENT_ERROR)){
         if(peer_node->active){
             peer_node->active = 0;
-            safe_rec_log(my_node->sys_log_file,"Lost Connection With Node %d \n",peer_node->peer_id);
+            SYS_LOG(my_node,"Lost Connection With Node %d \n",peer_node->peer_id);
         }
         peer_node->my_buff_event = NULL;
         int err = EVUTIL_SOCKET_ERROR();
-		safe_rec_log(my_node->sys_log_file,"%s (%d)\n",evutil_socket_error_to_string(err),peer_node->peer_id);
+		SYS_LOG(my_node,"%s (%d)\n",evutil_socket_error_to_string(err),peer_node->peer_id);
         bufferevent_free(bev);
-        event_add(peer_node->reconnect,&reconnect_timeval);
+        event_add(peer_node->reconnect,&my_node->config.reconnect_timeval);
     }
 };
 
@@ -119,9 +120,9 @@ static void connect_peers(node* my_node){
 
 
 static void lost_connection_with_leader(node* my_node){
-    safe_rec_log(my_node->sys_log_file,"Node %u Lost Connection With The Leader\n",
+    SYS_LOG(my_node,"Node %u Lost Connection With The Leader\n",
             my_node->node_id);
-    safe_rec_log(my_node->sys_log_file,"Node %u Will Start A Leader Election\n",
+    SYS_LOG(my_node,"Node %u Will Start A Leader Election\n",
             my_node->node_id);
     return;
 }
@@ -138,11 +139,11 @@ static void expected_leader_ping_period(int fd,short what,void* arg){
         struct timeval cur;
         gettimeofday(&cur,NULL);
         struct timeval temp;
-        timeval_add(last,&expect_ping_timeval,&temp);
+        timeval_add(last,&my_node->config.expect_ping_timeval,&temp);
         if(timeval_comp(&temp,&cur)>=0){
-            event_add(my_node->ev_leader_ping,&expect_ping_timeval);
+            event_add(my_node->ev_leader_ping,&my_node->config.expect_ping_timeval);
         }else{
-            safe_rec_log(my_node->sys_log_file,
+            SYS_LOG(my_node,
                     "Node %d Haven't Heard From The Leader\n",
                     my_node->node_id);
             lost_connection_with_leader(my_node);
@@ -153,7 +154,7 @@ static void expected_leader_ping_period(int fd,short what,void* arg){
 
 static void leader_ping_period(int fd,short what,void* arg){
     node* my_node = arg; 
-    safe_rec_log(my_node->sys_log_file,"Leader Tries To Ping Other Nodes\n");
+    SYS_LOG(my_node,"Leader Tries To Ping Other Nodes\n");
     // at first check whether I am the leader
     if(my_node->cur_view.leader_id!=my_node->node_id){
         if(my_node->ev_leader_ping!=NULL){
@@ -170,7 +171,7 @@ static void leader_ping_period(int fd,short what,void* arg){
             if(i!=my_node->node_id && my_node->peer_pool[i].active){
                 struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
                 bufferevent_write(buff,ping_req,PING_REQ_SIZE);
-                safe_rec_log(my_node->sys_log_file,
+                SYS_LOG(my_node,
                         "Send Ping Msg To Node %u\n",i);
             }
         }
@@ -179,7 +180,7 @@ static void leader_ping_period(int fd,short what,void* arg){
         }
     add_ping_event:
         if(NULL!=my_node->ev_leader_ping){
-            event_add(my_node->ev_leader_ping,&ping_timeval);
+            event_add(my_node->ev_leader_ping,&my_node->config.ping_timeval);
         }
     }
 };
@@ -191,7 +192,7 @@ static int initialize_leader_ping(node* my_node){
             return 1;
         }
     }
-    event_add(my_node->ev_leader_ping,&ping_timeval);
+    event_add(my_node->ev_leader_ping,&my_node->config.ping_timeval);
     return 0;
 }
 
@@ -202,13 +203,13 @@ static int initialize_expect_ping(node* my_node){
             return 1;
         }
     }
-    event_add(my_node->ev_leader_ping,&expect_ping_timeval);
+    event_add(my_node->ev_leader_ping,&my_node->config.expect_ping_timeval);
     return 0;
 }
 
 static void make_progress_on(int fd,short what,void* arg){
     node* my_node = arg; 
-    safe_rec_log(my_node->sys_log_file,"Leader Tries To Make Progress.\n");
+    SYS_LOG(my_node,"Leader Tries To Make Progress.\n");
     // at first check whether I am the leader
     if(my_node->cur_view.leader_id!=my_node->node_id){
         if(my_node->ev_make_progress!=NULL){
@@ -221,7 +222,7 @@ static void make_progress_on(int fd,short what,void* arg){
         consensus_make_progress(my_node->consensus_comp);
     }
     if(NULL!=my_node->ev_make_progress){
-        event_add(my_node->ev_make_progress,&make_progress_timeval);
+        event_add(my_node->ev_make_progress,&my_node->config.make_progress_timeval);
     }
     return;
 }
@@ -233,14 +234,14 @@ static int initialize_leader_make_progress(node* my_node){
             return 1;
         }
     }
-    event_add(my_node->ev_make_progress,&make_progress_timeval);
+    event_add(my_node->ev_make_progress,&my_node->config.make_progress_timeval);
     return 0;
 }
 
 
 
 static void update_view(node* my_node,view* new_view){
-    safe_rec_log(my_node->sys_log_file,"Node %d Entered Update View\n",
+    SYS_LOG(my_node,"Node %d Entered Update View\n",
             my_node->node_id);
     int old_leader = isLeader(my_node);
     memcpy(&my_node->cur_view,new_view,sizeof(view));
@@ -252,9 +253,8 @@ static void update_view(node* my_node,view* new_view){
             giveup_leader(my_node);
         }
     }
-    safe_rec_log(my_node->sys_log_file,"Node %d 's Current View Changed To %u \n",
-            my_node->node_id,
-            my_node->cur_view.view_id);
+    SYS_LOG(my_node,"Node %d 's Current View Changed To %u \n",
+        my_node->node_id,my_node->cur_view.view_id);
     return;
 }
 
@@ -324,7 +324,7 @@ static void replica_on_error_cb(struct bufferevent* bev,short ev,void *arg){
 
 static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd,struct sockaddr *address,int socklen,void *arg){
     node* my_node = arg;
-    safe_rec_log(my_node->sys_log_file, "A New Connection Is Established.\n");
+    SYS_LOG(my_node, "A New Connection Is Established.\n");
     struct bufferevent* new_buff_event = bufferevent_socket_new(my_node->base,fd,BEV_OPT_CLOSE_ON_FREE);
     bufferevent_setcb(new_buff_event,replica_on_read,NULL,replica_on_error_cb,(void*)my_node);
     bufferevent_enable(new_buff_event,EV_READ|EV_PERSIST|EV_WRITE);
@@ -343,7 +343,7 @@ static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,in
             if(i!=my_node->node_id && my_node->peer_pool[i].active){
                 struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
                 bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg));
-                safe_rec_log(my_node->sys_log_file,
+                SYS_LOG(my_node,
                         "Send Consensus Msg To Node %u\n",i);
             }
         }
@@ -351,7 +351,7 @@ static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,in
         if(target!=(int)my_node->node_id&&my_node->peer_pool[target].active){
             struct bufferevent* buff = my_node->peer_pool[target].my_buff_event;
             bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg));
-            safe_rec_log(my_node->sys_log_file,
+            SYS_LOG(my_node,
                     "Send Consensus Msg To Node %u.\n",target);
         }
     }
@@ -367,13 +367,15 @@ static void handle_ping_ack(node* my_node,ping_ack_msg* msg){
     if(my_node->cur_view.view_id < msg->view.view_id){
         update_view(my_node,&msg->view);
     }else{
-        safe_rec_log(my_node->sys_log_file,"Ignore Ping Ack From Node %u.\n",msg->node_id);
+        SYS_LOG(my_node,
+                "Ignore Ping Ack From Node %u.\n",msg->node_id);
     }
 }
 
 static void handle_ping_req(node* my_node,ping_req_msg* msg){
-    safe_rec_log(my_node->sys_log_file,"Received Ping Req Msg In Node %u From Node %u.",
-            my_node->node_id,msg->node_id);
+    SYS_LOG(my_node,
+            "Received Ping Req Msg In Node %u From Node %u.",
+        my_node->node_id,msg->node_id);
     if(my_node->cur_view.view_id < msg->view.view_id){
         update_view(my_node,&msg->view);
     }else if(my_node->cur_view.view_id > msg->view.view_id){
@@ -382,7 +384,7 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
             if(NULL!=ping_ack){
                 struct bufferevent* buff = my_node->peer_pool[msg->node_id].my_buff_event;
                 bufferevent_write(buff,ping_ack,PING_REQ_SIZE);
-                safe_rec_log(my_node->sys_log_file,
+                SYS_LOG(my_node,
                     "Send Ping Ack To Lagged Node %u.\n",msg->node_id);
                 free(ping_ack);
             }
@@ -397,14 +399,14 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
             }
             if(NULL!=my_node->ev_leader_ping){
                 evtimer_del(my_node->ev_leader_ping);
-                evtimer_add(my_node->ev_leader_ping,&expect_ping_timeval);
+                evtimer_add(my_node->ev_leader_ping,&my_node->config.expect_ping_timeval);
             }
         }else{
             // leader should not receive the ping req, otherwise the sender is
             // lagged behind,otherwise the leader is outdated which will be
             // treated as a smaller cur view than what in the msg but when they have 
             // the same view id, which can be ignored
-            safe_rec_log(my_node->sys_log_file,"Received Ping Req From %u In View %u\n",
+            SYS_LOG(my_node,"Received Ping Req From %u In View %u\n",
                     msg->node_id,msg->view.view_id);
         }
     }
@@ -412,7 +414,7 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
 }
 
 static void handle_consensus_msg(node* my_node,consensus_msg* msg){
-    debug_log("node %d received consensus message\n",
+    SYS_LOG(my_node,"Node %d Received Consensus Message\n",
             my_node->node_id);
     if(NULL!=my_node->consensus_comp){
         consensus_handle_msg(my_node->consensus_comp,msg->header.data_size,(void*)msg+SYS_MSG_HEADER_SIZE);
@@ -422,17 +424,15 @@ static void handle_consensus_msg(node* my_node,consensus_msg* msg){
 
 static void handle_request_submit(node* my_node,
         req_sub_msg* msg,struct bufferevent* evb){
-    safe_rec_log(my_node->sys_log_file,"Node %d Received Consensus Submit Request\n",
+    SYS_LOG(my_node,"Node %d Received Consensus Submit Request\n",
             my_node->node_id);
-    safe_rec_log(my_node->sys_log_file,"The Data Size Is %lu \n",
+    SYS_LOG(my_node,"The Data Size Is %lu \n",
             msg->header.data_size);
     if(NULL!=my_node->consensus_comp){
         view_stamp return_vs;
         consensus_submit_request(
                 my_node->consensus_comp,msg->header.data_size,
                 (void*)msg+SYS_MSG_HEADER_SIZE,&return_vs);
-        // build_return_message;
-        //bufferevent_write(evb,)
     }
     return;
 }
@@ -460,7 +460,7 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
             handle_request_submit(my_node,(req_sub_msg*)msg_buf,bev);
             break;
         default:
-            safe_rec_log(my_node->sys_log_file,"Unknown Msg Type %d\n",
+            SYS_LOG(my_node,"Unknown Msg Type %d\n",
                     msg_header->type);
             goto handle_msg_exit;
     }
@@ -477,9 +477,9 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = 0;
     len = evbuffer_get_length(input);
-    safe_rec_log(my_node->sys_log_file,"Enter Consensus Communication Module.\n");
+    SYS_LOG(my_node,"Enter Consensus Communication Module.\n");
     int counter = 0;
-    safe_rec_log(my_node->sys_log_file,"There Is %u Bytes Data In The Buffer In Total.\n",
+    SYS_LOG(my_node,"There Is %u Bytes Data In The Buffer In Total.\n",
             (unsigned)len);
     while(len>=SYS_MSG_HEADER_SIZE){
         buf = (sys_msg_header*)malloc(SYS_MSG_HEADER_SIZE);
@@ -497,7 +497,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
         len = evbuffer_get_length(input);
     }
     if(my_node->stat_log){
-        safe_rec_log(my_node->sys_log_file,"This Function Call Process %u Requests In Total.\n",counter);
+        STAT_LOG(my_node,"This Function Call Process %u Requests In Total.\n",counter);
     }
     if(NULL!=buf){free(buf);}
     return;
@@ -539,7 +539,7 @@ int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*u
             char* sys_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+20);
             memset(sys_log_path,0,sizeof(char)*strlen(log_path)+20);
             if(NULL!=sys_log_path){
-                sprintf(sys_log_path,"%s/node%u-consensus-sys.log",log_path,proxy->node_id);
+                sprintf(sys_log_path,"%s/node%u-consensus-sys.log",log_path,my_node->node_id);
                 my_node->sys_log_file = fopen(sys_log_path,"w");
                 free(sys_log_path);
             }
@@ -557,9 +557,9 @@ int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*u
     connect_peers(my_node);
     my_node->consensus_comp = NULL;
 
-    FILE* para_file = (!my_node->sys_log)?NULL:my_node->sys_log_file;
     my_node->consensus_comp = init_consensus_comp(my_node,
-            my_node->node_id,para_file,my_node->db_name,deliver_mode,db_ptr,my_node->group_size,
+            my_node->node_id,my_node->sys_log_file,my_node->sys_log,
+            my_node->stat_log,my_node->db_name,deliver_mode,db_ptr,my_node->group_size,
             &my_node->cur_view,user_cb,send_for_consensus_comp,arg);
     if(NULL==my_node->consensus_comp){
         goto initialize_node_exit;
@@ -570,7 +570,6 @@ initialize_node_exit:
 }
 
 node* system_initialize(int node_id,const char* start_mode,const char* config_path,const char* log_path,int deliver_mode,void(*user_cb)(int data_size,void* data,void* arg),void* db_ptr,void* arg){
-    
 
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));
@@ -597,8 +596,8 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
         my_node->ev_leader_ping = NULL;
     }
     
-    my_node->config.make_progress_timeval.tv_sec = 2;
-    my_node->config.make_progress_timeval.tv_usec = 0;
+    my_node->config.make_progress_timeval.tv_sec = 1;
+    my_node->config.make_progress_timeval.tv_usec = 100;
     my_node->config.ping_timeval.tv_sec = 2;
     my_node->config.ping_timeval.tv_usec = 0;
     my_node->config.expect_ping_timeval.tv_sec = 8;
@@ -618,9 +617,6 @@ node* system_initialize(int node_id,const char* start_mode,const char* config_pa
         goto exit_error;
     }
 
-
-
-
     my_node->listener =
         evconnlistener_new_bind(base,replica_on_accept,
                 (void*)my_node,LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE,-1,
@@ -639,13 +635,13 @@ exit_error:
     return NULL;
 }
 
-void system_run(struct node_t* replica){
-    safe_rec_log(replica->sys_log_file,"Node %u Starts Running\n",
-            replica->node_id);
-    event_base_dispatch(replica->base);
+void system_run(struct node_t* my_node){
+    SYS_LOG(my_node,"Node %u Starts Running\n",
+            my_node->node_id);
+    event_base_dispatch(my_node->base);
 }
 
-void system_exit(struct node_t* replica){
-    event_base_loopexit(replica->base,NULL);
-    free_node(replica);
+void system_exit(struct node_t* my_node){
+    event_base_loopexit(my_node->base,NULL);
+    free_node(my_node);
 }

@@ -71,6 +71,7 @@ typedef struct proxy_node_t{
     int ts_log;
     int sys_log;
     int stat_log;
+    int req_log;
 
     // libevent part
     struct event_base* base;

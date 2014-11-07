@@ -81,6 +81,7 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     config_setting_lookup_int(pro_ele,"time_stamp_log",&cur_node->ts_log);
     config_setting_lookup_int(pro_ele,"sys_log",&cur_node->sys_log);
     config_setting_lookup_int(pro_ele,"stat_log",&cur_node->stat_log);
+    config_setting_lookup_int(pro_ele,"req_log",&cur_node->req_log);
 
     const char* peer_ipaddr=NULL;
     int peer_port=-1;

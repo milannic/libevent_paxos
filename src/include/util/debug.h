@@ -33,6 +33,12 @@
 
 #define safe_rec_log(x,args...) {if(NULL!=(x)){rec_log((x),args);}}
 
+#define SYS_LOG(x,args...) {if((x)->sys_log){safe_rec_log(((x)->sys_log_file),args)}}
+
+#define STAT_LOG(x,args...) {if((x)->stat_log){safe_rec_log(((x)->sys_log_file),args)}}
+
+#define REQ_LOG(x,args...) {if((x)->req_log){safe_rec_log(((x)->sys_log_file),args)}}
+
 #define PROXY_ENTER(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"PROXY : Entering %s.\n",__PRETTY_FUNCTION__)}}
 #define PROXY_LEAVE(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"PROXY : Leaving %s.\n",__PRETTY_FUNCTION__)}}
 #define PROXY_ERR_LEAVE(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"PROXY : Error Occurred,Before Leaving %s.\n",__PRETTY_FUNCTION__)}}
