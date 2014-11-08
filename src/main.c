@@ -28,7 +28,7 @@ static void usage(){
     fprintf(stderr,"Usage : -n NODE_ID\n");
     fprintf(stderr,"        -m [sr] Start Mode seed|recovery\n");
     fprintf(stderr,"        -c path path to configuration file\n");
-    fprintf(stderr,"        -l path path to log file of the proxy\n");
+    fprintf(stderr,"        -l path dir to store the log file of the proxy\n");
     fprintf(stderr,"        -f let the proxy start in fake mode to do debug\n");
     fprintf(stderr,"        -d enable system internal debug msg.\n");
 }
@@ -39,16 +39,14 @@ static void pseudo_cb(int data_size,void* data){
     fprintf(stdout,"%d : %s\n",number,(char*)data);
     number++;
     fflush(stdout);
-    return;
-}
+    return; }
 
 int main(int argc,char** argv){
     char* start_mode= NULL;
     char* config_path = NULL;
-    char* log_path = NULL;
+    char* log_dir = NULL;
     int node_id = -1;
     int fake_mode = 1;
-    int do_logging = 0;
     int c;
 
     while((c = getopt (argc,argv,"drl:c:n:m:")) != -1){
@@ -60,7 +58,7 @@ int main(int argc,char** argv){
                 config_path = optarg;
                 break;
             case 'l':
-                log_path = optarg;
+                log_dir = optarg;
                 break;
             case 'm':
                 start_mode= optarg;
@@ -73,9 +71,6 @@ int main(int argc,char** argv){
             case 'r':
                 fprintf(stderr,"real mode is opened.\n");
                 fake_mode = 0;
-            case 'd':
-                fprintf(stderr,"internal debug logging is enabled.\n")
-                do_logging = 1;
             case '?':
                 if(optopt == 'n'){
                     fprintf(stderr,"Option -n requires an argument.\n");
@@ -103,12 +98,12 @@ int main(int argc,char** argv){
         exit(1);
     }
 
-    struct proxy_node_t* proxy = proxy_init(node_id,start_mode,config_path,log_path,fake_mode,do_logging);
+    struct proxy_node_t* proxy = proxy_init(node_id,start_mode,config_path,log_dir,fake_mode);
     if(NULL==proxy){
         return 1;
     }else{
         proxy_run(proxy);
     }
-    fprintf(stderr,"total goes out.\n");
+    fprintf(stdout,"Program Finishes.\n");
     return 0;
 }

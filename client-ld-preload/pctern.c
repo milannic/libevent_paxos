@@ -55,7 +55,7 @@
 #endif
 
 #ifndef LD_DEBUG
-#define LD_DEBUG 0
+#define LD_DEBUG 1
 #endif
 
 

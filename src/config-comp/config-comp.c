@@ -2,8 +2,7 @@
  * =====================================================================================
  *
  *       Filename:  config.c
- *
- *    Description:  
+ * *    Description:  
  *
  *        Version:  1.0
  *        Created:  07/31/2014 02:21:17 PM
@@ -37,31 +36,52 @@ int consensus_read_config(node* cur_node,const char* config_path){
     }
 
     if(group_size<=cur_node->node_id){
-        paxos_log("invalid node id\n");
+        err_log("CONSENSUS : Configuration Reading Error : Invalid Node Id.\n");
         goto goto_config_error;
+    }
+
+    config_setting_t *consensus_global_config = NULL;
+    consensus_global_config = config_lookup(&config_file,"consensus_global_config");
+    
+    if(NULL!=consensus_global_config){
+        long long temp;
+        if(config_setting_lookup_int64(consensus_global_config,"reconnect_timeval_s",&temp)){
+            cur_node->config.reconnect_timeval.tv_sec = temp;
+        }
+        if(config_setting_lookup_int64(consensus_global_config,"reconnect_timeval_us",&temp)){
+            cur_node->config.reconnect_timeval.tv_usec = temp;
+        }
+        if(config_setting_lookup_int64(consensus_global_config,"ping_timeval_s",&temp)){
+            cur_node->config.ping_timeval.tv_sec = temp;
+        }
+        if(config_setting_lookup_int64(consensus_global_config,"ping_timeval_us",&temp)){
+            cur_node->config.ping_timeval.tv_usec = temp;
+        }
+        if(config_setting_lookup_int64(consensus_global_config,"expected_ping_timeval_s",&temp)){
+            cur_node->config.expect_ping_timeval.tv_sec = temp;
+        }
+        if(config_setting_lookup_int64(consensus_global_config,"expected_ping_timeval_us",&temp)){
+            cur_node->config.expect_ping_timeval.tv_usec = temp;
+        }
     }
 
     config_setting_t *nodes_config;
     nodes_config = config_lookup(&config_file,"consensus_config");
 
     if(NULL==nodes_config){
-        paxos_log("cannot find nodes settings \n");
+        err_log("CONSENSUS : Cannot Find Nodes Settings.\n");
         goto goto_config_error;
     }    
 
-    debug_log("the length is %d\n",
-            config_setting_length(nodes_config));
-
     if(NULL==nodes_config){
-        paxos_log("cannot find net address section \n");
+        err_log("CONSENSUS : Cannot Find Net Address Section.\n");
         goto goto_config_error;
     }
-    debug_log("the group size is %d\n",group_size);
     peer* peer_pool = cur_node->peer_pool;
     for(uint32_t i=0;i<group_size;i++){ 
         config_setting_t *node_config = config_setting_get_elem(nodes_config,i);
         if(NULL==node_config){
-            paxos_log("cannot find current node's address\n");
+            err_log("CONSENSUS : Cannot Find Node%u's Address.\n",i);
             goto goto_config_error;
         }
 
@@ -88,6 +108,8 @@ int consensus_read_config(node* cur_node,const char* config_path){
         peer_pool[i].peer_address->sin_port = htons(peer_port);
 
         if(i==cur_node->node_id){
+            config_setting_lookup_int(node_config,"sys_log",&cur_node->sys_log);
+            config_setting_lookup_int(node_config,"stat_log",&cur_node->stat_log);
             const char* db_name;
             if(!config_setting_lookup_string(node_config,"db_name",&db_name)){
                 goto goto_config_error;
@@ -103,21 +125,17 @@ int consensus_read_config(node* cur_node,const char* config_path){
             }
 
             cur_node->db_name[db_name_len] = '\0';
-            //debug_log("current node's db name is %s\n",cur_node->db_name);
             cur_node->my_address.sin_port = htons(peer_port);
             cur_node->my_address.sin_family = AF_INET;
             inet_pton(AF_INET,peer_ipaddr,&cur_node->my_address.sin_addr);
         }
-        debug_log("the current node no is %d\n",i);
-        debug_log("the ip address is %s:%d\n",peer_ipaddr,peer_port);
     }
-
 
     config_destroy(&config_file);
     return 0;
 
 goto_config_error:
-    paxos_log("%s:%d - %s\n", config_error_file(&config_file),
+    err_log("CONSENSUS : %s:%d - %s\n", config_error_file(&config_file),
             config_error_line(&config_file), config_error_text(&config_file));
     config_destroy(&config_file);
     return -1;

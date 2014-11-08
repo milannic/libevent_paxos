@@ -48,7 +48,6 @@ build_ping_ack_exit:
 }
 
 void* build_consensus_msg(uint32_t data_size,void* data){
-    ENTER_FUNC
     consensus_msg* con_msg = (consensus_msg*)(malloc(SYS_MSG_HEADER_SIZE+data_size));
     if(NULL==con_msg){
         goto build_consensus_msg_exit;
@@ -57,6 +56,5 @@ void* build_consensus_msg(uint32_t data_size,void* data){
     con_msg->header.data_size = data_size;
     memcpy(con_msg->data,data,data_size);
 build_consensus_msg_exit:
-    LEAVE_FUNC
     return con_msg;
 }

@@ -1,4 +1,4 @@
-CC=gcc
+CC=gcc-4.8
 LIB_NAME="./libclilib.so"
 LDFLAGS=-lpthread -lrt -ldl
 

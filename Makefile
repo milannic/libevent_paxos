@@ -7,7 +7,7 @@ default:
 	cd target;$(MAKE) all;cd ..;
 	cd client;$(MAKE) all;cd ..;
 	cd simple-sc;$(MAKE) all;cd ..;
-	cd client-ld-preload;$(MAKE) all;cd ..;
+	cd client-ld-preload;$(MAKE) all;$(MAKE) link;cd ..;
 
 clean:
 	cd target;$(MAKE) clean;cd ..;
