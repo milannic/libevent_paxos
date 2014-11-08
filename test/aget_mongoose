@@ -96,7 +96,7 @@ done
 
 echo "Sleep Some Time"
 sleep 5
-
+read -p hh
 CLIENT_PROGRAM=${FILEPATH}/../client-ld-preload/Mongoose_Aget/aget 
 LD_PRELOAD=${FILEPATH}/../client-ld-preload/libclilib.so ${CLIENT_PROGRAM} -f -n2 -p 9000 http://localhost/fuck.txt
 

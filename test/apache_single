@@ -88,7 +88,7 @@ PRIMARY_PID=$!
 
 echo 'sleep some time'
 sleep 5
-
+read -p hh
 LD_PRELOAD=$MSMR_ROOT/libevent_paxos/client-ld-preload/libclilib.so ${REAL_SERVER_PREFIX}/ab -n 10 -c 10 http://127.0.0.1:9000/
 
 kill -15 ${PRIMARY_PID} &>/dev/null

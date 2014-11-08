@@ -71,7 +71,7 @@ export LD_LIBRARY_PATH=${FILEPATH}/../.local/lib
 
 rm -rf ${FILEPATH}/.db
 
-REAL_SERVER_PREFIX=${FILEPATH}/../client-ld-preload/pgsql/
+REAL_SERVER_PREFIX=$MSMR_ROOT/apps/pgsql
 
 ${REAL_SERVER_PREFIX}/7000/install/bin/pg_ctl start -D ${REAL_SERVER_PREFIX}/7000/install/data &>${FILEPATH}/log/${TEST_NAME}_0_${NO}_s${LOG_SUFFIX} &
 
@@ -88,9 +88,9 @@ PRIMARY_PID=$!
 
 echo 'sleep some time'
 sleep 5
-${REAL_SERVER_PREFIX}/7000/install/bin/createdb -O root dbtest
-LD_PRELOAD=$MSMR_ROOT/libevent_paxos/client-ld-preload/libclilib.so ${REAL_SERVER_PREFIX}/7000/install/bin/pgbench -i -U root dbtest -h 127.0.0.1 -p 9000 -j 10 -c 20
-${REAL_SERVER_PREFIX}/7000/install/bin/dropdb dbtest
+#${REAL_SERVER_PREFIX}/7000/install/bin/createdb -O root dbtest
+LD_PRELOAD=$MSMR_ROOT/libevent_paxos/client-ld-preload/libclilib.so ${REAL_SERVER_PREFIX}/7000/install/bin/pgbench -i -U root postgres -h 127.0.0.1 -p 9000 -j 10 -c 20
+#${REAL_SERVER_PREFIX}/7000/install/bin/dropdb dbtest
 
 kill -15 ${PRIMARY_PID} &>/dev/null
 ${REAL_SERVER_PREFIX}/7000/install/bin/pg_ctl stop -D ${REAL_SERVER_PREFIX}/7000/install/data
