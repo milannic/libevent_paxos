@@ -57,8 +57,6 @@ if [ ! -d ${LOG_PATH} ];then
     mkdir ${LOG_PATH}
 fi
 
-read -p haha
-
 exec 2>${LOG_PATH}/script-err${LOG_SUFFIX}
 
 export LD_LIBRARY_PATH=${FILEPATH}/../.local/lib
@@ -68,23 +66,22 @@ CONFIG_FILE=${FILEPATH}/../target/single_server.cfg
 
 rm -rf ${FILEPATH}/.db
 
-#echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
-#echo "Now We Start The Leader"
-${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_FILE} -l ${LOG_PATH} 1>${LOG_PATH}/node0-stdout 2>${LOG_PATH}/node0-stderr &
+${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_FILE} -l ${LOG_PATH} 1>${LOG_PATH}/node-0-stdout 2>${LOG_PATH}/node-0-stderr &
 
 PRIMARY_PID=$!
 
-#echo "Sleep Some Time"
+sleep 5
+
 
 CLIENT_PROGRAM=${FILEPATH}/../client/client.out
 
-#${CLIENT_PROGRAM} -n 0 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
-#${CLIENT_PROGRAM} -n 1 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
-#${CLIENT_PROGRAM} -n 2 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
-#${CLIENT_PROGRAM} -n 3 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
-#${CLIENT_PROGRAM} -n 4 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
+${CLIENT_PROGRAM} -n 0 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
+${CLIENT_PROGRAM} -n 1 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
+${CLIENT_PROGRAM} -n 2 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
+${CLIENT_PROGRAM} -n 3 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
+${CLIENT_PROGRAM} -n 4 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
 
-read -p haha
+sleep 5
 
 #echo "Kill The Leader"
 kill -15 ${PRIMARY_PID} &>/dev/null

@@ -124,9 +124,6 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
         goto goto_config_error;
     }    
 
-    debug_log("the length is %d\n",
-            config_setting_length(consensus_config));
-
     config_setting_t *con_ele = config_setting_get_elem(consensus_config,cur_node->node_id);
     if(NULL==con_ele){
         err_log("PROXY : cannot find current node's address\n");
@@ -155,9 +152,6 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
         err_log("cannot find nodes settings \n");
         goto goto_config_error;
     }    
-
-    debug_log("the length is %d\n",
-            config_setting_length(server_config));
 
     if(NULL==server_config){
         err_log("cannot find node address section \n");

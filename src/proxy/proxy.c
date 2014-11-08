@@ -112,7 +112,8 @@ static void do_action_to_server(int data_size,void* data,void* arg){
     struct timeval endtime;
     gettimeofday(&endtime,NULL);
     if(proxy->ts_log && output!=NULL){
-        fprintf(output,"\n %lu : %lu.%lu,%lu.%lu,%lu.%lu,%lu.%lu\n",header->connection_id,
+        fprintf(output,"\n");
+        fprintf(output,"%lu : %lu.%lu,%lu.%lu,%lu.%lu,%lu.%lu\n",header->connection_id,
             header->received_time.tv_sec,header->received_time.tv_usec,
             header->created_time.tv_sec,header->created_time.tv_usec,
             endtime.tv_sec,endtime.tv_usec,endtime.tv_sec,endtime.tv_usec);
@@ -227,7 +228,6 @@ static void update_state(int data_size,void* data,void* arg){
 //fake update state, we take out the data directly without re-
 //visit the database
 static void fake_update_state(int data_size,void* data,void* arg){
-    
     proxy_node* proxy = arg;
     proxy_msg_header* header = data;
     FILE* output = proxy->req_log_file;
@@ -236,29 +236,27 @@ static void fake_update_state(int data_size,void* data,void* arg){
     }
     struct timeval endtime;
     gettimeofday(&endtime,NULL);
-    if(proxy->ts_log){
-        fprintf(output,"\n%lu.%lu,%lu.%lu,%lu.%lu,%lu.%lu\n",header->received_time.tv_sec,
-                header->received_time.tv_usec,header->created_time.tv_sec,
-                header->created_time.tv_usec,endtime.tv_sec,endtime.tv_usec,
-                endtime.tv_sec,endtime.tv_usec);
+    if(proxy->ts_log && output!=NULL){
+        fprintf(output,"\n");
+        fprintf(output,"%lu : %lu.%lu,%lu.%lu,%lu.%lu,%lu.%lu\n",header->connection_id,
+            header->received_time.tv_sec,header->received_time.tv_usec,
+            header->created_time.tv_sec,header->created_time.tv_usec,
+            endtime.tv_sec,endtime.tv_usec,endtime.tv_sec,endtime.tv_usec);
     }
     switch(header->action){
         case P_CONNECT:
             if(NULL!=output){
-                fprintf(output,"%lu,connects.\n",
-                        header->connection_id);
+                fprintf(output,"Operation: Connects.\n");
             }
             break;
         case P_SEND:
             if(NULL!=output){
-                fprintf(output,"%lu,sends data:%s.\n",
-                        header->connection_id,((proxy_send_msg*)header)->data);
+                fprintf(output,"Operation: Sends data: (START):%s:(END)\n",
+                        ((proxy_send_msg*)header)->data);
             }
             break;
-        case P_CLOSE:
-            if(NULL!=output){
-                fprintf(output,"%lu,closes.\n",
-                        header->connection_id);
+        case P_CLOSE: if(NULL!=output){
+                fprintf(output,"Operation: Closes.\n");
             }
             break;
         default:
@@ -619,11 +617,11 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 
     if(!build_log_ret){
         if(proxy->sys_log || proxy->stat_log){
-            char* sys_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+20);
-            memset(sys_log_path,0,sizeof(char)*strlen(log_path)+20);
+            char* sys_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+50);
+            memset(sys_log_path,0,sizeof(char)*strlen(log_path)+50);
             //err_log("%s.\n",log_path);
             if(NULL!=sys_log_path){
-                sprintf(sys_log_path,"%s/node%u-proxy-sys.log",log_path,proxy->node_id);
+                sprintf(sys_log_path,"%s/node-%u-proxy-sys.log",log_path,proxy->node_id);
                 //err_log("%s.\n",sys_log_path);
                 proxy->sys_log_file = fopen(sys_log_path,"w");
                 free(sys_log_path);
@@ -633,10 +631,10 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
             }
         }
         if(proxy->req_log){
-            char* req_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+20);
-            memset(req_log_path,0,sizeof(char)*strlen(log_path)+20);
+            char* req_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+50);
+            memset(req_log_path,0,sizeof(char)*strlen(log_path)+50);
             if(NULL!=req_log_path){
-                sprintf(req_log_path,"%s/node%u-proxy-req.log",log_path,proxy->node_id);
+                sprintf(req_log_path,"%s/node-%u-proxy-req.log",log_path,proxy->node_id);
                 //err_log("%s.\n",req_log_path);
                 proxy->req_log_file = fopen(req_log_path,"w");
                 free(req_log_path);

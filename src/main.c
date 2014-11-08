@@ -104,6 +104,6 @@ int main(int argc,char** argv){
     }else{
         proxy_run(proxy);
     }
-    fprintf(stderr,"total goes out.\n");
+    fprintf(stdout,"Program Finishes.\n");
     return 0;
 }

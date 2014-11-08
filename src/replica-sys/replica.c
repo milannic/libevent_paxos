@@ -536,10 +536,10 @@ int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*u
     }
     if(!build_log_ret){
         if(my_node->sys_log || my_node->stat_log){
-            char* sys_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+20);
-            memset(sys_log_path,0,sizeof(char)*strlen(log_path)+20);
+            char* sys_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+50);
+            memset(sys_log_path,0,sizeof(char)*strlen(log_path)+50);
             if(NULL!=sys_log_path){
-                sprintf(sys_log_path,"%s/node%u-consensus-sys.log",log_path,my_node->node_id);
+                sprintf(sys_log_path,"%s/node-%u-consensus-sys.log",log_path,my_node->node_id);
                 my_node->sys_log_file = fopen(sys_log_path,"w");
                 free(sys_log_path);
             }
