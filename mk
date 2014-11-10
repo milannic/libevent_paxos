@@ -20,7 +20,6 @@ BDB_NAME=db-${BDB_VER}
 
 if [ ! -d "dep-lib" ];then
     mkdir dep-lib
-    .
 fi
 cd dep-lib
 
@@ -30,7 +29,6 @@ fi
 
 if [ ! -d "${LIBCONFIG_NAME}" ];then
     tar -xvf ${LIBCONFIG_NAME}.tar.gz
-    .
 fi
 
 cd ${LIBCONFIG_NAME}

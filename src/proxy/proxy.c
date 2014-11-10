@@ -578,6 +578,9 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 
     memset(proxy,0,sizeof(proxy_node));
 
+    proxy->node_id = node_id;
+    proxy->fake = fake_mode;
+
     proxy->action_period.tv_sec = 0;
     proxy->action_period.tv_usec = 1000000;
     proxy->recon_period.tv_sec = 2;
@@ -644,9 +647,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
             }
         }
     }
-    proxy->fake = fake_mode;
     proxy->base = base;
-    proxy->node_id = node_id;
     proxy->do_action = evtimer_new(proxy->base,proxy_do_action,(void*)proxy);
 
     // Open database 

@@ -63,7 +63,17 @@ if [ ! -d ${FILEPATH}/log ];then
     mkdir ${FILEPATH}/log
 fi
 
-exec 2>${FILEPATH}/log/${TEST_NAME}_err_${NO}
+TEST_DATE=$(date +"%F-%H") 
+
+LOG_PATH=${FILEPATH}/log/${TEST_NAME}-${NO}-${TEST_DATE}
+
+echo ${LOG_PATH}
+
+if [ ! -d ${LOG_PATH} ];then
+    mkdir ${LOG_PATH}
+fi
+
+exec 2>${LOG_PATH}/script-err${LOG_SUFFIX}
 
 export LD_LIBRARY_PATH=${FILEPATH}/../.local/lib
 
@@ -74,7 +84,10 @@ rm -rf ${FILEPATH}/.db
 
 #echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
 #echo "Now We Start The Leader"
-${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_FILE} 1>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_0_${NO} &
+
+
+${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_FILE} -l ${LOG_PATH} 1>${LOG_PATH}/node-0-stdout 2>${LOG_PATH}/node-0-stderr &
+
 PRIMARY_PID=$!
 
 
@@ -83,12 +96,12 @@ sleep ${SLEEP_TIME}
 
 #start another node
 for i in $(seq ${SECONDARIES_SIZE});do
-    ${SERVER_PROGRAM} -n ${i} -m r -c ${CONFIG_FILE} 1>${FILEPATH}/log/${TEST_NAME}_${i}_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_${i}_${NO} &
+    ${SERVER_PROGRAM} -n ${i} -m r -c ${CONFIG_FILE} -l ${LOG_PATH} 1>${LOG_PATH}/node-${i}-stdout 2>${LOG_PATH}/node-${i}-stderr &
     declare NODE_${i}=$!
 done
 
 
-sleep 5
+sleep 2
 
 CLIENT_PROGRAM=${FILEPATH}/../client/client.out
 
@@ -98,9 +111,7 @@ ${CLIENT_PROGRAM} -n 2 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
 ${CLIENT_PROGRAM} -n 3 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
 ${CLIENT_PROGRAM} -n 4 -s 127.0.0.1 -p 9000 -r 1000  &>/dev/null &
 
-sleep 5
-
-sleep ${SLEEP_TIME}
+read -p "haha"
 
 #echo "Kill The Leader"
 kill -15 ${PRIMARY_PID} &>/dev/null

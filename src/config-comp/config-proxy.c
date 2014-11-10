@@ -71,8 +71,10 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
 
     config_setting_t *pro_ele = config_setting_get_elem(proxy_config,cur_node->node_id);
 
+//    err_log("PROXY : Current Node Id Is %u.\n",cur_node->node_id);
+
     if(NULL==pro_ele){
-        err_log("PROXY : Cannot Find Current Node's Address\n");
+        err_log("PROXY : Cannot Find Current Node's Address Section.\n");
         goto goto_config_error;
     }
 
@@ -87,11 +89,16 @@ int proxy_read_config(struct proxy_node_t* cur_node,const char* config_path){
     int peer_port=-1;
 
     if(!config_setting_lookup_string(pro_ele,"ip_address",&peer_ipaddr)){
+        err_log("PROXY : Cannot Find Current Node's IP Address.\n")
         goto goto_config_error;
     }
+//    err_log("PROXY : Current Node's Address Is %s.\n",peer_ipaddr);
     if(!config_setting_lookup_int(pro_ele,"port",&peer_port)){
+        err_log("PROXY : Cannot Find Current Node's Port.\n")
         goto goto_config_error;
     }
+
+//    err_log("PROXY : Current Node's Port Is %u.\n",peer_port);
 
     cur_node->sys_addr.p_addr.sin_port = htons(peer_port);
     cur_node->sys_addr.p_addr.sin_family = AF_INET;
