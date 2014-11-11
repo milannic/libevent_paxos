@@ -15,3 +15,6 @@ test/.db
 *.log
 lib*.so*
 *.gz
+client-ld-preload/apache
+client-ld-preload/pgsql
+client-ld-preload/Mongoose_Aget
