@@ -85,7 +85,7 @@ CONFIG_FILE=${FILEPATH}/../target/nodes.cfg
 
 #echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
 #echo "Now We Start The Leader"
-${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_FILE} -l ./log 1>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_0_${NO} &
+${SERVER_PROGRAM} -n 0 -r -m s -c ${CONFIG_FILE} -l ./log 1>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_0_${NO} &
 PRIMARY_PID=$!
 
 for i in $(seq ${SECONDARIES_SIZE});do
