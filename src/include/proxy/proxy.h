@@ -9,8 +9,7 @@
  *        Created:  09/14/2014 11:20:55 PM
  *       Revision:  none
  *       Compiler:  gcc
- *
- *         Author:  YOUR NAME (), 
+ * *         Author:  YOUR NAME (), 
  *   Organization:  
  *
  * ===================================================================================== */ 
@@ -88,6 +87,7 @@ typedef struct proxy_node_t{
     db_key_type highest_rec;
     // consensus module
     pthread_t sub_thread;
+    pthread_t p_self;
     struct node_t* con_node;
     struct bufferevent* con_conn;
     struct event* re_con;

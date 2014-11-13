@@ -549,9 +549,9 @@ int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*u
         }
     }
      
-    my_node->signal_handler = evsignal_new(my_node->base,
-            SIGQUIT,node_singal_handler,my_node);
-    evsignal_add(my_node->signal_handler,NULL);
+//    my_node->signal_handler = evsignal_new(my_node->base,
+//            SIGQUIT,node_singal_handler,my_node);
+//    evsignal_add(my_node->signal_handler,NULL);
     my_node->state = NODE_ACTIVE;
     my_node->msg_cb = handle_msg;
     connect_peers(my_node);

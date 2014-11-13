@@ -18,8 +18,9 @@
 #include "../include/config-comp/config-proxy.h"
 #include "../include/replica-sys/message.h"
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <stdio.h>
-#include<stdlib.h>
+#include <stdlib.h>
 
 static void* hack_arg=NULL;
 
@@ -56,6 +57,9 @@ static void client_side_on_err(struct bufferevent* bev,short what,void* arg);
 
 static req_sub_msg* build_req_sub_msg(hk_t s_key,counter_t counter,int type,size_t data_size,void* data);
 
+static void wake_up(proxy_node* proxy);
+static void real_do_action(proxy_node* proxy);
+
 //log component
 
 //implementation
@@ -75,16 +79,20 @@ static void cross_view(proxy_node* proxy){
 };
 
 static void proxy_do_action(int fd,short what,void* arg){
-    
     proxy_node* proxy = arg;
+    SYS_LOG(proxy,"Proxy Triggers Periodically Checking Event.Now Checking Pending Requests.\n");
+    real_do_action(proxy);
+}
+
+static void real_do_action(proxy_node* proxy){
     request_record* data = NULL;
     size_t data_size=0;
-    SYS_LOG(proxy,"In Do Action,The Current Rec Is %lu.\n",proxy->cur_rec);
+    SYS_LOG(proxy,"In REAL Do Action,The Current Rec Is %lu.\n",proxy->cur_rec);
     db_key_type cur_higest;
     pthread_mutex_lock(&proxy->lock);
     cur_higest = proxy->highest_rec;
     pthread_mutex_unlock(&proxy->lock);
-    SYS_LOG(proxy,"In Do Action,The Highest Rec Is %lu.\n",cur_higest);
+    SYS_LOG(proxy,"In REAL Do Action,The Highest Rec Is %lu.\n",cur_higest);
     while(proxy->cur_rec<=cur_higest){
         data = NULL;
         data_size = 0;
@@ -95,10 +103,9 @@ static void proxy_do_action(int fd,short what,void* arg){
             do_action_to_server(data->data_size,data->data,proxy);
             proxy->cur_rec++;
         }
-        SYS_LOG(proxy,"In Do Action,The Current Rec Is %lu.\n",proxy->cur_rec);
+        SYS_LOG(proxy,"In REAL Do Action,The Current Rec Is %lu.\n",proxy->cur_rec);
     }
     evtimer_add(proxy->do_action,&proxy->action_period);
-    
 }
 
 static void do_action_to_server(int data_size,void* data,void* arg){
@@ -215,14 +222,18 @@ do_action_close_exit:
 
 static void update_state(int data_size,void* data,void* arg){
     proxy_node* proxy = arg;
-    SYS_LOG(proxy,"In Update State,The Current Rec Is %lu.\n",*((db_key_type*)(data)));
+    //SYS_LOG(proxy,"In Update State,The Current Rec Is %lu.\n",*((db_key_type*)(data)));
     db_key_type* rec_no = data;
     pthread_mutex_lock(&proxy->lock);
     proxy->highest_rec = (proxy->highest_rec<*rec_no)?*rec_no:proxy->highest_rec;
-    SYS_LOG(proxy,"In Update State,The Highest Rec Is %lu.\n",proxy->highest_rec);
+    //SYS_LOG(proxy,"In Update State,The Highest Rec Is %lu.\n",proxy->highest_rec);
     pthread_mutex_unlock(&proxy->lock);
-    
+    wake_up(proxy);
     return;
+}
+
+static void wake_up(proxy_node* proxy){
+    pthread_kill(proxy->p_self,SIGUSR2);
 }
 
 //fake update state, we take out the data directly without re-
@@ -553,15 +564,9 @@ static void proxy_singnal_handler(evutil_socket_t fid,short what,void* arg){
     
     proxy_node* proxy = arg;
     if(what&EV_SIGNAL){
-        SYS_LOG(proxy,"Node Proxy Received SIGTERM .Now Quit.\n");
-        if(proxy->sub_thread!=0){
-            pthread_kill(proxy->sub_thread,SIGQUIT);
-            SYS_LOG(proxy,"Wating Consensus Comp To Quit.\n");
-            pthread_join(proxy->sub_thread,NULL);
-        }
+        SYS_LOG(proxy,"Node Proxy Received SIGUSR2.Now Checking Pending Requests.\n");
+        real_do_action(proxy);
     }
-    event_base_loopexit(proxy->base,NULL);
-    
     return;
 }
 
@@ -580,12 +585,11 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
 
     proxy->node_id = node_id;
     proxy->fake = fake_mode;
-
     proxy->action_period.tv_sec = 0;
     proxy->action_period.tv_usec = 1000000;
     proxy->recon_period.tv_sec = 2;
     proxy->recon_period.tv_usec = 0;
-
+    proxy->p_self = pthread_self();
     if(proxy_read_config(proxy,config_path)){
         err_log("PROXY : Configuration File Reading Error.\n");
         goto proxy_exit_error;
@@ -684,12 +688,16 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
         goto proxy_exit_error;
     }
 
+    //register signal handler
+    //signal(SIGTERM,proxy_singnal_handler_sys);
+    proxy->sig_handler = evsignal_new(proxy->base,
+            SIGUSR2,proxy_singnal_handler,proxy);
+    evsignal_add(proxy->sig_handler,NULL);
+
     pthread_create(&proxy->sub_thread,NULL,t_consensus,proxy->con_node);
 
     hack_arg = proxy;
 
-    //register signal handler
-    signal(SIGTERM,proxy_singnal_handler_sys);
     
 	return proxy;
 
