@@ -85,11 +85,11 @@ CONFIG_FILE=${FILEPATH}/../target/nodes.cfg
 
 #echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
 #echo "Now We Start The Leader"
-${SERVER_PROGRAM} -n 0 -r -m s -c ${CONFIG_FILE} 1>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_0_${NO} &
+${SERVER_PROGRAM} -n 0 -r -m s -c ${CONFIG_FILE} -l ./log 1>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_0_${NO} &
 PRIMARY_PID=$!
 
 for i in $(seq ${SECONDARIES_SIZE});do
-    ${SERVER_PROGRAM} -n ${i} -r -m r -c ${CONFIG_FILE} 1>${FILEPATH}/log/${TEST_NAME}_${i}_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_${i}_${NO} &
+    ${SERVER_PROGRAM} -n ${i} -m r -c ${CONFIG_FILE} -l ./log 1>${FILEPATH}/log/${TEST_NAME}_${i}_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_${i}_${NO} &
     declare NODE_${i}=$!
 done
 
@@ -98,7 +98,7 @@ echo "Sleep Some Time"
 sleep 5
 read -p hh
 CLIENT_PROGRAM=${FILEPATH}/../client-ld-preload/Mongoose_Aget/aget 
-LD_PRELOAD=${FILEPATH}/../client-ld-preload/libclilib.so ${CLIENT_PROGRAM} -f -n2 -p 9000 http://localhost/fuck.txt
+LD_PRELOAD=${FILEPATH}/../client-ld-preload/libclilib.so ${CLIENT_PROGRAM} -f -n2 -p 9000 http://localhost/test.txt
 
 #${CLIENT_PROGRAM} -n 0 -s 127.0.0.1 -p 9000 -r 2 &>${FILEPATH}/log/${TEST_NAME}_0_${NO}_c0_${LOG_SUFFIX} &
 #${CLIENT_PROGRAM} -n 1 -s 127.0.0.1 -p 9000 -r 2 &>${FILEPATH}/log/${TEST_NAME}_0_${NO}_c1_${LOG_SUFFIX} &

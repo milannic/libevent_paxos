@@ -81,16 +81,16 @@ CONFIG_FILE=${FILEPATH}/../target/single_server.cfg
 
 #echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
 #echo "Now We Start The Leader"
-${SERVER_PROGRAM} -n 0 -r -m s -c ${CONFIG_FILE} 1>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_0_${NO} &
+${SERVER_PROGRAM} -n 0 -m s -c ${CONFIG_FILE} 1>${FILEPATH}/log/${TEST_NAME}_0_${NO}${LOG_SUFFIX} 2>${FILEPATH}/log/${TEST_NAME}_extra_0_${NO} &
 PRIMARY_PID=$!
 
 
 #echo "Sleep Some Time"
 
-#CLIENT_PROGRAM=${FILEPATH}/../client-ld-preload/Mongoose_Aget/aget 
-#LD_PRELOAD=${FILEPATH}/../client-ld-preload/libclilib.so
+CLIENT_PROGRAM=${FILEPATH}/../client-ld-preload/Mongoose_Aget/aget 
+LD_PRELOAD=${FILEPATH}/../client-ld-preload/libclilib.so
 
-#${CLIENT_PROGRAM} -f -n2 -p 9000 http://localhost/input.tar
+${CLIENT_PROGRAM} -f -n2 -p 9000 http://localhost/input.tar
 
 #${CLIENT_PROGRAM} -n 0 -s 127.0.0.1 -p 9000 -r 200 &>${FILEPATH}/log/${TEST_NAME}_0_${NO}_c0_${LOG_SUFFIX} &
 #${CLIENT_PROGRAM} -n 1 -s 127.0.0.1 -p 9000 -r 200 &>${FILEPATH}/log/${TEST_NAME}_0_${NO}_c1_${LOG_SUFFIX} &
