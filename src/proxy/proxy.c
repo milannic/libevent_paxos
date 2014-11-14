@@ -87,6 +87,7 @@ static void proxy_do_action(int fd,short what,void* arg){
 static void real_do_action(proxy_node* proxy){
     request_record* data = NULL;
     size_t data_size=0;
+    PROXY_ENTER(proxy);
     SYS_LOG(proxy,"In REAL Do Action,The Current Rec Is %lu.\n",proxy->cur_rec);
     db_key_type cur_higest;
     pthread_mutex_lock(&proxy->lock);
@@ -94,6 +95,7 @@ static void real_do_action(proxy_node* proxy){
     pthread_mutex_unlock(&proxy->lock);
     SYS_LOG(proxy,"In REAL Do Action,The Highest Rec Is %lu.\n",cur_higest);
     while(proxy->cur_rec<=cur_higest){
+        SYS_LOG(proxy,"In REAL Do Action,We Execute Rec Is %lu.\n",proxy->cur_rec);
         data = NULL;
         data_size = 0;
         retrieve_record(proxy->db_ptr,sizeof(db_key_type),&proxy->cur_rec,&data_size,(void**)&data);
@@ -103,14 +105,15 @@ static void real_do_action(proxy_node* proxy){
             do_action_to_server(data->data_size,data->data,proxy);
             proxy->cur_rec++;
         }
-        SYS_LOG(proxy,"In REAL Do Action,The Current Rec Is %lu.\n",proxy->cur_rec);
     }
-    evtimer_add(proxy->do_action,&proxy->action_period);
+    //evtimer_add(proxy->do_action,&proxy->action_period);
+    PROXY_LEAVE(proxy);
 }
 
 static void do_action_to_server(int data_size,void* data,void* arg){
     
     proxy_node* proxy = arg;
+    PROXY_ENTER(proxy);
     proxy_msg_header* header = data;
     FILE* output = NULL;
     if(proxy->req_log){
@@ -148,12 +151,17 @@ static void do_action_to_server(int data_size,void* data,void* arg){
         default:
             break;
     }
+    if(output!=NULL){
+        fflush(output);
+    }
+    PROXY_LEAVE(proxy);
     return;
 }
 // when we have seen a connect method;
 static void do_action_connect(int data_size,void* data,void* arg){
     
     proxy_node* proxy = arg;
+    PROXY_ENTER(proxy);
     proxy_msg_header* header = data;
     socket_pair* ret = NULL;
     MY_HASH_GET(&header->connection_id,proxy->hash_map,ret);
@@ -173,6 +181,7 @@ static void do_action_connect(int data_size,void* data,void* arg){
     }else{
         debug_log("why there is an existing connection?\n");
     }
+    PROXY_LEAVE(proxy);
     
     return;
 }
@@ -181,6 +190,7 @@ static void do_action_connect(int data_size,void* data,void* arg){
 // connection with the server
 static void do_action_send(int data_size,void* data,void* arg){
     proxy_node* proxy = arg;
+    PROXY_ENTER(proxy);
     proxy_send_msg* msg = data;
     socket_pair* ret = NULL;
     MY_HASH_GET(&msg->header.connection_id,proxy->hash_map,ret);
@@ -195,6 +205,7 @@ static void do_action_send(int data_size,void* data,void* arg){
         }
     }
 do_action_send_exit:
+    PROXY_LEAVE(proxy);
     return;
 }
 
@@ -222,18 +233,23 @@ do_action_close_exit:
 
 static void update_state(int data_size,void* data,void* arg){
     proxy_node* proxy = arg;
+    PROXY_ENTER(proxy);
     //SYS_LOG(proxy,"In Update State,The Current Rec Is %lu.\n",*((db_key_type*)(data)));
     db_key_type* rec_no = data;
-    pthread_mutex_lock(&proxy->lock);
+    //pthread_mutex_lock(&proxy->lock);
     proxy->highest_rec = (proxy->highest_rec<*rec_no)?*rec_no:proxy->highest_rec;
     //SYS_LOG(proxy,"In Update State,The Highest Rec Is %lu.\n",proxy->highest_rec);
-    pthread_mutex_unlock(&proxy->lock);
+    //pthread_mutex_unlock(&proxy->lock);
     wake_up(proxy);
+    PROXY_LEAVE(proxy);
     return;
 }
 
 static void wake_up(proxy_node* proxy){
+    //SYS_LOG(proxy,"In Wake Up,The Highest Rec Is %lu.\n",proxy->highest_rec);
+    PROXY_ENTER(proxy);
     pthread_kill(proxy->p_self,SIGUSR2);
+    PROXY_LEAVE(proxy);
 }
 
 //fake update state, we take out the data directly without re-
@@ -328,6 +344,7 @@ static void server_side_on_read(struct bufferevent* bev,void* arg){
     
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
+    PROXY_ENTER(proxy);
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = 0;
     int cur_len = 0;
@@ -350,7 +367,7 @@ static void server_side_on_read(struct bufferevent* bev,void* arg){
         len = evbuffer_get_length(input);
     }
 server_side_on_read_exit:
-    
+    PROXY_LEAVE(proxy);
     return;
 }
 
@@ -358,9 +375,9 @@ server_side_on_read_exit:
 // this request to all the other replicas?
 
 static void server_side_on_err(struct bufferevent* bev,short what,void* arg){
-    
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
+    PROXY_ENTER(proxy);
     struct timeval recv_time;
     if(what & BEV_EVENT_CONNECTED){
         SYS_LOG(proxy,"Connection Has Established Between %lu And The Real Server.\n",pair->key);
@@ -373,7 +390,7 @@ static void server_side_on_err(struct bufferevent* bev,short what,void* arg){
             free(close_msg);
         }
     }
-    
+    PROXY_LEAVE(proxy);
     return;
 }
 
@@ -514,6 +531,7 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
         fd,struct sockaddr *address,int socklen,void *arg){
     req_sub_msg* req_msg = NULL;
     proxy_node* proxy = arg;
+    PROXY_ENTER(proxy);
     SYS_LOG(proxy,"In Proxy : A Client Connection Is Established : %d.\n",fd);
     if(proxy->con_conn==NULL){
         SYS_LOG(proxy,"In Proxy : We Have Lost The Connection To Consensus Component Now.\n");
@@ -541,6 +559,7 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
     if(req_msg!=NULL){
         free(req_msg);
     }
+    PROXY_LEAVE(proxy);
     return;
 }
 
@@ -561,12 +580,13 @@ static void proxy_singnal_handler_sys(int sig){
 }
 
 static void proxy_singnal_handler(evutil_socket_t fid,short what,void* arg){
-    
     proxy_node* proxy = arg;
+    PROXY_ENTER(proxy);
     if(what&EV_SIGNAL){
         SYS_LOG(proxy,"Node Proxy Received SIGUSR2.Now Checking Pending Requests.\n");
         real_do_action(proxy);
     }
+    PROXY_LEAVE(proxy);
     return;
 }
 
@@ -652,8 +672,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
         }
     }
     proxy->base = base;
-    proxy->do_action = evtimer_new(proxy->base,proxy_do_action,(void*)proxy);
-
+    //proxy->do_action = evtimer_new(proxy->base,proxy_do_action,(void*)proxy);
     // Open database 
     proxy->db_ptr = initialize_db(proxy->db_name,0);
 
@@ -720,7 +739,9 @@ void proxy_run(proxy_node* proxy){
     proxy->re_con = evtimer_new(proxy->base,
             reconnect_on_timeout,proxy);
     connect_consensus(proxy);
-    evtimer_add(proxy->do_action,&proxy->action_period);
+    if(proxy->do_action!=NULL){
+        evtimer_add(proxy->do_action,&proxy->action_period);
+    }
     event_base_dispatch(proxy->base);
     proxy_exit(proxy);
     return;

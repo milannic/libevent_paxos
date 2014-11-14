@@ -29,6 +29,7 @@
     gettimeofday(&tv,0); \
     fprintf((out),"%lu:%lu \t",tv.tv_sec,tv.tv_usec); \
     fprintf((out),args); \
+    fflush(out); \
 }while(0);
 
 #define safe_rec_log(x,args...) {if(NULL!=(x)){rec_log((x),args);}}
@@ -39,9 +40,11 @@
 
 #define REQ_LOG(x,args...) {if((x)->req_log){safe_rec_log(((x)->sys_log_file),args)}}
 
-#define PROXY_ENTER(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"PROXY : Entering %s.\n",__PRETTY_FUNCTION__)}}
-#define PROXY_LEAVE(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"PROXY : Leaving %s.\n",__PRETTY_FUNCTION__)}}
-#define PROXY_ERR_LEAVE(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"PROXY : Error Occurred,Before Leaving %s.\n",__PRETTY_FUNCTION__)}}
+#define PROXY_ENTER(x) {SYS_LOG(x,"PROXY : Entering %s.\n",__PRETTY_FUNCTION__)}
+
+#define PROXY_LEAVE(x) {SYS_LOG(x,"PROXY : Leaving %s.\n",__PRETTY_FUNCTION__)}
+
+#define PROXY_ERR_LEAVE(x) {SYS_LOG(x,"PROXY : Error Occurred,Before Leaving %s.\n",__PRETTY_FUNCTION__)}
 
 #define CONSENSUS_ENTER(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"CONSENSUS : Entering %s.\n",__PRETTY_FUNCTION__)}}
 #define CONSENSUS_LEAVE(x) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"CONSENSUS : Leaving %s.\n",__PRETTY_FUNCTION__)}}
