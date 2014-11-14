@@ -18,3 +18,4 @@ lib*.so*
 client-ld-preload/apache
 client-ld-preload/pgsql
 client-ld-preload/Mongoose_Aget
+test/core
