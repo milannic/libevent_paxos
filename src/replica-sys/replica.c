@@ -535,7 +535,7 @@ int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*u
         }
     }
     if(!build_log_ret){
-        if(my_node->sys_log || my_node->stat_log){
+        //if(my_node->sys_log || my_node->stat_log){
             char* sys_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+50);
             memset(sys_log_path,0,sizeof(char)*strlen(log_path)+50);
             if(NULL!=sys_log_path){
@@ -543,10 +543,10 @@ int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*u
                 my_node->sys_log_file = fopen(sys_log_path,"w");
                 free(sys_log_path);
             }
-            if(NULL==my_node->sys_log_file){
+            if(NULL==my_node->sys_log_file && (my_node->sys_log || my_node->stat_log)){
                 err_log("CONSENSUS MODULE : System Log File Cannot Be Created.\n");
             }
-        }
+        //}
     }
      
 //    my_node->signal_handler = evsignal_new(my_node->base,

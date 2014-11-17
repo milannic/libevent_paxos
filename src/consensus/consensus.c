@@ -745,6 +745,7 @@ static void deliver_msg_data(consensus_component* comp,view_stamp* vs){
             }
         }
     }else{
+        STAT_LOG(comp,"Request %lu.\n",vstokey);
         if(comp->ucb!=NULL){
             comp->ucb(sizeof(db_key_type),&vstokey,comp->up_para);
         }else{

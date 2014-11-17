@@ -650,7 +650,7 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
     }
 
     if(!build_log_ret){
-        if(proxy->sys_log || proxy->stat_log){
+        //if(proxy->sys_log || proxy->stat_log){
             char* sys_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+50);
             memset(sys_log_path,0,sizeof(char)*strlen(log_path)+50);
             //err_log("%s.\n",log_path);
@@ -660,11 +660,11 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
                 proxy->sys_log_file = fopen(sys_log_path,"w");
                 free(sys_log_path);
             }
-            if(NULL==proxy->sys_log_file){
+            if(NULL==proxy->sys_log_file && (proxy->sys_log || proxy->stat_log)){
                 err_log("PROXY : System Log File Cannot Be Created.\n");
             }
-        }
-        if(proxy->req_log){
+        //}
+        //if(proxy->req_log){
             char* req_log_path = (char*)malloc(sizeof(char)*strlen(log_path)+50);
             memset(req_log_path,0,sizeof(char)*strlen(log_path)+50);
             if(NULL!=req_log_path){
@@ -673,10 +673,10 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
                 proxy->req_log_file = fopen(req_log_path,"w");
                 free(req_log_path);
             }
-            if(NULL==proxy->req_log_file){
+            if(NULL==proxy->req_log_file && proxy->req_log){
                 err_log("PROXY : Client Request Log File Cannot Be Created.\n");
             }
-        }
+        //}
     }
     proxy->base = base;
     //proxy->do_action = evtimer_new(proxy->base,proxy_do_action,(void*)proxy);
