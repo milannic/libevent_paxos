@@ -129,7 +129,7 @@ static void do_action_to_server(int data_size,void* data,void* arg){
     struct timeval endtime;
     gettimeofday(&endtime,NULL);
     if(proxy->ts_log && output!=NULL){
-        fprintf(output,"\n");
+        //fprintf(output,"\n");
         fprintf(output,"%lu : %lu.%lu,%lu.%lu,%lu.%lu,%lu.%lu\n",header->connection_id,
             header->received_time.tv_sec,header->received_time.tv_usec,
             header->created_time.tv_sec,header->created_time.tv_usec,
@@ -144,7 +144,7 @@ static void do_action_to_server(int data_size,void* data,void* arg){
             break;
         case P_SEND:
             if(output!=NULL){
-                fprintf(output,"Operation: Sends data: (START):%s:(END)\n",
+                fprintf(output,"Operation: Sends data: (START):%s:(END).\n",
                         ((proxy_send_msg*)header)->data);
             }
             do_action_send(data_size,data,arg);
@@ -157,6 +157,9 @@ static void do_action_to_server(int data_size,void* data,void* arg){
             break;
         default:
             break;
+    }
+    if(NULL!=output){
+        fprintf(output,"\n");
     }
     if(output!=NULL){
         fflush(output);
