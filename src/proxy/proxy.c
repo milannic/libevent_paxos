@@ -88,20 +88,27 @@ static void real_do_action(proxy_node* proxy){
     request_record* data = NULL;
     size_t data_size=0;
     PROXY_ENTER(proxy);
-    SYS_LOG(proxy,"In REAL Do Action,The Current Rec Is %lu.\n",proxy->cur_rec);
     db_key_type cur_higest;
     pthread_mutex_lock(&proxy->lock);
     cur_higest = proxy->highest_rec;
     pthread_mutex_unlock(&proxy->lock);
+    SYS_LOG(proxy,"In REAL Do Action,The Current Rec Is %lu.\n",proxy->cur_rec);
     SYS_LOG(proxy,"In REAL Do Action,The Highest Rec Is %lu.\n",cur_higest);
+    FILE* output = NULL;
+    if(proxy->req_log){
+        output = proxy->req_log_file;
+    }
     while(proxy->cur_rec<=cur_higest){
-        SYS_LOG(proxy,"In REAL Do Action,We Execute Rec Is %lu.\n",proxy->cur_rec);
+        SYS_LOG(proxy,"In REAL Do Action,We Execute Rec %lu.\n",proxy->cur_rec);
         data = NULL;
         data_size = 0;
         retrieve_record(proxy->db_ptr,sizeof(db_key_type),&proxy->cur_rec,&data_size,(void**)&data);
         if(NULL==data){
             cross_view(proxy);
         }else{
+            if(output!=NULL){
+                fprintf(output,"Request %ld.\n",proxy->cur_rec);
+            }
             do_action_to_server(data->data_size,data->data,proxy);
             proxy->cur_rec++;
         }

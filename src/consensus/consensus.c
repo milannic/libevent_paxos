@@ -736,6 +736,7 @@ static void deliver_msg_data(consensus_component* comp,view_stamp* vs){
         retrieve_record(comp->db_ptr,sizeof(db_key_type),&vstokey,&data_size,(void**)&data);
         SYS_LOG(comp,"Node %d Deliver View Stamp %u : %u To The User.\n",
         comp->node_id,vs->view_id,vs->req_id);
+        STAT_LOG(comp,"Request %lu.\n",vstokey);
         if(NULL!=data){
             if(comp->ucb!=NULL){
                 comp->ucb(data->data_size,data->data,comp->up_para);
