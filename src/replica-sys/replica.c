@@ -497,7 +497,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
         len = evbuffer_get_length(input);
     }
     if(my_node->stat_log){
-        STAT_LOG(my_node,"This Function Call Process %u Requests In Total.\n",counter);
+        //STAT_LOG(my_node,"This Function Call Process %u Requests In Total.\n",counter);
     }
     if(NULL!=buf){free(buf);}
     return;

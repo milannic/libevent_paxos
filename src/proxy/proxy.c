@@ -80,7 +80,7 @@ static void cross_view(proxy_node* proxy){
 
 static void proxy_do_action(int fd,short what,void* arg){
     proxy_node* proxy = arg;
-    SYS_LOG(proxy,"Proxy Triggers Periodically Checking Event.Now Checking Pending Requests.\n");
+    SYS_LOG(proxy,"Proxy Triggers Periodically Checking Event.Now Checking Pending Requests\n");
     real_do_action(proxy);
 }
 
@@ -92,14 +92,14 @@ static void real_do_action(proxy_node* proxy){
     pthread_mutex_lock(&proxy->lock);
     cur_higest = proxy->highest_rec;
     pthread_mutex_unlock(&proxy->lock);
-    SYS_LOG(proxy,"In REAL Do Action,The Current Rec Is %lu.\n",proxy->cur_rec);
-    SYS_LOG(proxy,"In REAL Do Action,The Highest Rec Is %lu.\n",cur_higest);
+    SYS_LOG(proxy,"In REAL Do Action,The Current Rec Is %lu\n",proxy->cur_rec);
+    SYS_LOG(proxy,"In REAL Do Action,The Highest Rec Is %lu\n",cur_higest);
     FILE* output = NULL;
     if(proxy->req_log){
         output = proxy->req_log_file;
     }
     while(proxy->cur_rec<=cur_higest){
-        SYS_LOG(proxy,"In REAL Do Action,We Execute Rec %lu.\n",proxy->cur_rec);
+        SYS_LOG(proxy,"In REAL Do Action,We Execute Rec %lu\n",proxy->cur_rec);
         data = NULL;
         data_size = 0;
         retrieve_record(proxy->db_ptr,sizeof(db_key_type),&proxy->cur_rec,&data_size,(void**)&data);
@@ -107,7 +107,7 @@ static void real_do_action(proxy_node* proxy){
             cross_view(proxy);
         }else{
             if(output!=NULL){
-                fprintf(output,"Request %ld.\n",proxy->cur_rec);
+                fprintf(output,"Request:%ld:",proxy->cur_rec);
             }
             do_action_to_server(data->data_size,data->data,proxy);
             proxy->cur_rec++;
@@ -144,8 +144,8 @@ static void do_action_to_server(int data_size,void* data,void* arg){
             break;
         case P_SEND:
             if(output!=NULL){
-                fprintf(output,"Operation: Sends data: (START):%s:(END).\n",
-                        ((proxy_send_msg*)header)->data);
+                //fprintf(output,"Operation: Sends data: (START):%s:(END).\n",((proxy_send_msg*)header)->data);
+                fprintf(output,"Operation: Sends data.\n");
             }
             do_action_send(data_size,data,arg);
             break;
