@@ -130,7 +130,7 @@ static void do_action_to_server(int data_size,void* data,void* arg){
     gettimeofday(&endtime,NULL);
     if(proxy->ts_log && output!=NULL){
         //fprintf(output,"\n");
-        fprintf(output,"%lu : %lu.%lu,%lu.%lu,%lu.%lu,%lu.%lu\n",header->connection_id,
+        fprintf(output,"%lu : %lu.%06lu,%lu.%06lu,%lu.%06lu,%lu.%06lu\n",header->connection_id,
             header->received_time.tv_sec,header->received_time.tv_usec,
             header->created_time.tv_sec,header->created_time.tv_usec,
             endtime.tv_sec,endtime.tv_usec,endtime.tv_sec,endtime.tv_usec);
@@ -277,7 +277,7 @@ static void fake_update_state(int data_size,void* data,void* arg){
     gettimeofday(&endtime,NULL);
     if(proxy->ts_log && output!=NULL){
         fprintf(output,"\n");
-        fprintf(output,"%lu : %lu.%lu,%lu.%lu,%lu.%lu,%lu.%lu\n",header->connection_id,
+        fprintf(output,"%lu : %lu.%06lu,%lu.%06lu,%lu.%06lu,%lu.%06lu\n",header->connection_id,
             header->received_time.tv_sec,header->received_time.tv_usec,
             header->created_time.tv_sec,header->created_time.tv_usec,
             endtime.tv_sec,endtime.tv_usec,endtime.tv_sec,endtime.tv_usec);

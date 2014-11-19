@@ -5,7 +5,7 @@
 #define debug_log(args...) do { \
     struct timeval tv; \
     gettimeofday(&tv,0); \
-    fprintf(stderr,"%lu.%lu:",tv.tv_sec,tv.tv_usec); \
+    fprintf(stderr,"%lu.%06lu:",tv.tv_sec,tv.tv_usec); \
     fprintf(stderr,args); \
 }while(0);
 
@@ -13,21 +13,21 @@
 #define paxos_log(args...) do { \
     struct timeval tv; \
     gettimeofday(&tv,0); \
-    fprintf(stderr,"%lu.%lu:",tv.tv_sec,tv.tv_usec); \
+    fprintf(stderr,"%lu.%06lu:",tv.tv_sec,tv.tv_usec); \
     fprintf(stderr,args); \
 }while(0);
 
 #define err_log(args...) do { \
     struct timeval tv; \
     gettimeofday(&tv,0); \
-    fprintf(stderr,"%lu.%lu:",tv.tv_sec,tv.tv_usec); \
+    fprintf(stderr,"%lu.%06lu:",tv.tv_sec,tv.tv_usec); \
     fprintf(stderr,args); \
 }while(0);
 
 #define rec_log(out,args...) do { \
     struct timeval tv; \
     gettimeofday(&tv,0); \
-    fprintf((out),"%lu.%lu:",tv.tv_sec,tv.tv_usec); \
+    fprintf((out),"%lu.%06lu:",tv.tv_sec,tv.tv_usec); \
     fprintf((out),args); \
     fflush(out); \
 }while(0);
