@@ -222,6 +222,7 @@ do_action_send_exit:
 static void do_action_close(int data_size,void* data,void* arg){
     proxy_node* proxy = arg;
     proxy_close_msg* msg = data;
+    PROXY_ENTER(proxy);
     socket_pair* ret = NULL;
     MY_HASH_GET(&msg->header.connection_id,proxy->hash_map,ret);
     // this is error, TO-DO:error handler
@@ -237,6 +238,7 @@ static void do_action_close(int data_size,void* data,void* arg){
             ret->p_c = NULL;
         }
     }
+    PROXY_LEAVE(proxy);
 do_action_close_exit:
     return;
 }
@@ -351,7 +353,6 @@ void reconnect_on_timeout(int fd,short what,void* arg){
 
 
 static void server_side_on_read(struct bufferevent* bev,void* arg){
-    
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
     PROXY_ENTER(proxy);
@@ -405,7 +406,8 @@ static void server_side_on_err(struct bufferevent* bev,short what,void* arg){
 }
 
 static void client_process_data(socket_pair* pair,struct bufferevent* bev,size_t data_size){
-    
+    proxy_node* proxy = pair->proxy;
+    PROXY_ENTER(proxy)
     void* msg_buf = (char*)malloc(CLIENT_MSG_HEADER_SIZE+data_size);
     req_sub_msg* con_msg=NULL;
     if(NULL==msg_buf){
@@ -414,7 +416,6 @@ static void client_process_data(socket_pair* pair,struct bufferevent* bev,size_t
     struct evbuffer* evb = bufferevent_get_input(bev);
     evbuffer_remove(evb,msg_buf,CLIENT_MSG_HEADER_SIZE+data_size);
     client_msg_header* msg_header = msg_buf;
-    proxy_node* proxy = pair->proxy;
     struct timeval recv_time;
     switch(msg_header->type){
         case C_SEND_WR:
@@ -435,16 +436,16 @@ static void client_process_data(socket_pair* pair,struct bufferevent* bev,size_t
 client_process_data_exit:
     if(NULL!=msg_buf){free(msg_buf);}
     if(NULL!=con_msg){free(con_msg);}
-    
+    PROXY_LEAVE(proxy)
     return;
 };
 
 // check whether there is enough data on the client evbuffer
 static void client_side_on_read(struct bufferevent* bev,void* arg){
-    
     socket_pair* pair = arg;
-    client_msg_header* header = NULL;
     proxy_node* proxy = pair->proxy;
+    PROXY_ENTER(proxy);
+    client_msg_header* header = NULL;
     struct evbuffer* input = bufferevent_get_input(bev);
     size_t len = 0;
     len = evbuffer_get_length(input);
@@ -465,14 +466,14 @@ static void client_side_on_read(struct bufferevent* bev,void* arg){
         len = evbuffer_get_length(input);
     }
     if(NULL!=header){free(header);}
-    
+    PROXY_LEAVE(proxy) 
     return;
 };
 
 static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
-    
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
+    PROXY_ENTER(proxy);
     struct timeval recv_time;
     if(what&BEV_EVENT_CONNECTED){
         SYS_LOG(proxy,"Client %lu Connects.\n",pair->key);
@@ -486,7 +487,7 @@ static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
             free(close_msg);
         }
     }
-    
+    PROXY_LEAVE(proxy);
     return;
 }
 
