@@ -118,7 +118,7 @@ LD_PRELOAD=${FILEPATH}/../client-ld-preload/libclilib.so ${CLIENT_PROGRAM} -f -n
 
 read -p "haha" haha
 
-kill -9 ${PRIMARY_PID} &>/dev/null
+kill -15 ${PRIMARY_PID} &>/dev/null
 kill -9 ${REAL_SERVER_PID} &>/dev/null
 
 check_output

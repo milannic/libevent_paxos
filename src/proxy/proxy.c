@@ -60,6 +60,11 @@ static req_sub_msg* build_req_sub_msg(hk_t s_key,counter_t counter,int type,size
 static void wake_up(proxy_node* proxy);
 static void real_do_action(proxy_node* proxy);
 
+typedef struct signal_comp_st{
+    void* event;
+    void* proxy;
+}signal_comp;
+
 //log component
 
 //implementation
@@ -307,11 +312,9 @@ static void fake_update_state(int data_size,void* data,void* arg){
 
 
 static void* t_consensus(void *arg){
-    
     struct node_t* my_node = arg;
     system_run(my_node);
     system_exit(my_node);
-    
     return NULL;
 }
 
@@ -572,14 +575,14 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
     PROXY_LEAVE(proxy);
     return;
 }
-
+/*
 static void proxy_singnal_handler_sys(int sig){
     
     proxy_node* proxy = hack_arg;
     if(sig&SIGTERM){
         SYS_LOG(proxy,"Node Proxy Received SIGTERM .Now Quit.\n");
         if(proxy->sub_thread!=0){
-            pthread_kill(proxy->sub_thread,SIGQUIT);
+            pthread_kill(proxy->sub_thread,SIGUSR1);
             SYS_LOG(proxy,"Wating Consensus Comp To Quit.\n");
             pthread_join(proxy->sub_thread,NULL);
         }
@@ -588,14 +591,30 @@ static void proxy_singnal_handler_sys(int sig){
     
     return;
 }
-
+*/
 static void proxy_singnal_handler(evutil_socket_t fid,short what,void* arg){
     proxy_node* proxy = arg;
     PROXY_ENTER(proxy);
-    if(what&EV_SIGNAL){
-        SYS_LOG(proxy,"Node Proxy Received SIGUSR2.Now Checking Pending Requests.\n");
-        real_do_action(proxy);
+    int sig;
+    sig = event_get_signal((proxy->sig_handler));
+    SYS_LOG(proxy,"PROXY : GET SIGUSR2,Now Check Pending Requests.\n");
+    real_do_action(proxy);
+    PROXY_LEAVE(proxy);
+    return;
+}
+
+static void proxy_signal_term(evutil_socket_t fid,short what,void* arg){
+    proxy_node* proxy = arg;
+    PROXY_ENTER(proxy);
+    int sig;
+    sig = event_get_signal((proxy->sig_handler));
+    SYS_LOG(proxy,"PROXY : GET SIGTERM.\n");
+    if(proxy->sub_thread!=0){
+        pthread_kill(proxy->sub_thread,SIGUSR1);
+        SYS_LOG(proxy,"PROXY : Waiting Consensus Comp To Quit.\n");
+        pthread_join(proxy->sub_thread,NULL);
     }
+    event_base_loopexit(proxy->base,NULL);
     PROXY_LEAVE(proxy);
     return;
 }
@@ -723,11 +742,13 @@ proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_pat
             SIGUSR2,proxy_singnal_handler,proxy);
     evsignal_add(proxy->sig_handler,NULL);
 
-    pthread_create(&proxy->sub_thread,NULL,t_consensus,proxy->con_node);
+    struct event* sig_term = evsignal_new(proxy->base,
+            SIGTERM,proxy_signal_term,proxy);
+    evsignal_add(sig_term,NULL);
 
+    pthread_create(&proxy->sub_thread,NULL,t_consensus,proxy->con_node);
     hack_arg = proxy;
 
-    
 	return proxy;
 
 proxy_exit_error:
@@ -758,6 +779,7 @@ void proxy_run(proxy_node* proxy){
 }
 
 void proxy_exit(proxy_node* proxy){
+    //to-do
     return;
 }
 

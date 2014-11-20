@@ -1,0 +1,401 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+ no time accumulated
+
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls  Ts/call  Ts/call  name    
+  0.00      0.00     0.00       30     0.00     0.00  vstol
+  0.00      0.00     0.00       22     0.00     0.00  view_stamp_comp
+  0.00      0.00     0.00       15     0.00     0.00  build_consensus_msg
+  0.00      0.00     0.00       15     0.00     0.00  send_for_consensus_comp
+  0.00      0.00     0.00       12     0.00     0.00  view_stamp_inc
+  0.00      0.00     0.00       11     0.00     0.00  build_force_exec
+  0.00      0.00     0.00       11     0.00     0.00  build_ping_req
+  0.00      0.00     0.00       11     0.00     0.00  consensus_make_progress
+  0.00      0.00     0.00       11     0.00     0.00  leader_try_to_execute
+  0.00      0.00     0.00        9     0.00     0.00  retrieve_record
+  0.00      0.00     0.00        8     0.00     0.00  ltovs
+  0.00      0.00     0.00        4     0.00     0.00  build_accept_req
+  0.00      0.00     0.00        4     0.00     0.00  build_req_sub_msg
+  0.00      0.00     0.00        4     0.00     0.00  consensus_submit_request
+  0.00      0.00     0.00        4     0.00     0.00  deliver_msg_data
+  0.00      0.00     0.00        4     0.00     0.00  do_action_to_server
+  0.00      0.00     0.00        4     0.00     0.00  get_next_view_stamp
+  0.00      0.00     0.00        4     0.00     0.00  handle_msg
+  0.00      0.00     0.00        4     0.00     0.00  handle_request_submit
+  0.00      0.00     0.00        4     0.00     0.00  leader_handle_submit_req
+  0.00      0.00     0.00        4     0.00     0.00  reached_quorum
+  0.00      0.00     0.00        4     0.00     0.00  real_do_action
+  0.00      0.00     0.00        4     0.00     0.00  store_record
+  0.00      0.00     0.00        4     0.00     0.00  update_state
+  0.00      0.00     0.00        4     0.00     0.00  wake_up
+  0.00      0.00     0.00        2     0.00     0.00  do_action_close
+  0.00      0.00     0.00        2     0.00     0.00  initialize_db
+  0.00      0.00     0.00        2     0.00     0.00  mk_path
+  0.00      0.00     0.00        1     0.00     0.00  client_process_data
+  0.00      0.00     0.00        1     0.00     0.00  connect_consensus
+  0.00      0.00     0.00        1     0.00     0.00  connect_peers
+  0.00      0.00     0.00        1     0.00     0.00  consensus_read_config
+  0.00      0.00     0.00        1     0.00     0.00  cross_view
+  0.00      0.00     0.00        1     0.00     0.00  do_action_connect
+  0.00      0.00     0.00        1     0.00     0.00  do_action_send
+  0.00      0.00     0.00        1     0.00     0.00  free_node
+  0.00      0.00     0.00        1     0.00     0.00  gen_key
+  0.00      0.00     0.00        1     0.00     0.00  init_consensus_comp
+  0.00      0.00     0.00        1     0.00     0.00  initialize_leader_make_progress
+  0.00      0.00     0.00        1     0.00     0.00  initialize_leader_ping
+  0.00      0.00     0.00        1     0.00     0.00  initialize_node
+  0.00      0.00     0.00        1     0.00     0.00  proxy_exit
+  0.00      0.00     0.00        1     0.00     0.00  proxy_init
+  0.00      0.00     0.00        1     0.00     0.00  proxy_read_config
+  0.00      0.00     0.00        1     0.00     0.00  proxy_run
+  0.00      0.00     0.00        1     0.00     0.00  system_exit
+  0.00      0.00     0.00        1     0.00     0.00  system_initialize
+  0.00      0.00     0.00        1     0.00     0.00  system_run
+
+ %         the percentage of the total running time of the
+time       program used by this function.
+
+cumulative a running sum of the number of seconds accounted
+ seconds   for by this function and those listed above it.
+
+ self      the number of seconds accounted for by this
+seconds    function alone.  This is the major sort for this
+           listing.
+
+calls      the number of times this function was invoked, if
+           this function is profiled, else blank.
+ 
+ self      the average number of milliseconds spent in this
+ms/call    function per call, if this function is profiled,
+	   else blank.
+
+ total     the average number of milliseconds spent in this
+ms/call    function and its descendents per call, if this 
+	   function is profiled, else blank.
+
+name       the name of the function.  This is the minor sort
+           for this listing. The index shows the location of
+	   the function in the gprof listing. If the index is
+	   in parenthesis it shows where it would appear in
+	   the gprof listing if it were to be printed.
+
+Copyright (C) 2012 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+		     Call graph (explanation follows)
+
+
+granularity: each sample hit covers 2 byte(s) no time propagated
+
+index % time    self  children    called     name
+                0.00    0.00       4/30          leader_handle_submit_req [20]
+                0.00    0.00       4/30          deliver_msg_data [15]
+                0.00    0.00      22/30          leader_try_to_execute [9]
+[1]      0.0    0.00    0.00      30         vstol [1]
+-----------------------------------------------
+                0.00    0.00      11/22          leader_try_to_execute [9]
+                0.00    0.00      11/22          consensus_make_progress [8]
+[2]      0.0    0.00    0.00      22         view_stamp_comp [2]
+-----------------------------------------------
+                0.00    0.00      15/15          send_for_consensus_comp [4]
+[3]      0.0    0.00    0.00      15         build_consensus_msg [3]
+-----------------------------------------------
+                0.00    0.00       4/15          leader_handle_submit_req [20]
+                0.00    0.00      11/15          consensus_make_progress [8]
+[4]      0.0    0.00    0.00      15         send_for_consensus_comp [4]
+                0.00    0.00      15/15          build_consensus_msg [3]
+-----------------------------------------------
+                0.00    0.00       4/12          leader_handle_submit_req [20]
+                0.00    0.00       8/12          leader_try_to_execute [9]
+[5]      0.0    0.00    0.00      12         view_stamp_inc [5]
+-----------------------------------------------
+                0.00    0.00      11/11          consensus_make_progress [8]
+[6]      0.0    0.00    0.00      11         build_force_exec [6]
+-----------------------------------------------
+                0.00    0.00      11/11          leader_ping_period [87]
+[7]      0.0    0.00    0.00      11         build_ping_req [7]
+-----------------------------------------------
+                0.00    0.00      11/11          make_progress_on [90]
+[8]      0.0    0.00    0.00      11         consensus_make_progress [8]
+                0.00    0.00      11/11          leader_try_to_execute [9]
+                0.00    0.00      11/22          view_stamp_comp [2]
+                0.00    0.00      11/11          build_force_exec [6]
+                0.00    0.00      11/15          send_for_consensus_comp [4]
+-----------------------------------------------
+                0.00    0.00      11/11          consensus_make_progress [8]
+[9]      0.0    0.00    0.00      11         leader_try_to_execute [9]
+                0.00    0.00      22/30          vstol [1]
+                0.00    0.00      11/22          view_stamp_comp [2]
+                0.00    0.00       8/8           ltovs [11]
+                0.00    0.00       8/12          view_stamp_inc [5]
+                0.00    0.00       4/9           retrieve_record [10]
+                0.00    0.00       4/4           reached_quorum [21]
+                0.00    0.00       4/4           deliver_msg_data [15]
+-----------------------------------------------
+                0.00    0.00       4/9           leader_try_to_execute [9]
+                0.00    0.00       5/9           real_do_action [22]
+[10]     0.0    0.00    0.00       9         retrieve_record [10]
+-----------------------------------------------
+                0.00    0.00       8/8           leader_try_to_execute [9]
+[11]     0.0    0.00    0.00       8         ltovs [11]
+-----------------------------------------------
+                0.00    0.00       4/4           leader_handle_submit_req [20]
+[12]     0.0    0.00    0.00       4         build_accept_req [12]
+-----------------------------------------------
+                0.00    0.00       1/4           server_side_on_err [108]
+                0.00    0.00       1/4           client_process_data [29]
+                0.00    0.00       1/4           client_side_on_err [56]
+                0.00    0.00       1/4           proxy_on_accept [97]
+[13]     0.0    0.00    0.00       4         build_req_sub_msg [13]
+-----------------------------------------------
+                0.00    0.00       4/4           handle_request_submit [19]
+[14]     0.0    0.00    0.00       4         consensus_submit_request [14]
+                0.00    0.00       4/4           leader_handle_submit_req [20]
+-----------------------------------------------
+                0.00    0.00       4/4           leader_try_to_execute [9]
+[15]     0.0    0.00    0.00       4         deliver_msg_data [15]
+                0.00    0.00       4/30          vstol [1]
+                0.00    0.00       4/4           update_state [24]
+-----------------------------------------------
+                0.00    0.00       4/4           real_do_action [22]
+[16]     0.0    0.00    0.00       4         do_action_to_server [16]
+                0.00    0.00       2/2           do_action_close [26]
+                0.00    0.00       1/1           do_action_connect [34]
+                0.00    0.00       1/1           do_action_send [35]
+-----------------------------------------------
+                0.00    0.00       4/4           leader_handle_submit_req [20]
+[17]     0.0    0.00    0.00       4         get_next_view_stamp [17]
+-----------------------------------------------
+                0.00    0.00       4/4           replica_on_read [105]
+[18]     0.0    0.00    0.00       4         handle_msg [18]
+                0.00    0.00       4/4           handle_request_submit [19]
+-----------------------------------------------
+                0.00    0.00       4/4           handle_msg [18]
+[19]     0.0    0.00    0.00       4         handle_request_submit [19]
+                0.00    0.00       4/4           consensus_submit_request [14]
+-----------------------------------------------
+                0.00    0.00       4/4           consensus_submit_request [14]
+[20]     0.0    0.00    0.00       4         leader_handle_submit_req [20]
+                0.00    0.00       4/4           get_next_view_stamp [17]
+                0.00    0.00       4/30          vstol [1]
+                0.00    0.00       4/4           store_record [23]
+                0.00    0.00       4/4           build_accept_req [12]
+                0.00    0.00       4/15          send_for_consensus_comp [4]
+                0.00    0.00       4/12          view_stamp_inc [5]
+-----------------------------------------------
+                0.00    0.00       4/4           leader_try_to_execute [9]
+[21]     0.0    0.00    0.00       4         reached_quorum [21]
+-----------------------------------------------
+                0.00    0.00       4/4           proxy_singnal_handler [99]
+[22]     0.0    0.00    0.00       4         real_do_action [22]
+                0.00    0.00       5/9           retrieve_record [10]
+                0.00    0.00       4/4           do_action_to_server [16]
+                0.00    0.00       1/1           cross_view [33]
+-----------------------------------------------
+                0.00    0.00       4/4           leader_handle_submit_req [20]
+[23]     0.0    0.00    0.00       4         store_record [23]
+-----------------------------------------------
+                0.00    0.00       4/4           deliver_msg_data [15]
+[24]     0.0    0.00    0.00       4         update_state [24]
+                0.00    0.00       4/4           wake_up [25]
+-----------------------------------------------
+                0.00    0.00       4/4           update_state [24]
+[25]     0.0    0.00    0.00       4         wake_up [25]
+-----------------------------------------------
+                0.00    0.00       2/2           do_action_to_server [16]
+[26]     0.0    0.00    0.00       2         do_action_close [26]
+-----------------------------------------------
+                0.00    0.00       1/2           proxy_init [43]
+                0.00    0.00       1/2           init_consensus_comp [38]
+[27]     0.0    0.00    0.00       2         initialize_db [27]
+                0.00    0.00       2/2           mk_path [28]
+-----------------------------------------------
+                0.00    0.00       2/2           initialize_db [27]
+[28]     0.0    0.00    0.00       2         mk_path [28]
+-----------------------------------------------
+                0.00    0.00       1/1           client_side_on_read [57]
+[29]     0.0    0.00    0.00       1         client_process_data [29]
+                0.00    0.00       1/4           build_req_sub_msg [13]
+-----------------------------------------------
+                0.00    0.00       1/1           proxy_run [45]
+[30]     0.0    0.00    0.00       1         connect_consensus [30]
+-----------------------------------------------
+                0.00    0.00       1/1           initialize_node [41]
+[31]     0.0    0.00    0.00       1         connect_peers [31]
+-----------------------------------------------
+                0.00    0.00       1/1           system_initialize [47]
+[32]     0.0    0.00    0.00       1         consensus_read_config [32]
+-----------------------------------------------
+                0.00    0.00       1/1           real_do_action [22]
+[33]     0.0    0.00    0.00       1         cross_view [33]
+-----------------------------------------------
+                0.00    0.00       1/1           do_action_to_server [16]
+[34]     0.0    0.00    0.00       1         do_action_connect [34]
+-----------------------------------------------
+                0.00    0.00       1/1           do_action_to_server [16]
+[35]     0.0    0.00    0.00       1         do_action_send [35]
+-----------------------------------------------
+                0.00    0.00       1/1           system_exit [46]
+[36]     0.0    0.00    0.00       1         free_node [36]
+-----------------------------------------------
+                0.00    0.00       1/1           proxy_on_accept [97]
+[37]     0.0    0.00    0.00       1         gen_key [37]
+-----------------------------------------------
+                0.00    0.00       1/1           initialize_node [41]
+[38]     0.0    0.00    0.00       1         init_consensus_comp [38]
+                0.00    0.00       1/2           initialize_db [27]
+-----------------------------------------------
+                0.00    0.00       1/1           initialize_node [41]
+[39]     0.0    0.00    0.00       1         initialize_leader_make_progress [39]
+-----------------------------------------------
+                0.00    0.00       1/1           initialize_node [41]
+[40]     0.0    0.00    0.00       1         initialize_leader_ping [40]
+-----------------------------------------------
+                0.00    0.00       1/1           system_initialize [47]
+[41]     0.0    0.00    0.00       1         initialize_node [41]
+                0.00    0.00       1/1           initialize_leader_ping [40]
+                0.00    0.00       1/1           initialize_leader_make_progress [39]
+                0.00    0.00       1/1           connect_peers [31]
+                0.00    0.00       1/1           init_consensus_comp [38]
+-----------------------------------------------
+                0.00    0.00       1/1           proxy_run [45]
+[42]     0.0    0.00    0.00       1         proxy_exit [42]
+-----------------------------------------------
+                0.00    0.00       1/1           main [89]
+[43]     0.0    0.00    0.00       1         proxy_init [43]
+                0.00    0.00       1/1           proxy_read_config [44]
+                0.00    0.00       1/2           initialize_db [27]
+                0.00    0.00       1/1           system_initialize [47]
+-----------------------------------------------
+                0.00    0.00       1/1           proxy_init [43]
+[44]     0.0    0.00    0.00       1         proxy_read_config [44]
+-----------------------------------------------
+                0.00    0.00       1/1           main [89]
+[45]     0.0    0.00    0.00       1         proxy_run [45]
+                0.00    0.00       1/1           connect_consensus [30]
+                0.00    0.00       1/1           proxy_exit [42]
+-----------------------------------------------
+                0.00    0.00       1/1           t_consensus [110]
+[46]     0.0    0.00    0.00       1         system_exit [46]
+                0.00    0.00       1/1           free_node [36]
+-----------------------------------------------
+                0.00    0.00       1/1           proxy_init [43]
+[47]     0.0    0.00    0.00       1         system_initialize [47]
+                0.00    0.00       1/1           consensus_read_config [32]
+                0.00    0.00       1/1           initialize_node [41]
+-----------------------------------------------
+                0.00    0.00       1/1           t_consensus [110]
+[48]     0.0    0.00    0.00       1         system_run [48]
+-----------------------------------------------
+
+ This table describes the call tree of the program, and was sorted by
+ the total amount of time spent in each function and its children.
+
+ Each entry in this table consists of several lines.  The line with the
+ index number at the left hand margin lists the current function.
+ The lines above it list the functions that called this function,
+ and the lines below it list the functions this one called.
+ This line lists:
+     index	A unique number given to each element of the table.
+		Index numbers are sorted numerically.
+		The index number is printed next to every function name so
+		it is easier to look up where the function is in the table.
+
+     % time	This is the percentage of the `total' time that was spent
+		in this function and its children.  Note that due to
+		different viewpoints, functions excluded by options, etc,
+		these numbers will NOT add up to 100%.
+
+     self	This is the total amount of time spent in this function.
+
+     children	This is the total amount of time propagated into this
+		function by its children.
+
+     called	This is the number of times the function was called.
+		If the function called itself recursively, the number
+		only includes non-recursive calls, and is followed by
+		a `+' and the number of recursive calls.
+
+     name	The name of the current function.  The index number is
+		printed after it.  If the function is a member of a
+		cycle, the cycle number is printed between the
+		function's name and the index number.
+
+
+ For the function's parents, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the function into this parent.
+
+     children	This is the amount of time that was propagated from
+		the function's children into this parent.
+
+     called	This is the number of times this parent called the
+		function `/' the total number of times the function
+		was called.  Recursive calls to the function are not
+		included in the number after the `/'.
+
+     name	This is the name of the parent.  The parent's index
+		number is printed after it.  If the parent is a
+		member of a cycle, the cycle number is printed between
+		the name and the index number.
+
+ If the parents of the function cannot be determined, the word
+ `<spontaneous>' is printed in the `name' field, and all the other
+ fields are blank.
+
+ For the function's children, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the child into the function.
+
+     children	This is the amount of time that was propagated from the
+		child's children to the function.
+
+     called	This is the number of times the function called
+		this child `/' the total number of times the child
+		was called.  Recursive calls by the child are not
+		listed in the number after the `/'.
+
+     name	This is the name of the child.  The child's index
+		number is printed after it.  If the child is a
+		member of a cycle, the cycle number is printed
+		between the name and the index number.
+
+ If there are any cycles (circles) in the call graph, there is an
+ entry for the cycle-as-a-whole.  This entry shows who called the
+ cycle (as parents) and the members of the cycle (as children.)
+ The `+' recursive calls entry shows the number of function calls that
+ were internal to the cycle, and the calls entry for each member shows,
+ for that member, how many times it was called from other members of
+ the cycle.
+
+Copyright (C) 2012 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+Index by function name
+
+  [12] build_accept_req (consensus.c) [16] do_action_to_server (proxy.c) [43] proxy_init
+   [3] build_consensus_msg    [36] free_node (replica.c)  [44] proxy_read_config
+   [6] build_force_exec (consensus.c) [37] gen_key (proxy.c) [45] proxy_run
+   [7] build_ping_req         [17] get_next_view_stamp (consensus.c) [21] reached_quorum (consensus.c)
+  [13] build_req_sub_msg (proxy.c) [18] handle_msg (replica.c) [22] real_do_action (proxy.c)
+  [29] client_process_data (proxy.c) [19] handle_request_submit (replica.c) [10] retrieve_record
+  [30] connect_consensus (proxy.c) [38] init_consensus_comp [4] send_for_consensus_comp (replica.c)
+  [31] connect_peers (replica.c) [27] initialize_db       [23] store_record
+   [8] consensus_make_progress [39] initialize_leader_make_progress (replica.c) [46] system_exit
+  [32] consensus_read_config  [40] initialize_leader_ping (replica.c) [47] system_initialize
+  [14] consensus_submit_request [41] initialize_node      [48] system_run
+  [33] cross_view (proxy.c)   [20] leader_handle_submit_req (consensus.c) [24] update_state (proxy.c)
+  [15] deliver_msg_data (consensus.c) [9] leader_try_to_execute (consensus.c) [2] view_stamp_comp
+  [26] do_action_close (proxy.c) [11] ltovs                [5] view_stamp_inc (consensus.c)
+  [34] do_action_connect (proxy.c) [28] mk_path            [1] vstol
+  [35] do_action_send (proxy.c) [42] proxy_exit           [25] wake_up (proxy.c)
