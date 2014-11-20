@@ -357,6 +357,7 @@ static void server_side_on_read(struct bufferevent* bev,void* arg){
     proxy_node* proxy = pair->proxy;
     PROXY_ENTER(proxy);
     struct evbuffer* input = bufferevent_get_input(bev);
+    struct evbuffer* output = NULL;
     size_t len = 0;
     int cur_len = 0;
     void* msg = NULL;
@@ -364,20 +365,18 @@ static void server_side_on_read(struct bufferevent* bev,void* arg){
     SYS_LOG(proxy,"There Is %u Bytes Data In The Buffer In Total.\n",
             (unsigned)len);
     // every time we just send 1024 bytes data to the client
-    while(len>0){
-        //cur_len = (len>1024)?1024:len;
+    // max_length_to_be_added
+    if(len>0){
         cur_len = len;
-        msg = (void*)malloc(cur_len);
-        if(NULL==msg){goto server_side_on_read_exit;}
-        evbuffer_remove(input,msg,cur_len);
         if(pair->p_c!=NULL){
-            bufferevent_write(pair->p_c,msg,cur_len);
+            output = bufferevent_get_output(pair->p_c);
         }
-        free(msg);
-        msg=NULL;
-        len = evbuffer_get_length(input);
+        if(output!=NULL){
+            evbuffer_add_buffer(output,input);
+        }else{
+            evbuffer_drain(input,len);
+        }
     }
-server_side_on_read_exit:
     PROXY_LEAVE(proxy);
     return;
 }
