@@ -87,7 +87,7 @@ rm -rf ${FILEPATH}/.db
 
 REAL_SERVER_PROGRAM=${FILEPATH}/../simple-sc/simple-server.out
 
-${REAL_SERVER_PROGRAM} -s 127.0.0.1 -p 7000 &>${LOG_PATH}/server &
+${REAL_SERVER_PROGRAM} -s 127.0.0.1 -p 7000 &>${LOG_PATH}/server.log &
 
 REAL_SERVER_PID=$!
 
@@ -97,7 +97,7 @@ CONFIG_FILE=${FILEPATH}/single_server.cfg
 #echo "The Log File Will Be Stored In ${FILEPATH}/log/${TEST_NAME}_*_${NO}"
 #echo "Now We Start The Leader"
 
-${SERVER_PROGRAM} -n 0 -r -m s -c ${CONFIG_FILE} -l ${LOG_PATH} 1>${LOG_PATH}/node-0-stdout 2>${LOG_PATH}/node-0-stderr &
+${SERVER_PROGRAM} -n 0 -r -m s -c ${CONFIG_FILE} -l ${LOG_PATH} 1>${LOG_PATH}/node-0-stdout.log 2>${LOG_PATH}/node-0-stderr.log &
 
 PRIMARY_PID=$!
 
