@@ -363,7 +363,6 @@ static void server_side_on_read(struct bufferevent* bev,void* arg){
     struct evbuffer* output = NULL;
     size_t len = 0;
     int cur_len = 0;
-    void* msg = NULL;
     len = evbuffer_get_length(input);
     SYS_LOG(proxy,"There Is %u Bytes Data In The Buffer In Total.\n",
             (unsigned)len);
@@ -391,16 +390,16 @@ static void server_side_on_err(struct bufferevent* bev,short what,void* arg){
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
     PROXY_ENTER(proxy);
-    struct timeval recv_time;
     if(what & BEV_EVENT_CONNECTED){
         SYS_LOG(proxy,"Connection Has Established Between %lu And The Real Server.\n",pair->key);
     }else if((what & BEV_EVENT_EOF) || ( what & BEV_EVENT_ERROR)){
-        gettimeofday(&recv_time,NULL);
-        req_sub_msg* close_msg = build_req_sub_msg(pair->key,pair->counter++,P_CLOSE,0,NULL);
-        ((proxy_close_msg*)close_msg->data)->header.received_time = recv_time;
-        if(NULL!=close_msg && NULL!=proxy->con_conn){
-            bufferevent_write(proxy->con_conn,close_msg,REQ_SUB_SIZE(close_msg));
-            free(close_msg);
+        if(pair->p_s!=NULL){
+            bufferevent_free(pair->p_s);
+            pair->p_s = NULL;
+        }
+        if(pair->p_c!=NULL){
+            bufferevent_free(pair->p_c);
+            pair->p_c = NULL;
         }
     }
     PROXY_LEAVE(proxy);
@@ -453,20 +452,26 @@ static void client_side_on_read(struct bufferevent* bev,void* arg){
     len = evbuffer_get_length(input);
     SYS_LOG(proxy,"There Is %u Bytes Data In The Buffer In Total.\n",
             (unsigned)len);
+    header = (client_msg_header*)malloc(CLIENT_MSG_HEADER_SIZE);
+    if(NULL==header){return;}
     while(len>=CLIENT_MSG_HEADER_SIZE){
-        header = (client_msg_header*)malloc(CLIENT_MSG_HEADER_SIZE);
-        if(NULL==header){return;}
         evbuffer_copyout(input,header,CLIENT_MSG_HEADER_SIZE);
         int data_size = header->data_size;
         if(len>=(CLIENT_MSG_HEADER_SIZE+data_size)){
-           client_process_data(pair,bev,data_size); 
+            void* msg_buf = (char*)malloc(CLIENT_MSG_HEADER_SIZE+data_size);
+            if(NULL==msg_buf){
+                goto client_side_on_read_exit;
+            }
+            evbuffer_remove(input,msg_buf,CLIENT_MSG_HEADER_SIZE+data_size);
+            if(NULL!=pair->p_s){
+                bufferevent_write(pair->p_s,((client_msg*)msg_buf)->data,data_size);
+            }
         }else{
             break;
         }
-        free(header);
-        header=NULL;
         len = evbuffer_get_length(input);
     }
+client_side_on_read_exit:
     if(NULL!=header){free(header);}
     PROXY_LEAVE(proxy) 
     return;
@@ -476,17 +481,16 @@ static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
     socket_pair* pair = arg;
     proxy_node* proxy = pair->proxy;
     PROXY_ENTER(proxy);
-    struct timeval recv_time;
     if(what&BEV_EVENT_CONNECTED){
         SYS_LOG(proxy,"Client %lu Connects.\n",pair->key);
-
     }else if((what & BEV_EVENT_EOF) || ( what & BEV_EVENT_ERROR)){
-        gettimeofday(&recv_time,NULL);
-        req_sub_msg* close_msg = build_req_sub_msg(pair->key,pair->counter++,P_CLOSE,0,NULL);
-        ((proxy_close_msg*)close_msg->data)->header.received_time = recv_time;
-        if(NULL!=close_msg && NULL!=proxy->con_conn){
-            bufferevent_write(proxy->con_conn,close_msg,REQ_SUB_SIZE(close_msg));
-            free(close_msg);
+        if(pair->p_s!=NULL){
+            bufferevent_free(pair->p_s);
+            pair->p_s = NULL;
+        }
+        if(pair->p_c!=NULL){
+            bufferevent_free(pair->p_c);
+            pair->p_c = NULL;
         }
     }
     PROXY_LEAVE(proxy);
@@ -561,13 +565,17 @@ static void proxy_on_accept(struct evconnlistener* listener,evutil_socket_t
         new_conn->proxy = proxy;
         bufferevent_setcb(new_conn->p_c,client_side_on_read,NULL,client_side_on_err,new_conn);
         bufferevent_enable(new_conn->p_c,EV_READ|EV_PERSIST|EV_WRITE);
+        new_conn->p_s = bufferevent_socket_new(proxy->base,-1,BEV_OPT_CLOSE_ON_FREE);
+        bufferevent_setcb(new_conn->p_s,server_side_on_read,NULL,server_side_on_err,new_conn);
+        bufferevent_enable(new_conn->p_s,EV_READ|EV_PERSIST|EV_WRITE);
+        bufferevent_socket_connect(new_conn->p_s,(struct sockaddr*)&proxy->sys_addr.s_addr,proxy->sys_addr.s_sock_len);
         MY_HASH_SET(new_conn,proxy->hash_map);
         // connect operation should be consistent among all the proxies.
-        struct timeval recv_time;
-        gettimeofday(&recv_time,NULL);
-        req_msg = build_req_sub_msg(new_conn->key,new_conn->counter++,P_CONNECT,0,NULL); 
-        ((proxy_connect_msg*)req_msg->data)->header.received_time = recv_time;
-        bufferevent_write(proxy->con_conn,req_msg,REQ_SUB_SIZE(req_msg));
+        //struct timeval recv_time;
+        //gettimeofday(&recv_time,NULL);
+        //req_msg = build_req_sub_msg(new_conn->key,new_conn->counter++,P_CONNECT,0,NULL); 
+        //((proxy_connect_msg*)req_msg->data)->header.received_time = recv_time;
+        //bufferevent_write(proxy->con_conn,req_msg,REQ_SUB_SIZE(req_msg));
     }
     if(req_msg!=NULL){
         free(req_msg);
