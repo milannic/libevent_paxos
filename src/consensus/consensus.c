@@ -249,14 +249,18 @@ static int leader_handle_submit_req(struct consensus_component_t* comp,
     if(store_record(comp->db_ptr,sizeof(record_no),&record_no,REQ_RECORD_SIZE(record_data),record_data)){
         goto handle_submit_req_exit;
     }    
-    accept_req* msg = build_accept_req(comp,REQ_RECORD_SIZE(record_data),record_data,&next);
-    if(NULL==msg){
-        goto handle_submit_req_exit;
-    }
-    comp->uc(comp->my_node,ACCEPT_REQ_SIZE(msg),msg,-1);
-    free(msg);
-    view_stamp_inc(&comp->highest_seen_vs);
     ret = 0;
+    view_stamp_inc(&comp->highest_seen_vs);
+    if(comp->group_size>1){
+        accept_req* msg = build_accept_req(comp,REQ_RECORD_SIZE(record_data),record_data,&next);
+        if(NULL==msg){
+            goto handle_submit_req_exit;
+        }
+        comp->uc(comp->my_node,ACCEPT_REQ_SIZE(msg),msg,-1);
+        free(msg);
+    }else{
+        try_to_execute(comp);
+    }
 handle_submit_req_exit: 
     // no need to care about database, every time we will override it.
     if(record_data!=NULL){
