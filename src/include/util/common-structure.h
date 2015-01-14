@@ -20,15 +20,23 @@
 #include <stdint.h>
 #include <sys/time.h>
 
+typedef uint32_t node_id_t;
+typedef uint32_t req_id_t;
+typedef uint32_t view_id_t;
+
 typedef struct view_t{
-    uint32_t view_id;
-    uint32_t leader_id;
+    view_id_t view_id;
+    node_id_t leader_id;
 }view;
 
 typedef struct view_stamp_t{
-    uint32_t view_id;
-    uint32_t req_id;
+    view_id_t view_id;
+    req_id_t req_id;
 }view_stamp;
+
+uint64_t viewtol(view_id_t);
+
+view_id_t ltoview(uint64_t);
 
 uint64_t vstol(view_stamp* vs);
 view_stamp ltovs(uint64_t);

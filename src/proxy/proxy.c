@@ -619,7 +619,7 @@ static void proxy_signal_term(evutil_socket_t fid,short what,void* arg){
     return;
 }
 
-proxy_node* proxy_init(int node_id,const char* start_mode,const char* config_path,
+proxy_node* proxy_init(uint16_t node_id,const char* start_mode,const char* config_path,
         const char* log_path,int fake_mode){
     
 

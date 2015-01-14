@@ -58,3 +58,9 @@ void* build_consensus_msg(uint32_t data_size,void* data){
 build_consensus_msg_exit:
     return con_msg;
 }
+
+
+
+void* build_proposer_msg(lele_mod* mod){
+
+}

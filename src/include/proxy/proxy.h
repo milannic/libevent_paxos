@@ -26,7 +26,7 @@
 // hash_key type def
 typedef uint64_t hk_t;
 typedef uint64_t sec_t;
-typedef uint16_t nid_t;
+typedef uint32_t nid_t;
 typedef uint16_t nc_t;
 typedef uint64_t counter_t;
 

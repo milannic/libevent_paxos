@@ -34,6 +34,14 @@ int view_stamp_comp(view_stamp* op1,view_stamp* op2){
     }
 }
 
+uint64_t viewtol(view_id_t v_id){
+    return (uint64_t)v_id;
+}
+
+view_id_t ltoview(uint64_t vl){
+    return (uint32_t)vl;
+}
+
 uint64_t vstol(view_stamp* vs){
     uint64_t result = ((uint64_t)vs->req_id)&0xFFFFFFFFl;
     uint64_t temp = (uint64_t)vs->view_id&0xFFFFFFFFl;

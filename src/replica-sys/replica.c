@@ -3,11 +3,22 @@
 #include "../include/config-comp/config-comp.h"
 #include <sys/stat.h>
 
-static int exit_flag = 0;
+#define forlessp(start,end) for(int i = (start);i<(end);i++)
+#define foreqp(start,end) for(int i = (start);i<=(end);i++)
+#define forlessm(start,end) for(int i = (start);i>(end);i--)
+#define foreqm(start,end) for(int i = (start);i>=(end);i--)
 
 #define CHECK_EXIT do{if(exit_flag){\
     SYS_LOG(my_node,"Component Received TERMINATION SIGNAL,NOW QUIT.\n")\
     event_base_loopexit((my_node)->base,NULL);}}while(0);
+
+//for debug
+//
+struct timeval first_proposer_lele = {1,0};
+struct timeval wait_for_other_lele = {6,0};
+
+static int exit_flag = 0;
+
 
 int max_waiting_connections = MAX_ACCEPT_CONNECTIONS; 
 static unsigned current_connection = 3;
@@ -58,6 +69,16 @@ static int initialize_leader_make_progress(node* my_node);
 static void make_progress_on(int fd,short what,void* arg);
 
 //view change
+//
+static void handle_leader_election_msg(node*,leader_election_msg*);
+static void initialize_leader_election(node*);
+static void initialize_leader_election_mod(node*);
+static void free_leader_election_mod(node*,lele_mod*);
+static void leader_election_on_timeout(int fd,short what,void* arg);
+static void leader_election_proposer_do(node*,lele_mod*,lele_msg*);
+static void leader_election_acceptor_do(node*,lele_mod*,lele_msg*);
+static void leader_election_learner_do(node*,lele_mod*,lele_msg*);
+static void leader_election_finalize(node*,lele_mod*,lele_msg*);
 static void update_view(node*,view*);
 static void become_leader(node*);
 static void giveup_leader(node*);
@@ -142,6 +163,7 @@ static void connect_peers(node* my_node){
 static void lost_connection_with_leader(node* my_node){
     SYS_LOG(my_node,"Node %u Lost Connection With The Leader\n",
             my_node->node_id);
+    initialize_leader_election(my_node);
     SYS_LOG(my_node,"Node %u Will Start A Leader Election\n",
             my_node->node_id);
     CHECK_EXIT
@@ -480,6 +502,177 @@ static void handle_request_submit(node* my_node,
     return;
 }
 
+static void initialize_leader_election(node* my_node){
+    DEBUG_ENTER
+    SYS_LOG(my_node,"Initialize One Instance Of Leader Election In Node %d.n",
+            my_node->node_id);
+    my_node->state = NODE_INACTIVE;
+    lele_mod* mod = NULL;
+    if(NULL==my_node->election_mod){
+        initialize_leader_election_mod(my_node);
+    }
+    mod = my_node->election_mod;
+    if(NULL!=mod){
+        mod->next_view = my_node->cur_view.view_id+1;
+        mod->next_pnum = my_node->node_id;
+        //mod->is_proposer = 1;
+        forlessp(0,my_node->group_size){
+            mod->learner_arr[i].pnum = -1;
+            mod->proposer_arr[i].content = -1;
+            mod->proposer_arr[i].a_pnum = -1;
+        }
+        evtimer_add(mod->slient_period,&first_proposer_lele);
+    }
+    DEBUG_LEAVE
+    CHECK_EXIT
+    return;
+}
+
+static void initialize_leader_election_mod(node* my_node){
+    DEBUG_ENTER
+    my_node->election_mod = (lele_mod*)malloc(LELE_MOD_SIZE);
+    lele_mod* mod = my_node->election_mod;
+    if(NULL!=mod){
+        mod->slient_period = evtimer_new(my_node->base,
+                leader_election_on_timeout,(void*)my_node);
+        mod->learner_arr = (accepted_record*)malloc(
+                my_node->group_size*ACCEPTED_REC_SIZE);
+        mod->proposer_arr = (proposer_record*)
+            malloc(my_node->group_size*PROPOSER_REC_SIZE);
+        if(mod->learner_arr==NULL || mod->proposer_arr==NULL){
+            free_leader_election_mod(my_node,mod);
+        }
+    }
+    DEBUG_LEAVE
+    return;
+}
+
+static void free_leader_election_mod(node* my_node,lele_mod* mod){
+    DEBUG_ENTER
+    if(mod->learner_arr!=NULL){
+        free(mod->learner_arr);
+    }
+    if(mod->proposer_arr!=NULL){
+        free(mod->proposer_arr);
+    }
+    free(mod);
+    my_node->election_mod = NULL;
+    DEBUG_LEAVE
+    return;
+}
+static void leader_election_on_timeout(int fd,short what,void* arg){
+    DEBUG_ENTER
+    node* my_node = (node*)arg;
+    assert(NULL!=my_node&&"NODE IS NULL");
+    lele_mod* mod = my_node->election_mod;
+    assert(NULL!=mod&&"MOD IS NULL");
+    leader_election_proposer_do(my_node,mod,NULL);
+    evtimer_add(mod->slient_period,&wait_for_other_lele);
+    DEBUG_LEAVE
+    return;
+}
+
+static int acceptor_update_record(node* my_node,lele_msg* msg){
+    return 0;
+}
+
+static int proposer_check_prepare(node* my_node,lele_mod* mod){
+    return 1;
+}
+
+
+static void leader_election_proposer_do(node* my_node,lele_mod* mod,lele_msg* msg){
+    DEBUG_ENTER
+    if(NULL==msg){
+        leader_election_msg* sent_msg = build_lele_msg(mod,LELE_PREPARE,NULL);
+        mod->next_pnum += my_node->group_size;
+        evtimer_del(mod->slient_period);
+        evtimer_add(mod->slient_period,&wait_for_other_lele);
+        if(sent_msg!=NULL){
+            forlessp(0,my_node->group_size){
+                if(i!=my_node->node_id && my_node->peer_pool[i].active){
+                    struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
+                    bufferevent_write(buff,ping_req,PING_REQ_SIZE);
+                    SYS_LOG(my_node,
+                            "Send Prepare Msg To Node %u\n",i);
+                }
+            }
+            //update itself
+            if(mod->acceptor.highest_seen_pnum<sent_msg->vc_msg.pnum){
+                mod->acceptor.highest_seen_pnum = sent_msg->vc_msg.pnum;
+                acceptor_update_record(my_node,&sent_msg->vc_msg);
+                mod->proposer_arr[my_node->node_id].p_pnum = sent_msg->vc_msg.pnum;
+                mod->proposer_arr[my_node->node_id].a_pnum = mod->acceptor.accepted_pnum;
+                mod->proposer_arr[my_node->node_id].content = mod->acceptor.content;
+                // if we have got more than half nodes' prepare ack // but it seems it is not possible
+                if(proposer_check_prepare(my_node,mod)){
+                    leader_election_acceptor_do(my_node,mod,NULL);
+                }
+            }
+            free(sent_msg);
+        }
+    }else{
+        if(msg->node_id){
+            return;
+        }
+    }
+    DEBUG_LEAVE
+    return;
+}
+static void leader_election_acceptor_do(node* my_node,lele_mod* mod,lele_msg* msg){
+    return;
+}
+static void leader_election_learner_do(node* my_node,lele_mod* mod,lele_msg* msg){
+    return;
+}
+static void leader_election_finalize(node* my_node,lele_mod* mod,lele_msg* msg){
+    return;
+}
+
+static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_msg){
+    DEBUG_ENTER
+    SYS_LOG(my_node,"Node %d Received Leader Election Msg.\n",
+            my_node->node_id);
+    lele_msg* msg = &buf_msg->vc_msg;
+    switch(msg->type){
+        case LELE_PREPARE:
+            if(NODE_INACTIVE==my_node->state){
+                leader_election_acceptor_do(my_node,my_node->election_mod,msg);
+            }
+            break;
+        case LELE_PROPOSE_ACK:
+            if(NODE_INACTIVE==my_node->state){
+                leader_election_proposer_do(my_node,my_node->election_mod,msg);
+            }
+            break;
+        case LELE_ACCEPT:
+            if(NODE_INACTIVE==my_node->state){
+                leader_election_acceptor_do(my_node,my_node->election_mod,msg);
+            }
+            break;
+        case LELE_ACCEPT_ACK:
+            if(NODE_INACTIVE==my_node->state){
+                leader_election_learner_do(my_node,my_node->election_mod,msg);
+            }
+            break;
+        case LELE_ANNOUNCE:
+            leader_election_finalize(my_node,my_node->election_mod,msg);
+            break;
+        case LELE_HIGHER_NODE:
+            if(NODE_INACTIVE==my_node->state){
+                leader_election_proposer_do(my_node,my_node->election_mod,msg);
+            }
+            break;
+        default:
+        SYS_LOG(my_node,"Unknown Message Got.\n");
+        break;
+    }
+
+    CHECK_EXIT
+    DEBUG_LEAVE
+    return;
+}
+
 static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
     //debug_log("there is enough data to read,actual data handler is called\n");
     void* msg_buf = (char*)malloc(SYS_MSG_HEADER_SIZE+data_size);
@@ -501,6 +694,9 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
             break;
         case REQUEST_SUBMIT:
             handle_request_submit(my_node,(req_sub_msg*)msg_buf,bev);
+            break;
+        case LEADER_ELECTION_MSG:
+            handle_leader_election_msg(my_node,(leader_election_msg*)msg_buf);
             break;
         default:
             SYS_LOG(my_node,"Unknown Msg Type %d\n",
@@ -614,7 +810,7 @@ initialize_node_exit:
     return flag;
 }
 
-node* system_initialize(int node_id,const char* start_mode,const char* config_path,const char* log_path,int deliver_mode,void(*user_cb)(int data_size,void* data,void* arg),void* db_ptr,void* arg){
+node* system_initialize(node_id_t node_id,const char* start_mode,const char* config_path,const char* log_path,int deliver_mode,void(*user_cb)(int data_size,void* data,void* arg),void* db_ptr,void* arg){
 
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));

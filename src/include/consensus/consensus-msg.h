@@ -40,7 +40,7 @@ typedef struct accept_req_t{
     consensus_msg_header header;
     view_stamp msg_vs;
     view_stamp req_canbe_exed;
-    uint32_t node_id;
+    node_id_t node_id;
     size_t data_size;
     char data[0];
 }__attribute__((packed))accept_req;
@@ -49,20 +49,20 @@ typedef struct accept_req_t{
 typedef struct accept_ack_t{
     consensus_msg_header header;
     view_stamp msg_vs;
-    uint32_t node_id;
+    node_id_t node_id;
 }accept_ack;
 #define ACCEPT_ACK_SIZE (sizeof(accept_ack))
 
 typedef struct missing_req_t{
     consensus_msg_header header;
-    uint32_t node_id;
+    node_id_t node_id;
     view_stamp missing_vs;
 }missing_req;
 #define MISSING_REQ_SIZE (sizeof(missing_req))
 
 typedef struct missing_ack_t{
     consensus_msg_header header;
-    uint32_t node_id;
+    node_id_t node_id;
     view_stamp missing_vs;
     size_t data_size;
     char data[0];
@@ -71,14 +71,14 @@ typedef struct missing_ack_t{
 
 typedef struct force_exec_t{
     consensus_msg_header header;
-    uint32_t node_id;
+    node_id_t node_id;
     view_stamp highest_committed_op;
 }force_exec;
 #define FORCE_EXEC_SIZE (sizeof(force_exec))
 
 typedef struct forward_req_t{
     consensus_msg_header header;
-    uint32_t node_id;
+    node_id_t node_id;
     size_t data_size;
     char data[0];
 }__attribute__((packed))forward_req;
