@@ -76,6 +76,7 @@ static void initialize_leader_election_mod(node*);
 static void free_leader_election_mod(node*,lele_mod*);
 static void leader_election_on_timeout(int fd,short what,void* arg);
 static void leader_election_proposer_do(node*,lele_mod*,lele_msg*);
+static void leader_election_proposer_phase_two(node*,lele_mod*,lele_msg*);
 static void leader_election_acceptor_do(node*,lele_mod*,lele_msg*);
 static void leader_election_learner_do(node*,lele_mod*,lele_msg*);
 static void leader_election_finalize(node*,lele_mod*,lele_msg*);
@@ -518,7 +519,7 @@ static void initialize_leader_election(node* my_node){
         //mod->is_proposer = 1;
         forlessp(0,my_node->group_size){
             mod->learner_arr[i].pnum = -1;
-            mod->proposer_arr[i].content = -1;
+            //mod->proposer_arr[i].content = -1;
             mod->proposer_arr[i].a_pnum = -1;
         }
         evtimer_add(mod->slient_period,&first_proposer_lele);
@@ -576,15 +577,39 @@ static int acceptor_update_record(node* my_node,lele_msg* msg){
     return 0;
 }
 
-static int proposer_check_prepare(node* my_node,lele_mod* mod){
-    return 1;
+static int proposer_check_prepare(node* my_node,lele_mod* mod,lele_msg* ret_msg){
+    int g_half_size = my_node->group_size/2;
+    ret_msg->pnum = -1;
+    ret_msg->content = -1;
+    int inc = 0;
+    pnum_t origin = mod->next_pnum-my_node->group_size;
+    forlessp(0,my_node->group_size){
+        if(mod->proposer_arr[i].p_pnum == origin){
+            if(mod->proposer_arr[i].a_pnum != -1){
+                inc++;
+            }
+            if(mod->proposer_arr[i].a_pnum > ret_msg->pnum){
+                ret_msg->content = mod->proposer_arr[i].content;
+                ret_msg->pnum = mod->proposer_arr[i].a_pnum;
+            }
+        }
+    }
+    ret_msg->pnum = origin;
+    return (inc>=g_half_size);
+}
+
+// send accept msg
+static void leader_election_proposer_phase_two(node* my_node,lele_mod* mod,lele_msg* msg){
+
 }
 
 
 static void leader_election_proposer_do(node* my_node,lele_mod* mod,lele_msg* msg){
     DEBUG_ENTER
-    if(NULL==msg){
-        leader_election_msg* sent_msg = build_lele_msg(mod,LELE_PREPARE,NULL);
+    lele_msg accept_req;
+    if(NULL==msg){ // send prepare msg
+        leader_election_msg* sent_msg = build_lele_msg(
+                my_node->node_id,mod,LELE_PREPARE,NULL);
         mod->next_pnum += my_node->group_size;
         evtimer_del(mod->slient_period);
         evtimer_add(mod->slient_period,&wait_for_other_lele);
@@ -592,7 +617,7 @@ static void leader_election_proposer_do(node* my_node,lele_mod* mod,lele_msg* ms
             forlessp(0,my_node->group_size){
                 if(i!=my_node->node_id && my_node->peer_pool[i].active){
                     struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
-                    bufferevent_write(buff,ping_req,PING_REQ_SIZE);
+                    bufferevent_write(buff,sent_msg,LEADER_ELECTION_MSG_SIZE);
                     SYS_LOG(my_node,
                             "Send Prepare Msg To Node %u\n",i);
                 }
@@ -605,15 +630,25 @@ static void leader_election_proposer_do(node* my_node,lele_mod* mod,lele_msg* ms
                 mod->proposer_arr[my_node->node_id].a_pnum = mod->acceptor.accepted_pnum;
                 mod->proposer_arr[my_node->node_id].content = mod->acceptor.content;
                 // if we have got more than half nodes' prepare ack // but it seems it is not possible
-                if(proposer_check_prepare(my_node,mod)){
-                    leader_election_acceptor_do(my_node,mod,NULL);
+                if(proposer_check_prepare(my_node,mod,&accept_req)){
+                    leader_election_proposer_phase_two(my_node,mod,&accept_req);
                 }
             }
             free(sent_msg);
         }
-    }else{
-        if(msg->node_id){
-            return;
+    }else{ // then it means we've got the PREPARE_ACK msg;
+        
+        assert((msg->type==LELE_PREPARE_ACK)&&"Why We Get There?");
+        pnum_t origin = mod->next_pnum-my_node->group_size;
+        // we only care about the recent PREPARE_ACK msg
+        // and only care about the recent view
+        if(msg->tail_data.p_pnum == origin && msg->next_view = mod->next_view){
+            mod->proposer_arr[msg->node_id].p_pnum = origin;
+            mod->proposer_arr[msg->node_id].content = msg->content;
+            mod->proposer_arr[msg->node_id].a_pnum = msg->pnum;
+            if(proposer_check_prepare(my_node,mod,&accept_req)){
+                leader_election_proposer_phase_two(my_node,mod,&accept_req);
+            }
         }
     }
     DEBUG_LEAVE
@@ -640,7 +675,7 @@ static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_ms
                 leader_election_acceptor_do(my_node,my_node->election_mod,msg);
             }
             break;
-        case LELE_PROPOSE_ACK:
+        case LELE_PREPARE_ACK:
             if(NODE_INACTIVE==my_node->state){
                 leader_election_proposer_do(my_node,my_node->election_mod,msg);
             }

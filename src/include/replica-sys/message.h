@@ -114,6 +114,6 @@ void* build_ping_req(int,view*);
 void* build_ping_ack(int,view*);
 void* build_client_sync_ack(view*);
 void* build_request_submit_reply_msg(req_sub_code,view_stamp*);
-void* build_lele_msg(lele_mod* mod,lele_msg_type type,void* arg);
+void* build_lele_msg(node_id_t node_id,lele_mod* mod,lele_msg_type type,void* arg);
 
 #endif

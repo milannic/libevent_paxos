@@ -27,7 +27,7 @@
 typedef uint32_t pnum_t;
 typedef enum leader_election_msg_type_t{
     LELE_PREPARE = 0,
-    LELE_PROPOSE_ACK = 1,
+    LELE_PREPARE_ACK = 1,
     LELE_ACCEPT = 2,
     LELE_ACCEPT_ACK = 3,
     LELE_ANNOUNCE = 4,
@@ -55,12 +55,18 @@ typedef struct acceptor_record_t{ // this should be placed into database
 }acceptor_record;
 #define ACCEPTOR_REC_SIZE (sizeof(acceptor_record))
 
+typedef union reqorpnum_t{
+    req_id_t last_req;
+    pnum_t p_pnum;
+}reqorpnum;
+
 typedef struct lele_msg_t{
     lele_msg_type type;
     node_id_t node_id;
+    view_id_t next_view;
     pnum_t pnum;
     node_id_t content;
-    req_id_t last_req;
+    reqorpnum tail_data;
 }lele_msg;
 #define LELE_MSG_SIZE (sizeof(lele_msg))
 
