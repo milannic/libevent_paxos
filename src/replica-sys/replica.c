@@ -91,6 +91,8 @@ static int free_node(node*);
 
 //helper function
 static int isLeader(node*);
+static int send_to_other_nodes(node*,void*,size_t,char*);
+static int send_to_one_node(node*,node_id_t,void*,size_t,char*);
 
 
 
@@ -106,6 +108,32 @@ static void node_singal_handler(evutil_socket_t fid,short what,void* arg){
         SYS_LOG(my_node,"Node %d Received Kill Singal.Now Quit.\n",my_node->node_id);
     }
     event_base_loopexit(my_node->base,NULL);
+}
+
+
+
+static int send_to_other_nodes(node* my_node,void* data,size_t data_size,char* comment){
+    forlessp(0,my_node->group_size){
+        if(i!=my_node->node_id && my_node->peer_pool[i].active){
+            struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
+            bufferevent_write(buff,data,data_size);
+            SYS_LOG(my_node,
+                    "Send %s To Node %u\n",comment,i);
+        }
+    }
+    return 0;
+}
+
+
+static int send_to_one_node(node* my_node,node_id_t target,void* data,size_t data_size,char* comment){
+    //if(target!=(int)my_node->node_id&&my_node->peer_pool[target].active){
+    if(my_node->peer_pool[target].active){
+        struct bufferevent* buff = my_node->peer_pool[target].my_buff_event;
+        bufferevent_write(buff,data,data_size);
+        SYS_LOG(my_node,
+                "Send %s To Node %u.\n",comment,target);
+    }
+    return 0;
 }
 
 static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
@@ -212,14 +240,7 @@ static void leader_ping_period(int fd,short what,void* arg){
         if(NULL==ping_req){
             goto add_ping_event;
         }
-        for(uint32_t i=0;i<my_node->group_size;i++){
-            if(i!=my_node->node_id && my_node->peer_pool[i].active){
-                struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
-                bufferevent_write(buff,ping_req,PING_REQ_SIZE);
-                SYS_LOG(my_node,
-                        "Send Ping Msg To Node %u\n",i);
-            }
-        }
+        send_to_other_nodes(my_node,ping_req,PING_REQ_SIZE,"Ping Req Msg");
         if(NULL!=ping_req){
             free(ping_req);
         }
@@ -400,21 +421,10 @@ static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,in
     }
     // means send to every node except me
     if(target<0){
-        for(uint32_t i=0;i<my_node->group_size;i++){
-            if(i!=my_node->node_id && my_node->peer_pool[i].active){
-                struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
-                bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg));
-                SYS_LOG(my_node,
-                        "Send Consensus Msg To Node %u\n",i);
-            }
-        }
+        send_to_other_nodes(my_node,msg,
+                CONSENSUS_MSG_SIZE(msg),"Consensus Msg");
     }else{
-        if(target!=(int)my_node->node_id&&my_node->peer_pool[target].active){
-            struct bufferevent* buff = my_node->peer_pool[target].my_buff_event;
-            bufferevent_write(buff,msg,CONSENSUS_MSG_SIZE(msg));
-            SYS_LOG(my_node,
-                    "Send Consensus Msg To Node %u.\n",target);
-        }
+        send_to_one_node(my_node,target,msg,CONSENSUS_MSG_SIZE(msg),"Consensus Msg");
     }
 send_for_consensus_comp_exit:
     if(msg!=NULL){
@@ -444,10 +454,7 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
         if(my_node->peer_pool[msg->node_id].active){
             void* ping_ack = build_ping_ack(my_node->node_id,&my_node->cur_view);
             if(NULL!=ping_ack){
-                struct bufferevent* buff = my_node->peer_pool[msg->node_id].my_buff_event;
-                bufferevent_write(buff,ping_ack,PING_REQ_SIZE);
-                SYS_LOG(my_node,
-                    "Send Ping Ack To Lagged Node %u.\n",msg->node_id);
+                send_to_one_node(my_node,msg->node_id,ping_ack,PING_ACK_SIZE,"Lagged Ping Ack Msg");
                 free(ping_ack);
             }
         } 
@@ -503,6 +510,8 @@ static void handle_request_submit(node* my_node,
     return;
 }
 
+
+
 static void initialize_leader_election(node* my_node){
     DEBUG_ENTER
     SYS_LOG(my_node,"Initialize One Instance Of Leader Election In Node %d.n",
@@ -519,7 +528,8 @@ static void initialize_leader_election(node* my_node){
         //mod->is_proposer = 1;
         forlessp(0,my_node->group_size){
             mod->learner_arr[i].pnum = -1;
-            //mod->proposer_arr[i].content = -1;
+            // -1 means the proposer can pick up any value
+            mod->proposer_arr[i].content = -1;
             mod->proposer_arr[i].a_pnum = -1;
         }
         evtimer_add(mod->slient_period,&first_proposer_lele);
@@ -600,7 +610,19 @@ static int proposer_check_prepare(node* my_node,lele_mod* mod,lele_msg* ret_msg)
 
 // send accept msg
 static void leader_election_proposer_phase_two(node* my_node,lele_mod* mod,lele_msg* msg){
-
+    DEBUG_ENTER
+    assert(msg->pnum!=-1&&
+            "Now that we come to this place, we must have a valid propose number");
+    if(msg->content==-1){
+        msg->content = my_node->node_id;
+    }
+    leader_election_msg* sent_msg = build_lele_msg(
+                my_node->node_id,mod,LELE_ACCEPT,msg);
+    if(sent_msg!=NULL){
+        send_to_other_nodes(my_node,sent_msg,LEADER_ELECTION_MSG_SIZE,"Accept Msg");
+    }
+    DEBUG_LEAVE
+    return;
 }
 
 
@@ -614,14 +636,7 @@ static void leader_election_proposer_do(node* my_node,lele_mod* mod,lele_msg* ms
         evtimer_del(mod->slient_period);
         evtimer_add(mod->slient_period,&wait_for_other_lele);
         if(sent_msg!=NULL){
-            forlessp(0,my_node->group_size){
-                if(i!=my_node->node_id && my_node->peer_pool[i].active){
-                    struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
-                    bufferevent_write(buff,sent_msg,LEADER_ELECTION_MSG_SIZE);
-                    SYS_LOG(my_node,
-                            "Send Prepare Msg To Node %u\n",i);
-                }
-            }
+            send_to_other_nodes(my_node,sent_msg,LEADER_ELECTION_MSG_SIZE,"Prepare Msg");
             //update itself
             if(mod->acceptor.highest_seen_pnum<sent_msg->vc_msg.pnum){
                 mod->acceptor.highest_seen_pnum = sent_msg->vc_msg.pnum;
@@ -642,7 +657,7 @@ static void leader_election_proposer_do(node* my_node,lele_mod* mod,lele_msg* ms
         pnum_t origin = mod->next_pnum-my_node->group_size;
         // we only care about the recent PREPARE_ACK msg
         // and only care about the recent view
-        if(msg->tail_data.p_pnum == origin && msg->next_view = mod->next_view){
+        if(msg->tail_data.p_pnum == origin && msg->next_view == mod->next_view){
             mod->proposer_arr[msg->node_id].p_pnum = origin;
             mod->proposer_arr[msg->node_id].content = msg->content;
             mod->proposer_arr[msg->node_id].a_pnum = msg->pnum;
