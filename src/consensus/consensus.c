@@ -46,7 +46,7 @@ typedef struct consensus_component_t{ con_role my_role;
 
     view* cur_view;
     view_stamp highest_seen_vs; 
-    view_stamp highest_to_commit_vs;
+    view_stamp* highest_to_commit_vs;
     view_stamp highest_committed_vs;
 
     db* db_ptr;
@@ -137,7 +137,7 @@ view_stamp consensus_get_highest_seen_req(consensus_component* comp){
 consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id, FILE* log,
         int sys_log,int stat_log,const char* db_name,
         int deliver_mode,void* db_ptr,int group_size,
-        view* cur_view,user_cb u_cb,up_call uc,void* arg){
+        view* cur_view,view_stamp* to_commit,user_cb u_cb,up_call uc,void* arg){
     
     consensus_component* comp = (consensus_component*)
         malloc(sizeof(consensus_component));
@@ -172,8 +172,9 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id, F
         comp->highest_seen_vs.req_id = 0;
         comp->highest_committed_vs.view_id = 1; 
         comp->highest_committed_vs.req_id = 0; 
-        comp->highest_to_commit_vs.view_id = 1;
-        comp->highest_to_commit_vs.req_id = 0;
+        comp->highest_to_commit_vs = to_commit;
+        comp->highest_to_commit_vs->view_id = 1;
+        comp->highest_to_commit_vs->req_id = 0;
         goto consensus_init_exit;
 
     }
@@ -325,13 +326,13 @@ static void handle_accept_req(consensus_component* comp,void* data){
                 msg->req_canbe_exed.req_id);
 
         if(view_stamp_comp(&msg->req_canbe_exed,
-                    &comp->highest_to_commit_vs)>0){
+                    comp->highest_to_commit_vs)>0){
 
-            comp->highest_to_commit_vs = msg->req_canbe_exed;
+            *(comp->highest_to_commit_vs) = msg->req_canbe_exed;
             SYS_LOG(comp,"Now Node %d Can Execute Request %u : %u .\n",
                     comp->node_id,
-                    comp->highest_to_commit_vs.view_id,
-                    comp->highest_to_commit_vs.req_id);
+                    comp->highest_to_commit_vs->view_id,
+                    comp->highest_to_commit_vs->req_id);
         }
 
         db_key_type record_no = vstol(&msg->msg_vs);
@@ -454,8 +455,8 @@ static void handle_force_exec(consensus_component* comp,void* data){
     if(msg->node_id!=comp->cur_view->leader_id){
         goto handle_force_exec_exit;
     }
-    if(view_stamp_comp(&comp->highest_to_commit_vs,&msg->highest_committed_op)<0){
-        comp->highest_to_commit_vs=msg->highest_committed_op;
+    if(view_stamp_comp(comp->highest_to_commit_vs,&msg->highest_committed_op)<0){
+        *(comp->highest_to_commit_vs)=msg->highest_committed_op;
         try_to_execute(comp);
     }
 handle_force_exec_exit:
@@ -479,12 +480,12 @@ static void* build_accept_req(consensus_component* comp,
     accept_req* msg = (accept_req*)malloc(sizeof(accept_req)+data_size);
     if(NULL!=msg){
         msg->node_id = comp->node_id;
-        msg->req_canbe_exed.view_id = comp->highest_to_commit_vs.view_id;
-        msg->req_canbe_exed.req_id = comp->highest_to_commit_vs.req_id;
+        msg->req_canbe_exed.view_id = comp->highest_to_commit_vs->view_id;
+        msg->req_canbe_exed.req_id = comp->highest_to_commit_vs->req_id;
         SYS_LOG(comp,"Now Node %d Give Execute Request %u : %u.\n",
                 comp->node_id,
-                comp->highest_to_commit_vs.view_id,
-                comp->highest_to_commit_vs.req_id);
+                comp->highest_to_commit_vs->view_id,
+                comp->highest_to_commit_vs->req_id);
         msg->data_size = data_size;
         msg->header.msg_type = ACCEPT_REQ;
         msg->msg_vs = *vs;
@@ -566,9 +567,9 @@ static void* build_forward_req(consensus_component* comp,
 // leader has another responsibility to update the highest request that can be executed,
 // and if the leader is also synchronous, it can execute the record in this stage
 static void leader_try_to_execute(consensus_component* comp){
-    db_key_type start = vstol(&comp->highest_to_commit_vs)+1;
+    db_key_type start = vstol(comp->highest_to_commit_vs)+1;
     db_key_type end = vstol(&comp->highest_seen_vs);
-    int exec_flag = (!view_stamp_comp(&comp->highest_committed_vs,&comp->highest_to_commit_vs));
+    int exec_flag = (!view_stamp_comp(&comp->highest_committed_vs,comp->highest_to_commit_vs));
     request_record* record_data = NULL;
     size_t data_size;
     SYS_LOG(comp,"The Leader Tries To Execute.\n");
@@ -583,13 +584,13 @@ static void leader_try_to_execute(consensus_component* comp){
             
             SYS_LOG(comp,"Before Node %d Inc Execute  %u : %u.\n",
                     comp->node_id,
-                    comp->highest_to_commit_vs.view_id,
-                    comp->highest_to_commit_vs.req_id);
-            view_stamp_inc(&comp->highest_to_commit_vs);
+                    comp->highest_to_commit_vs->view_id,
+                    comp->highest_to_commit_vs->req_id);
+            view_stamp_inc(comp->highest_to_commit_vs);
             SYS_LOG(comp,"After Node %d Inc Execute  %u : %u.\n",
                     comp->node_id,
-                    comp->highest_to_commit_vs.view_id,
-                    comp->highest_to_commit_vs.req_id);
+                    comp->highest_to_commit_vs->view_id,
+                    comp->highest_to_commit_vs->req_id);
 
             if(exec_flag){
                 view_stamp vs = ltovs(index);
@@ -621,7 +622,7 @@ static void try_to_execute(consensus_component* comp){
     db_key_type end;
     view_boundary* boundary_record = NULL;
     size_t data_size;
-    if(comp->highest_committed_vs.view_id!=comp->highest_to_commit_vs.view_id){
+    if(comp->highest_committed_vs.view_id!=comp->highest_to_commit_vs->view_id){
         //address the boundary
         view_stamp bound;
         bound.view_id = comp->highest_committed_vs.view_id+1;
@@ -634,7 +635,7 @@ static void try_to_execute(consensus_component* comp){
         }
         end = vstol(&boundary_record->last_boundary);
     }else{
-        end = vstol(&comp->highest_to_commit_vs);
+        end = vstol(comp->highest_to_commit_vs);
     }
     SYS_LOG(comp,"The End Value Is %lu.\n",
            end);

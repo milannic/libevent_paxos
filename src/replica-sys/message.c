@@ -104,6 +104,10 @@ void* build_lele_msg(node_id_t node_id,lele_mod* mod,lele_msg_type type,void* ar
                 break;
             case LELE_HIGHER_NODE:
                 break;
+            case LELE_LAGGED:
+                ret_msg->vc_msg.type = LELE_LAGGED;
+                ret_msg->vc_msg.next_view = corr_msg->next_view;
+                ret_msg->vc_msg.content = corr_msg->content;
             default:
                 break;
         }

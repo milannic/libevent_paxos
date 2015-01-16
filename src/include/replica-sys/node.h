@@ -37,8 +37,9 @@ typedef struct peer_t{
 }peer;
 
 typedef enum node_state_code_t{
-    NODE_ACTIVE=0,
-    NODE_INACTIVE=1,
+    NODE_ACTIVE=0, // normal state
+    NODE_INLELE=1, //in leader election
+    NODE_WAITFORSYNC=2, //lagged behind,wait for ping msg
 }node_state_code;
 
 typedef struct node_config_t{
@@ -61,7 +62,7 @@ typedef struct node_t{
     int sys_log;
 
     view cur_view;
-    view_stamp highest_committed_view_stamp;
+    view_stamp highest_to_commit_view_stamp;
     //leader election
     node_state_code state;
     lele_mod* election_mod; 

@@ -32,6 +32,7 @@ typedef enum leader_election_msg_type_t{
     LELE_ACCEPT_ACK = 3,
     LELE_ANNOUNCE = 4,
     LELE_HIGHER_NODE = 5, // optimization,if we've found a node with lower node id has sent the leader election, then other node could immediately stop that.
+    LELE_LAGGED = 6, // once we've found some nodes is lagged behind, we should tell them in case the new leader is down and we cannot get enough nodes to form a majority.
 }lele_msg_type;
 
 typedef struct proposer_record_t{
