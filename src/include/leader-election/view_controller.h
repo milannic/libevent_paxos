@@ -31,8 +31,10 @@ typedef enum leader_election_msg_type_t{
     LELE_ACCEPT = 2,
     LELE_ACCEPT_ACK = 3,
     LELE_ANNOUNCE = 4,
-    LELE_HIGHER_NODE = 5, // optimization,if we've found a node with lower node id has sent the leader election, then other node could immediately stop that.
-    LELE_LAGGED = 6, // once we've found some nodes is lagged behind, we should tell them in case the new leader is down and we cannot get enough nodes to form a majority.
+    LELE_ANNOUNCE_ACK = 5,
+    LELE_FIN = 6,
+    LELE_LAGGED = 7, // once we've found some nodes is lagged behind, we should tell them in case the new leader is down and we cannot get enough nodes to form a majority.
+    LELE_HIGHER_NODE = 8, // optimization,if we've found a node with lower node id has sent the leader election, then other node could immediately stop that.
 }lele_msg_type;
 
 typedef struct proposer_record_t{
@@ -75,6 +77,7 @@ typedef struct leader_election_module_t{
     //int is_proposer;
     view_id_t next_view; 
     pnum_t next_pnum; 
+    int final_state; // if this option is on, it means a new leader is elected out,then this leader election cannot be canceled,but we still need to wait for the further information by the new leader.
     acceptor_record acceptor;
     accepted_record* learner_arr;
     proposer_record* proposer_arr;

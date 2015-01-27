@@ -45,9 +45,9 @@ typedef struct consensus_component_t{ con_role my_role;
     int stat_log;
 
     view* cur_view;
-    view_stamp highest_seen_vs; 
+    view_stamp* highest_seen_vs; 
     view_stamp* highest_to_commit_vs;
-    view_stamp highest_committed_vs;
+    view_stamp* highest_committed_vs;
 
     db* db_ptr;
     up_call uc;
@@ -130,14 +130,14 @@ void consensus_handle_msg(consensus_component* comp,size_t data_size,void* data)
 //public interface method
 
 view_stamp consensus_get_highest_seen_req(consensus_component* comp){
-    return comp->highest_seen_vs;
+    return *comp->highest_seen_vs;
 }
 
 
 consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id, FILE* log,
         int sys_log,int stat_log,const char* db_name,
         int deliver_mode,void* db_ptr,int group_size,
-        view* cur_view,view_stamp* to_commit,user_cb u_cb,up_call uc,void* arg){
+        view* cur_view,view_stamp* to_commit,view_stamp* committed,view_stamp* highest,user_cb u_cb,up_call uc,void* arg){
     
     consensus_component* comp = (consensus_component*)
         malloc(sizeof(consensus_component));
@@ -168,10 +168,12 @@ consensus_component* init_consensus_comp(struct node_t* node,uint32_t node_id, F
         comp->ucb = u_cb;
         comp->uc = uc;
         comp->up_para = arg;
-        comp->highest_seen_vs.view_id = 1;
-        comp->highest_seen_vs.req_id = 0;
-        comp->highest_committed_vs.view_id = 1; 
-        comp->highest_committed_vs.req_id = 0; 
+        comp->highest_seen_vs = highest;
+        comp->highest_seen_vs->view_id = 1;
+        comp->highest_seen_vs->req_id = 0;
+        comp->highest_committed_vs = committed; 
+        comp->highest_committed_vs->view_id = 1; 
+        comp->highest_committed_vs->req_id = 0; 
         comp->highest_to_commit_vs = to_commit;
         comp->highest_to_commit_vs->view_id = 1;
         comp->highest_to_commit_vs->req_id = 0;
@@ -204,8 +206,8 @@ void consensus_update_role(struct consensus_component_t* comp){
         comp->my_role = SECONDARY;
     }else{
         comp->my_role = LEADER;
-        comp->highest_seen_vs.view_id = comp->cur_view->view_id;
-        comp->highest_seen_vs.req_id = 0;
+        comp->highest_seen_vs->view_id = comp->cur_view->view_id;
+        comp->highest_seen_vs->req_id = 0;
     }
     return;
 }
@@ -214,8 +216,8 @@ void consensus_update_role(struct consensus_component_t* comp){
 
 static view_stamp get_next_view_stamp(consensus_component* comp){
     view_stamp next_vs;
-    next_vs.view_id = comp->highest_seen_vs.view_id;
-    next_vs.req_id = (comp->highest_seen_vs.req_id+1);
+    next_vs.view_id = comp->highest_seen_vs->view_id;
+    next_vs.req_id = (comp->highest_seen_vs->req_id+1);
     return next_vs;
 };
 
@@ -251,7 +253,7 @@ static int leader_handle_submit_req(struct consensus_component_t* comp,
         goto handle_submit_req_exit;
     }    
     ret = 0;
-    view_stamp_inc(&comp->highest_seen_vs);
+    view_stamp_inc(comp->highest_seen_vs);
     if(comp->group_size>1){
         accept_req* msg = build_accept_req(comp,REQ_RECORD_SIZE(record_data),record_data,&next);
         if(NULL==msg){
@@ -311,12 +313,12 @@ static void handle_accept_req(consensus_component* comp,void* data){
         goto handle_accept_req_exit;
     }
     // if we have committed the operation, then safely ignore it
-    if(view_stamp_comp(&msg->msg_vs,&comp->highest_committed_vs)<=0){
+    if(view_stamp_comp(&msg->msg_vs,comp->highest_committed_vs)<=0){
         goto handle_accept_req_exit;
     }else{
         // update highest seen request
-        if(view_stamp_comp(&msg->msg_vs,&comp->highest_seen_vs)>0){
-            comp->highest_seen_vs = msg->msg_vs;
+        if(view_stamp_comp(&msg->msg_vs,comp->highest_seen_vs)>0){
+            *(comp->highest_seen_vs) = msg->msg_vs;
         }
         // update highest requests that can be executed
         //
@@ -375,7 +377,7 @@ static void handle_accept_ack(consensus_component* comp,void* data){
         goto handle_accept_ack_exit;
     }
     // the request has reached quorum
-    if(view_stamp_comp(&msg->msg_vs,&comp->highest_committed_vs)<=0){
+    if(view_stamp_comp(&msg->msg_vs,comp->highest_committed_vs)<=0){
         goto handle_accept_ack_exit;
     }
     db_key_type record_no = vstol(&msg->msg_vs);
@@ -422,7 +424,7 @@ static void handle_missing_ack(consensus_component* comp,void* data){
     request_record* origin = (request_record*)msg->data;
     SYS_LOG(comp,"Node %d Handle Missing Ack From Node %d.\n",
             comp->node_id,msg->node_id);
-    if(view_stamp_comp(&comp->highest_committed_vs,&msg->missing_vs)>=0){
+    if(view_stamp_comp(comp->highest_committed_vs,&msg->missing_vs)>=0){
         goto handle_missing_ack_exit;
     }else{
        db_key_type record_no = vstol(&msg->missing_vs);
@@ -545,7 +547,7 @@ static void* build_force_exec(consensus_component* comp){
     if(NULL!=msg){
         msg->header.msg_type = FORCE_EXEC;
         msg->node_id = comp->node_id;
-        msg->highest_committed_op = comp->highest_committed_vs;
+        msg->highest_committed_op = *(comp->highest_committed_vs);
     }
     return msg;
 };
@@ -568,8 +570,8 @@ static void* build_forward_req(consensus_component* comp,
 // and if the leader is also synchronous, it can execute the record in this stage
 static void leader_try_to_execute(consensus_component* comp){
     db_key_type start = vstol(comp->highest_to_commit_vs)+1;
-    db_key_type end = vstol(&comp->highest_seen_vs);
-    int exec_flag = (!view_stamp_comp(&comp->highest_committed_vs,comp->highest_to_commit_vs));
+    db_key_type end = vstol(comp->highest_seen_vs);
+    int exec_flag = (!view_stamp_comp(comp->highest_committed_vs,comp->highest_to_commit_vs));
     request_record* record_data = NULL;
     size_t data_size;
     SYS_LOG(comp,"The Leader Tries To Execute.\n");
@@ -595,7 +597,7 @@ static void leader_try_to_execute(consensus_component* comp){
             if(exec_flag){
                 view_stamp vs = ltovs(index);
                 deliver_msg_data(comp,&vs);
-                view_stamp_inc(&comp->highest_committed_vs);
+                view_stamp_inc(comp->highest_committed_vs);
             }
         }else{
             return;
@@ -618,14 +620,14 @@ static void try_to_execute(consensus_component* comp){
     if(LEADER==comp->my_role){
         leader_try_to_execute(comp);
     }
-    db_key_type start = vstol(&comp->highest_committed_vs)+1;
+    db_key_type start = vstol(comp->highest_committed_vs)+1;
     db_key_type end;
     view_boundary* boundary_record = NULL;
     size_t data_size;
-    if(comp->highest_committed_vs.view_id!=comp->highest_to_commit_vs->view_id){
+    if(comp->highest_committed_vs->view_id!=comp->highest_to_commit_vs->view_id){
         //address the boundary
         view_stamp bound;
-        bound.view_id = comp->highest_committed_vs.view_id+1;
+        bound.view_id = comp->highest_committed_vs->view_id+1;
         bound.req_id = 0;
         db_key_type bound_record_no = vstol(&bound);
         retrieve_record(comp->db_ptr,sizeof(bound_record_no),&bound_record_no,&data_size,(void**)&boundary_record);
@@ -654,15 +656,15 @@ static void try_to_execute(consensus_component* comp){
             deliver_msg_data(comp,&missing_vs);
 //            record_data->is_closed = 1;
 //            store_record(comp->db_ptr,sizeof(index),&index,REQ_RECORD_SIZE(record_data),record_data);
-            view_stamp_inc(&comp->highest_committed_vs);
+            view_stamp_inc(comp->highest_committed_vs);
         }
         record_data = NULL;
     }
     if(NULL!=boundary_record){
-        db_key_type op1 = vstol(&comp->highest_committed_vs);
+        db_key_type op1 = vstol(comp->highest_committed_vs);
         db_key_type op2 = vstol(&boundary_record->last_boundary);
         if(op1==op2){
-            cross_view(&comp->highest_committed_vs);
+            cross_view(comp->highest_committed_vs);
         }
     }
 try_to_execute_exit:
@@ -693,16 +695,16 @@ void consensus_make_progress(struct consensus_component_t* comp){
     }
     leader_try_to_execute(comp);
     SYS_LOG(comp,"Let's Make Progress.\n");
-    if((view_stamp_comp(&comp->highest_committed_vs,&comp->highest_seen_vs)<0)&& (comp->highest_seen_vs.view_id==comp->cur_view->view_id)){
+    if((view_stamp_comp(comp->highest_committed_vs,comp->highest_seen_vs)<0)&& (comp->highest_seen_vs->view_id==comp->cur_view->view_id)){
         view_stamp temp;
         temp.view_id = comp->cur_view->view_id;
         temp.req_id = 0;
-        if(view_stamp_comp(&temp,&comp->highest_committed_vs)<0){
-            temp = comp->highest_committed_vs;
+        if(view_stamp_comp(&temp,comp->highest_committed_vs)<0){
+            temp = *(comp->highest_committed_vs);
         }
         temp.req_id++;
         record_index_type start =  vstol(&temp);
-        record_index_type end = vstol(&comp->highest_seen_vs);
+        record_index_type end = vstol(comp->highest_seen_vs);
         for(record_index_type index = start;index<=end;index++){
             request_record* record_data = NULL;
             size_t data_size=0;

@@ -33,4 +33,5 @@ int store_record(db*,size_t,void*,size_t,void*);
 
 int retrieve_record(db*,size_t,void*,size_t*,void**);
 
+int delete_record(db*,size_t,void*);
 #endif

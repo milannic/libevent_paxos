@@ -1,29 +1,30 @@
 /*
  * =====================================================================================
  *
- *       Filename:  db-interface.c
+ *       Filename:  db_file.c
  *
- *    Description:  
+ *    Description:  j
  *
  *        Version:  1.0
- *        Created:  08/18/2014 02:14:41 PM
+ *        Created:  01/27/2015 09:02:18 AM
  *       Revision:  none
  *       Compiler:  gcc
  *
- *         Author:  Milannic (), milannic.cheng.liu@gmail.com
+ *         Author:  YOUR NAME (), 
  *   Organization:  
  *
  * =====================================================================================
  */
+
 
 #include <stdlib.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <string.h>
 #include <errno.h>
-#include <db.h>
-#include "../include/db/db-interface.h"
-#include "../include/util/debug.h"
+#include "../../.local/include/db.h"
+//#include "../include/db/db-interface.h"
+//#include "../include/util/debug.h"
 
 const char* db_dir="./.db";
 
@@ -31,6 +32,8 @@ struct db_t{
     DB* bdb_ptr;
 };
 
+
+typedef struct db_t db;
 
 void mk_path(char* dest,const char* prefix,const char* db_name){
     memcpy(dest,prefix,strlen(prefix));
@@ -48,7 +51,7 @@ db* initialize_db(const char* db_name,uint32_t flag){
     char* full_path = NULL;
     if((ret=mkdir(db_dir,S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))!=0){
         if(errno!=EEXIST){
-            err_log("DB : Dir Creation Failed\n");
+            //err_log("DB : Dir Creation Failed\n");
             goto db_init_return;
         }
     }
@@ -64,7 +67,7 @@ db* initialize_db(const char* db_name,uint32_t flag){
 	}
     /* Initialize the DB handle */
     if((ret = db_create(&b_db,dbenv,flag))!=0){
-        err_log("DB : %s.\n",db_strerror(ret));
+        //err_log("DB : %s.\n",db_strerror(ret));
         goto db_init_return;
     }
 
@@ -116,9 +119,8 @@ int store_record(db* db_p,size_t key_size,void* key_data,size_t data_size,void* 
         //b_db->sync(b_db,0);
     }
     else{
-        err_log("DB : %s.\n",db_strerror(ret));
         //debug_log("db : can not save record %ld from database.\n",*(uint64_t*)key_data);
-        //b_db->err(b_db,ret,"DB->Put");
+        b_db->err(b_db,ret,"DB->Put");
     }
 db_store_return:
     return ret;
@@ -140,8 +142,7 @@ int retrieve_record(db* db_p,size_t key_size,void* key_data,size_t* data_size,vo
         //debug_log("db : get record %ld from database.\n",*(uint64_t*)key_data);
     }else{
         //debug_log("db : can not get record %ld from database.\n",*(uint64_t*)key_data);
-        err_log("DB : %s.\n",db_strerror(ret));
-        //b_db->err(b_db,ret,"DB->Get");
+        b_db->err(b_db,ret,"DB->Get");
         goto db_retrieve_return;
     }
     if(!db_data.size){
@@ -166,9 +167,40 @@ int delete_record(db* db_p,size_t key_size,void* key_data){
     key.size = key_size;
     ret=b_db->del(b_db,NULL,&key,0);
     if(ret!=0){
-        //b_db->err(b_db,ret,"DB->Delete");
-        err_log("DB : %s.\n",db_strerror(ret));
+        b_db->err(b_db,ret,"DB->Delete");
     }
 db_delete_return:
     return ret;
 }
+
+int main ( int argc, char *argv[] )
+{
+    db* my_db = initialize_db("test",0);
+    uint64_t record_no = 1234567;
+    char* data = (char*)(malloc)(6);
+    int ret = delete_record(my_db,sizeof(record_no),&record_no);
+    data[0] = 'a';
+    data[1] = 'e';
+    data[2] = 'd';
+    data[3] = 'c';
+    data[4] = 'b';
+    data[5] = '\0';
+    store_record(my_db,sizeof(record_no),&record_no,6,data);
+    char* record_data = NULL;
+    size_t data_size;
+    retrieve_record(my_db,sizeof(record_no),&record_no,&data_size,(void**)&record_data);
+    if(record_data!=NULL){
+        printf("I've taken out the recorded data that is %s.\n",record_data);
+        free(record_data);
+    }
+    ret = delete_record(my_db,sizeof(record_no),&record_no);
+    record_data = NULL;
+    retrieve_record(my_db,sizeof(record_no),&record_no,&data_size,(void**)&record_data);
+    if(record_data!=NULL){
+        printf("I've taken out the recorded data that is %s.\n",record_data);
+        free(record_data);
+    }else{
+        printf("the record has been deleted.\n");
+    }
+    return EXIT_SUCCESS;
+}				/* ----------  end of function main  ---------- */

@@ -20,6 +20,7 @@
 #include "../util/common-header.h"
 #include "../consensus/consensus.h"
 #include "message.h"
+#include "../db/db-interface.h"
 
 typedef struct peer_t{
     int peer_id;
@@ -38,8 +39,9 @@ typedef struct peer_t{
 
 typedef enum node_state_code_t{
     NODE_ACTIVE=0, // normal state
-    NODE_INLELE=1, //in leader election
-    NODE_WAITFORSYNC=2, //lagged behind,wait for ping msg
+    NODE_INLELE=1, //in leader election, in this stage, we are still finding a new leader, and this state can be interrupted by 
+    NODE_POSTLELE=2,// a new leader is elected out, and we must wait for some post activities from the new leader, and in this stage, the node won't receive any ping msg, that is, the leader election process cannot be canceled now.
+    NODE_WAITFORSYNC=3, //lagged behind,wait for ping msg
 }node_state_code;
 
 typedef struct node_config_t{
@@ -62,7 +64,9 @@ typedef struct node_t{
     int sys_log;
 
     view cur_view;
-    view_stamp highest_to_commit_view_stamp;
+    view_stamp highest_to_commit;
+    view_stamp highest_committed;
+    view_stamp highest_seen;
     //leader election
     node_state_code state;
     lele_mod* election_mod; 
@@ -88,6 +92,7 @@ typedef struct node_t{
 
     //databse part
     char* db_name;
+    db* db_ptr;
     FILE* sys_log_file;
 
     //database* my_db
