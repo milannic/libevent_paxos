@@ -3,10 +3,11 @@
 #include "../include/config-comp/config-comp.h"
 #include <sys/stat.h>
 
-#define forlessp(var,start,end) for((var) = (start);i<(end);i++)
-#define foreqp(var,start,end) for((var) = (start);i<=(end);i++)
-#define forlessm(var,start,end) for((var) = (start);i>(end);i--)
-#define foreqm(var,start,end) for((var) = (start);i>=(end);i--)
+#define forlessp(var,start,end) for((var) = (start);(var)<(end);(var)++)
+#define foreqp(var,start,end) for((var) = (start);(var)<=(end);(var)++)
+#define forlessm(var,start,end) for((var) = (start);(var)>(end);(var)--)
+#define foreqm(var,start,end) for((var) = (start);(var)>=(end);(var)--)
+#define DEFAULT_REQ_LENGTH 20;
 
 #define CHECK_EXIT do{if(exit_flag){\
     SYS_LOG(my_node,"Component Received TERMINATION SIGNAL,NOW QUIT.\n")\
@@ -79,7 +80,7 @@ static int proposer_check_prepare(node*,lele_mod*,lele_msg*);
 static void leader_election_proposer_do(node*,lele_mod*,lele_msg*);
 static void leader_election_proposer_phase_two(node*,lele_mod*,lele_msg*);
 static void leader_election_acceptor_do(node*,lele_mod*,lele_msg*);
-static int learner_check_accept(node*,lele_mod*,lele_msg*);
+static int  learner_check_accept(node*,lele_mod*,lele_msg*);
 static void leader_election_learner_do(node*,lele_mod*,lele_msg*);
 static void leader_election_finalize(node*,lele_mod*,lele_msg*);
 static void update_view(node*,view*);
@@ -321,6 +322,7 @@ initialize_leader_make_progress_exit:
 static void update_view(node* my_node,view* new_view){
     SYS_LOG(my_node,"Node %d Entered Update View\n",
             my_node->node_id);
+    if(my_node->cur_view.view_id == 0){ // initial situation
     int old_leader = isLeader(my_node);
     memcpy(&my_node->cur_view,new_view,sizeof(view));
     int new_leader = isLeader(my_node);
@@ -333,6 +335,7 @@ static void update_view(node* my_node,view* new_view){
     }
     SYS_LOG(my_node,"Node %d 's Current View Changed To %u \n",
         my_node->node_id,my_node->cur_view.view_id);
+    }
     CHECK_EXIT
     return;
 }
@@ -512,6 +515,19 @@ static void handle_request_submit(node* my_node,
     return;
 }
 
+static void refresh_leader_election(node* my_node,lele_mod* mod){
+    DEBUG_ENTER
+    uint32_t i;
+    forlessp(i,0,my_node->group_size){
+        mod->learner_arr[i].pnum = -1;
+        // -1 means the proposer can pick up any value
+        mod->proposer_arr[i].content = -1;
+        mod->proposer_arr[i].a_pnum = -1;
+    }
+    DEBUG_LEAVE
+    CHECK_EXIT
+    return;
+}
 
 
 static void initialize_leader_election(node* my_node){
@@ -528,16 +544,11 @@ static void initialize_leader_election(node* my_node){
         mod->next_view = my_node->cur_view.view_id+1;
         mod->next_pnum = my_node->node_id;
         //mod->is_proposer = 1;
-        uint32_t i;
-        forlessp(i,0,my_node->group_size){
-            mod->learner_arr[i].pnum = -1;
-            // -1 means the proposer can pick up any value
-            mod->proposer_arr[i].content = -1;
-            mod->proposer_arr[i].a_pnum = -1;
-        }
-        evtimer_add(mod->slient_period,&first_proposer_lele);
+        refresh_leader_election(my_node,mod);
+        evtimer_add(mod->slient_period,
+                &first_proposer_lele);
     }
-    DEBUG_LEAVE
+    DEBUG_LEAVE    
     CHECK_EXIT
     return;
 }
@@ -545,6 +556,7 @@ static void initialize_leader_election(node* my_node){
 static void initialize_leader_election_mod(node* my_node){
     DEBUG_ENTER
     my_node->election_mod = (lele_mod*)malloc(LELE_MOD_SIZE);
+    memset(my_node->election_mod,0,LELE_MOD_SIZE);
     lele_mod* mod = my_node->election_mod;
     if(NULL!=mod){
         mod->final_state = 0;
@@ -554,11 +566,13 @@ static void initialize_leader_election_mod(node* my_node){
                 my_node->group_size*ACCEPTED_REC_SIZE);
         mod->proposer_arr = (proposer_record*)
             malloc(my_node->group_size*PROPOSER_REC_SIZE);
+        mod->edge.start = -1;
         if(mod->learner_arr==NULL || mod->proposer_arr==NULL){
             free_leader_election_mod(my_node,mod);
         }
     }
     DEBUG_LEAVE
+    CHECK_EXIT
     return;
 }
 
@@ -573,6 +587,7 @@ static void free_leader_election_mod(node* my_node,lele_mod* mod){
     free(mod);
     my_node->election_mod = NULL;
     DEBUG_LEAVE
+    CHECK_EXIT
     return;
 }
 static void leader_election_on_timeout(int fd,short what,void* arg){
@@ -581,12 +596,22 @@ static void leader_election_on_timeout(int fd,short what,void* arg){
     assert(NULL!=my_node&&"NODE IS NULL");
     lele_mod* mod = my_node->election_mod;
     assert(NULL!=mod&&"MOD IS NULL");
-    evtimer_add(mod->slient_period,&wait_for_net_lele);
-    if(mod->final_state){
-    }else{
+    if(my_node->state==NODE_POSTLELE){
+        if(mod->new_leader!=my_node->node_id){
+            if(NULL!=mod->announce_ack_msg){
+            lele_edge_msg* msg = mod->announce_ack_msg;
+                send_to_one_node(my_node,mod->new_leader,
+                    msg,LEADER_ELECTION_EDGE_MSG_SIZE(msg),
+                    "Announce Ack Msg");
+            }
+        }
+        evtimer_add(mod->slient_period,&wait_for_net_lele);
+    }else if(my_node->state==NODE_INLELE){
         leader_election_proposer_do(my_node,mod,NULL);
+        evtimer_add(mod->slient_period,&wait_for_net_lele);
     }
     DEBUG_LEAVE
+    CHECK_EXIT
     return;
 }
 
@@ -606,7 +631,7 @@ static int acceptor_update_record(node* my_node){
 
 static int proposer_check_prepare(node* my_node,lele_mod* mod,lele_msg* ret_msg){
     DEBUG_ENTER
-    int g_half_size = my_node->group_size/2;
+    int g_half_size = my_node->group_size/2+1;
     ret_msg->pnum = -1;
     ret_msg->content = -1;
     int inc = 0;
@@ -625,6 +650,7 @@ static int proposer_check_prepare(node* my_node,lele_mod* mod,lele_msg* ret_msg)
     }
     ret_msg->pnum = origin;
     DEBUG_LEAVE
+    CHECK_EXIT
     return (inc>=g_half_size);
 }
 
@@ -644,6 +670,7 @@ static void leader_election_proposer_phase_two(node* my_node,lele_mod* mod,lele_
         free(sent_msg);
     }
     DEBUG_LEAVE
+    CHECK_EXIT
     return;
 }
 
@@ -681,7 +708,7 @@ static void leader_election_proposer_do(node* my_node,lele_mod* mod,lele_msg* ms
         pnum_t origin = mod->next_pnum-my_node->group_size;
         // we only care about the recent PREPARE_ACK msg
         // and only care about the recent view
-        if(msg->tail_data.p_pnum == origin && msg->next_view == mod->next_view){
+        if(msg->p_pnum == origin && msg->next_view == mod->next_view){
             mod->proposer_arr[msg->node_id].p_pnum = origin;
             mod->proposer_arr[msg->node_id].content = msg->content;
             mod->proposer_arr[msg->node_id].a_pnum = msg->pnum;
@@ -690,7 +717,7 @@ static void leader_election_proposer_do(node* my_node,lele_mod* mod,lele_msg* ms
             }
         }
     }
-    DEBUG_LEAVE
+    DEBUG_LEAVE;CHECK_EXIT;
     return;
 }
 
@@ -744,8 +771,8 @@ static void leader_election_acceptor_do(node* my_node,lele_mod* mod,lele_msg* ms
             }while(ret);
             sent_msg = build_lele_msg(my_node->node_id,
                     mod,LELE_ACCEPT_ACK,NULL);
-            sent_msg->vc_msg.tail_data.last_req = 
-                my_node->highest_to_commit.req_id;
+            //sent_msg->vc_msg.tail_data.last_req = 
+            //   my_node->highest_to_commit.req_id;
             // update it self learner record
             if(NULL!=sent_msg){
                 leader_election_learner_do(my_node,mod,&sent_msg->vc_msg);
@@ -757,45 +784,338 @@ static void leader_election_acceptor_do(node* my_node,lele_mod* mod,lele_msg* ms
     }else{
         SYS_LOG(my_node,"Unknown Type of Msg Got in %s.\n",__PRETTY_FUNCTION__);
     }
-    DEBUG_LEAVE
+    DEBUG_LEAVE;CHECK_EXIT;
     return;
 };
 
 static int learner_check_accept(node* my_node,lele_mod* mod,lele_msg* ret_msg){
     DEBUG_ENTER
-    int g_half_size = my_node->group_size/2;
+    uint32_t i;
+    uint32_t j;
+    int inc = 0;
+    int g_half_size = my_node->group_size/2+1;
     ret_msg->pnum = -1;
     ret_msg->content = -1;
-    int inc = 0;
-    pnum_t origin = mod->next_pnum-my_node->group_size;
-    uint32_t i;
+    pnum_t base = 0;
     forlessp(i,0,my_node->group_size){
-        if(mod->proposer_arr[i].p_pnum == origin){
-            if(mod->proposer_arr[i].a_pnum != -1){
-                inc++;
-            }
-            if(mod->proposer_arr[i].a_pnum > ret_msg->pnum){
-                ret_msg->content = mod->proposer_arr[i].content;
-                ret_msg->pnum = mod->proposer_arr[i].a_pnum;
+        if(mod->learner_arr[i].pnum!=-1){
+            inc = 0;
+            base = mod->learner_arr[i].pnum;
+            ret_msg->pnum = base;
+            ret_msg->content = mod->learner_arr[i].content;
+            forlessp(j,0,my_node->group_size){
+                if(mod->learner_arr[j].pnum==base){
+                    inc++;
+                }
+                if(inc>=g_half_size){
+                    goto learner_check_accept_exit;
+                }
             }
         }
     }
     ret_msg->pnum = origin;
+learner_check_accept_exit:
+    DEBUG_LEAVE;CHECK_EXIT;
     return (inc>=g_half_size);
-    DEBUG_LEAVE
-    return 0;
 };
 
-static void leader_election_send_boundary(node* my_node,lele_mod* mod,lele_msg* msg){
+static void leader_election_leader_cal_edge(node* my_node,lele_mod* mod){
+    DEBUG_ENTER
+    view_stamp temp;
+    temp.view_id = my_node->cur_view.view_id;
+    db_key_type rec_no;
+    req_id_t rec_key;
+    size_t data_size;
+    void* rec_data = NULL;
+    mod->edge.msg_count[my_node->node_id] = 1;
+    foreqp(rec_key,mod->edge.start,mod->edge.end){
+        temp.req_id = rec_key;
+        record_no = vstol(&temp);
+        retrieve_record(comp->db_ptr,sizeof(record_no),
+                &record_no,&data_size,(void**)&rec_data);
+        if(record_data==NULL){
+            //mark the empty slot
+            (mod->edge.cur_empty_slots<mod->edge.max_empty_slots)
+            assert((mod->edge.cur_empty_slots<mod->edge.max_empty_slots)&&
+                    "You Should Set A Larger Length Constant");
+            mod->edge.req_edge[mod->edge.cur_empty_slots++] = rec_key;
+        }
+        record_data = NULL;
+    }
+    DEBUG_LEAVE
+    CHECK_EXIT
     return;
 }
 
-static void leader_election_cal_boundary(node* my_node,lele_mod* mod,lele_msg* msg){
+static void leader_election_cal_edge(node* my_node,lele_mod* mod){
+    req_id start,end;
+    lele_edge_msg* msg = NULL;
+    int length=0;
+    if(my_node->highest_seen.view_id==my_node->cur_view.view_id){
+        if(my_node->highest_seen.view_id==my_node->highest_to_commit.view_id){
+            start = my_node->highest_to_commit.req_id;
+        }else{
+            start = 0;
+        }
+        end = my_node->highest_seen.req_id;
+        length = (end-start)*2+DEFAULT_REQ_LENGTH;
+    }else{
+    // why I am the leader? just need to wait
+        start = 0;
+        end = -1;
+        length = DEFAULT_REQ_LENGTH*3;
+    }
+    if(end!=-1){
+        //calculate empty slots
+        view_stamp temp;
+        temp.view_id = my_node->cur_view.view_id;
+        db_key_type rec_no;
+        req_id_t rec_key;
+        size_t data_size;
+        void* rec_data = NULL;
+        int empty_slots=0;
+        req_id* temp_array = malloc(sizeof(req_id_t)*length);
+        memset(temp_array,0,sizeof(req_id_t)*length);
+        if(temp_array==NULL){
+            goto leader_election_cal_edge_exit;}
+        foreqp(rec_key,mod->edge.start,mod->edge.end){
+            temp.req_id = rec_key;
+            record_no = vstol(&temp);
+            retrieve_record(comp->db_ptr,sizeof(record_no),
+                    &record_no,&data_size,(void**)&rec_data);
+            if(record_data==NULL){
+                //mark the empty slot
+                temp_array[empty_slots++] = rec_key;
+            }
+            record_data = NULL;
+        }
+        msg = (void*)malloc(SYS_MSG_HEADER_SIZE+LELE_MSG_SIZE+
+                sizeof(req_id_t)*empty_slots);
+        uint64_t cur;
+        req_id_t* ptr = msg->data;
+        forlessp(cur,0,empty_slots){
+            (*ptr) = temp_array[cur];
+            ptr++;
+        }
+        free(temp_array);
+        if(msg==NULL){goto leader_election_cal_edge_exit;}
+        msg->header.data_size = LELE_MSG_SIZE+sizeof(req_id_t)*empty_slots;
+        // use this field to record the length of the empty slot
+        msg->vc_msg.pnum = empty_slots;
+    }else{
+        msg = (void*)malloc(LEADER_ELECTION_MSG_SIZE);
+        if(msg==NULL){goto leader_election_cal_edge_exit;}
+        msg->header.data_size = sizeof(lele_msg);
+    }
+    msg->header.type = LEADER_ELECTION_MSG;
+    msg->vc_msg.type = LELE_ANNOUNCE_ACK;
+    msg->vc_msg.start_req = start;
+    msg->vc_msg.last_req = end;
+    msg->vc_msg.next_view = mod->next_view;
+    msg->vc_msg.content = mod->new_leader;
+    msg->vc_msg.node_id = my_node->node_id;
+    send_to_one_node(my_node,msg->vc_msg.content,
+            msg,LEADER_ELECTION_EDGE_MSG_SIZE(msg),
+            "Announce Ack Msg");
+    mod->announce_ack_msg = msg;
+    evtimer_del(mod->slient_period);
+    evtimer_add(mod->slient_period,&wait_for_net_lele);
+leader_election_cal_edge_exit:
     return;
 }
 
-static void leader_election_close(node* my_node,lele_mod* mod,lele_msg* msg){
+static void leader_election_handle_close(node* my_node,lele_mod* mod,lele_msg* msg){
+    DEBUG_ENTER;
+    DEBUG_LEAVE;
+    CHECK_EXIT;
     return;
+}
+
+static leader_election_msg* leader_election_build_close(node* my_node,lele_mod* mod,view_id_t view_id){
+    DEBUG_ENTER;
+    DEBUG_LEAVE;
+    CHECK_EXIT;
+    return;
+}
+
+static void leader_election_leader_close(node* my_node,lele_mod* mod){
+    DEBUG_ENTER;
+    leader_election_msg* sent_msg = NULL;
+    view_stamp temp_vs;
+    temp_vs.view_id = mod->next_view;
+    temp_vs.req_id = 0;
+    db_key_type record_no = vstol(&temp_vs);
+    acceptor_record* record_data = malloc(ACCEPTOR_REC_SIZE);
+    if(NULL==record_data){
+        return 1;
+    }
+    memcpy(record_data,&my_node->election_mod->acceptor,ACCEPTOR_REC_SIZE);
+    if(store_record(my_node->db_ptr,sizeof(record_no),&record_no,
+                ACCEPTOR_REC_SIZE,record_data)){
+        return 1;
+    }    
+    sent_msg = leader_election_build_close(my_node,mod,mod->next_view);
+    if(sent_msg!=NULL){
+        send_to_other_nodes(my_node,sent_msg,
+                LEADER_ELECTION_MSG_SIZE,"Leader Election Close Msg");
+        free(sent_msg);
+    }
+    DEBUG_LEAVE;
+    CHECK_EXIT;
+    return;
+}
+
+static void leader_election_enter_post_stage(node* my_node,lele_mod* mod,lele_msg* msg){
+    DEBUG_ENTER;
+    my_node->state = NODE_POSTLELE;
+    my_node->election_mod->new_leader = msg->content;
+    DEBUG_LEAVE;
+    CHECK_EXIT;
+    return;
+}
+
+static void leader_election_handle_announce_ack(node* my_node,lele_mod* mod,lele_edge_msg* msg){
+    DEBUG_ENTER;
+    if(mod->edge.start==-1){
+        if(my_node->node_id==msg->vc_msg.content){
+            leader_election_handle_announce(my_node,mod,&msg->vc_msg);
+        }
+    }
+    // if we haven't seen ack from this node, we merge the range
+    if(!mod->edge.msg_count[msg->vc_msg.node_id]){
+        mod->edge.msg_count[msg->vc_msg.node_id] = 1;
+        uint64_t i;
+        uint64_t j;
+        i=0;
+        if(mod->edge.start<msg->vc_msg.start_req){
+            mod->edge.start = msg->vc_msg.start_req;
+            while(i<mod->edge.cur_empty_slots&&
+                    mod->edge.req_edge[i]<=msg->vc_msg.start_req){
+                mod->edge.req_edge[i] = 0;
+                i++;
+
+            }
+        }
+        j=0;
+        // merge
+        req_id_t* ptr = msg->data;
+        while(i<mod->edge.cur_empty_slots&&j<msg->vc_msg.pnum){
+            if(mod->edge.req_edge[i]<ptr[j]){
+                mod->edge.req_edge[i] = 0;
+            }else if(mod->edge.req_edge[i]==ptr[j]){
+                j++;
+            }else{
+                i--;
+            }
+            i++;
+        }
+        if(i==mod->edge.cur_empty_slots){
+            while(ptr[j]<=mod->edge.end
+                    &&j<msg->vc_msg.pnum){
+                j++;
+            }
+            while(ptr[j]<msg->vc_msg.pnum){
+            assert((mod->edge.cur_empty_slots<mod->edge.max_empty_slots)&&
+                    "You Should Set A Larger Length Constant");
+                mod->edge.req_edge[mod->edge.cur_empty_slots++] = ptr[j];
+                j++;
+            }
+        }else(j==msg->vc_msg.pnum){
+            while(mod->edge.req_edge[i]<=msg->vc_msg.last_req
+                    &&i<mod->edge.cur_empty_slots){
+                mod->edge.req_edge[i] = 0;
+                i++;
+            }
+        }
+        if(mod->edge.end<msg->vc_msg.last_req){
+            mod->edge.end = msg->vc_msg.last_req;
+        }
+        j = 0;
+        forlessp(i,0,mod->edge.cur_empty_slots){
+            if(mod->edge.req_edge[i]!=0){
+                mod->edge.req_edge[j++] = mod->edge.req_edge[i];
+            }
+        }
+        mod->edge.cur_empty_slots = j;
+        uint64_t k;
+        uint64_t l=0;
+        forlessp(k,0,my_node->group_size){
+            if(mod->edge.msg_count[k]==1){
+                l++;
+            }
+        }
+        // we have got the majority of the acks
+        if(l>=(my_node->group_size/2+1)){
+            leader_election_leader_close(my_node,mod);
+        }
+    }
+    DEBUG_LEAVE
+    CHECK_EXIT
+}
+static void leader_election_handle_announce(node* my_node,lele_mod* mod,lele_msg* msg){
+    DEBUG_ENTER
+    leader_election_enter_post_stage(my_node,mod,msg);
+    //if I am the new leader
+    if(mod->new_leader==my_node->node_id){
+        leader_election_initialize_edge_mod(my_node,mod);
+    }else{
+        leader_election_cal_edge(my_node,mod,msg);
+    }
+    DEBUG_LEAVE;CHECK_EXIT;
+    return;
+}
+
+static void leader_election_initialize_edge_mod(node* my_node,lele_mod* mod){
+    DEBUG_ENTER
+    //confirm that this node is in the most recent view
+    int length=0;
+    if(my_node->highest_seen.view_id==my_node->cur_view.view_id){
+        if(my_node->highest_seen.view_id==my_node->highest_to_commit.view_id){
+            mod->edge.start = my_node->highest_to_commit.req_id;
+            mod->edge.end = my_node->highest_seen.req_id;
+        }else{
+            mod->edge.start = 0;
+            mod->edge.end = my_node->highest_seen.req_id
+        }
+        length = (mod->edge.end-mod->edge.start)*2+DEFAULT_REQ_LENGTH;
+    }else{
+    // why I am the leader? just need to wait
+        mod->edge.start = 0;
+        mod->edge.end = -1;
+        length = DEFAULT_REQ_LENGTH*5;
+    }
+    mod->edge.max_empty_slots = length;
+    if(mod->edge.req_edge!=NULL){
+        free(mod->edge.req_edge);
+        mod->edge.req_edge = (req_id_t*)(malloc(sizeof(req_id_t)*length);
+    }
+    if(mod->edge.req_edge!=NULL){
+        memset(mod->edge.req_edge,0,sizeof(req_id_t)*mod->edge.req_edge);
+    }else{
+        goto leader_election_initialize_edge_mod_err_exit;
+    }
+    if(mod->edge.msg_count==NULL){
+        mod->edge.msg_count = (int*)(malloc(sizeof(int)*my_node->group_size));
+    }
+    if(mod->edge.msg_count!=NULL){
+        memset(mod->edge.msg_count,0,sizeof(int)*my_node->group_size);
+    }else{
+        goto leader_election_initialize_edge_mod_err_exit;
+    }
+    leader_election_leader_cal_edge(my_node,mod);
+    DEBUG_LEAVE
+    CHECK_EXIT
+    return;
+leader_election_initialize_edge_mod_err_exit:
+    mod->edge.start = -1;
+    if(mod->edge.msg_count!=NULL){
+        free(mod->edge.msg_count);
+    }
+    if(mod->edge.req_edge!=NULL){
+        free(mod->edge.req_edge);
+    }
+    mod->edge.req_edge = NULL;
+    mod->edge.msg_count = NULL;
 }
 
 static void leader_election_learner_do(node* my_node,lele_mod* mod,lele_msg* msg){
@@ -807,33 +1127,30 @@ static void leader_election_learner_do(node* my_node,lele_mod* mod,lele_msg* msg
         if((msg->pnum)>(mod->learner_arr[msg->node_id].pnum)){
             mod->learner_arr[msg->node_id].pnum = msg->pnum;
             mod->learner_arr[msg->node_id].content = msg->content;
-            mod->learner_arr[msg->node_id].last_req = msg->tail_data.last_req;
+            //mod->learner_arr[msg->node_id].last_req = -1;
             lele_msg temp;
             if(learner_check_accept(my_node,mod,&temp)){
+                //leader_election_enter_post_stage(my_node,mod,&temp);
                 sent_msg = build_lele_msg(my_node->node_id,mod,LELE_ANNOUNCE,&temp);
                 if(NULL!=sent_msg){
                     send_to_other_nodes(my_node,sent_msg,
                             LEADER_ELECTION_MSG_SIZE,"Leader Election Announce Msg");
                 }
                 // i am the new leader
-                if(my_node->node_id==sent_msg->vc_msg.content){
-
-                }else{
-
-                }
+                leader_election_handle_announce(my_node,mod,&sent_msg->vc_msg);
             }
         }
     }else{
         SYS_LOG(my_node,"Unknown Type of Msg Got in %s.\n",__PRETTY_FUNCTION__);
     }
-    DEBUG_LEAVE
+    DEBUG_LEAVE;CHECK_EXIT;
     return;
 }
 static void leader_election_finalize(node* my_node,lele_mod* mod,lele_msg* msg){
     DEBUG_ENTER
     my_node->election_mod->final_state = 1;
     assert(NULL!=msg&&"We Get Here Because We've Got Some Message.\n");
-    DEBUG_LEAVE
+    DEBUG_LEAVE;CHECK_EXIT;
     return;
 }
 
@@ -842,55 +1159,42 @@ static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_ms
     SYS_LOG(my_node,"Node %d Received Leader Election Msg.\n",
             my_node->node_id);
     lele_msg* msg = &buf_msg->vc_msg;
+    election_mod* mod = my_node->election_mod;
     assert(msg!=NULL&&"We get here because we've got the message.");
     if(msg->next_view!=my_node->cur_view.view_id+1){
         // sender is lagged
-        if(msg->next_view<=my_node->cur_view.view_id){
-            lele_msg temp;
-            temp.next_view = my_node->cur_view.view_id;
-            temp.content = my_node->cur_view.leader_id;
-            leader_election_msg* lag_msg = build_lele_msg(my_node->node_id,
-                my_node->election_mod,LELE_LAGGED,&temp);
-            if(NULL!=lag_msg){
-                send_to_one_node(my_node,msg->node_id,
-                        lag_msg,LEADER_ELECTION_MSG_SIZE,
-                        "Lag Node Msg");
-                free(lag_msg);
+        if(msg->next_view==my_node->cur_view.view_id){
+            leader_election_msg* sent_msg = NULL;
+            sent_msg = leader_election_build_close(my_node,mod);
+            if(sent_msg!=NULL){
+                send_to_one_node(my_node,sent_msg,msg->node_id,
+                        LEADER_ELECTION_MSG_SIZE,"Leader Election Close Msg");
+                free(sent_msg);
             }
         }// else we are behind, we just set the node to be inactive and wait for the ping msg from the leader
-        else{
-            if(msg->type==LELE_LAGGED){
-                view new_view;
-                new_view.leader_id = msg->content;
-                new_view.view_id = msg->next_view;
-                update_view(my_node,&new_view);
-            }else{
-                my_node->state = NODE_WAITFORSYNC;
-            }
-        }
     }else{
         if(NODE_INLELE==my_node->state){
             switch(msg->type){
                 case LELE_PREPARE:
-                    leader_election_acceptor_do(my_node,my_node->election_mod,msg);
+                    leader_election_acceptor_do(my_node,mod,msg);
                     break;
                 case LELE_PREPARE_ACK:
-                    leader_election_proposer_do(my_node,my_node->election_mod,msg);
+                    leader_election_proposer_do(my_node,mod,msg);
                     break;
                 case LELE_ACCEPT:
-                    leader_election_acceptor_do(my_node,my_node->election_mod,msg);
+                    leader_election_acceptor_do(my_node,mod,msg);
                     break;
                 case LELE_ACCEPT_ACK:
-                    leader_election_learner_do(my_node,my_node->election_mod,msg);
+                    leader_election_learner_do(my_node,mod,msg);
                     break;
                 case LELE_ANNOUNCE:
-                    leader_election_finalize(my_node,my_node->election_mod,msg);
+                    leader_election_handle_announce(my_node,mod,msg);
                     break;
                 case LELE_ANNOUNCE_ACK:
-                    leader_election_cal_boundary(my_node,my_node->election_mod,msg);
+                    leader_election_handle_announce_ack(my_node,mod,buf_msg);
                     break;
                 case LELE_FIN:
-                    leader_election_close(my_node,my_node->election_mod,msg);
+                    leader_election_handle_close(my_node,mod,msg);
                     break;
                 // temporarily not useful
                 case LELE_HIGHER_NODE:
@@ -906,11 +1210,12 @@ static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_ms
         //}
     }
     CHECK_EXIT
-    DEBUG_LEAVE return;
+    DEBUG_LEAVE
+    return;
 }
 
 static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
-    //debug_log("there is enough data to read,actual data handler is called\n");
+    //debu!k!5
     void* msg_buf = (char*)malloc(SYS_MSG_HEADER_SIZE+data_size);
     if(NULL==msg_buf){
         goto handle_msg_exit;
@@ -920,10 +1225,12 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
     sys_msg_header* msg_header = msg_buf;
     switch(msg_header->type){
         case PING_ACK:
+            if(my_node->state!=NODE_POSTLELE){
                 handle_ping_ack(my_node,(ping_ack_msg*)msg_buf);
+            }
             break;
         case PING_REQ:
-            if(!(my_node->state==NODE_INLELE&&(!my_node->election_mod->final_state))){
+            if(my_node->state!=NODE_POSTLELE){
                 handle_ping_req(my_node,(ping_req_msg*)msg_buf);
             }
             break;

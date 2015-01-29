@@ -58,30 +58,39 @@ typedef struct acceptor_record_t{ // this should be placed into database
 }acceptor_record;
 #define ACCEPTOR_REC_SIZE (sizeof(acceptor_record))
 
-typedef union reqorpnum_t{
-    req_id_t last_req;
-    pnum_t p_pnum;
-}reqorpnum;
-
 typedef struct lele_msg_t{
     lele_msg_type type;
     node_id_t node_id;
     view_id_t next_view;
     pnum_t pnum;
+    pnum_t p_pnum;
     node_id_t content;
-    reqorpnum tail_data;
+    req_id_t last_req;
+    req_id_t start_req;
 }lele_msg;
 #define LELE_MSG_SIZE (sizeof(lele_msg))
 
+typedef struct leader_election_edge_mod_t{
+    int* msg_count;
+    req_id_t* req_edge;
+    req_id_t start;
+    req_id_t end;
+    int cur_empty_slots;
+    int max_empty_slots;
+}leader_election_edge_mod;
+
 typedef struct leader_election_module_t{
     //int is_proposer;
-    view_id_t next_view; 
-    pnum_t next_pnum; 
     int final_state; // if this option is on, it means a new leader is elected out,then this leader election cannot be canceled,but we still need to wait for the further information by the new leader.
+    view_id_t next_view; 
+    node_id_t new_leader;
+    pnum_t next_pnum; 
+    leader_election_edge_mod edge;
     acceptor_record acceptor;
     accepted_record* learner_arr;
     proposer_record* proposer_arr;
     struct event* slient_period; //
+    void* announce_ack_msg;
 }lele_mod;
 #define LELE_MOD_SIZE (sizeof(lele_mod))
 

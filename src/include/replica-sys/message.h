@@ -69,7 +69,7 @@ typedef struct request_submit_msg_t{
     sys_msg_header header; 
     char data[0];
 }__attribute__((packed))req_sub_msg;
-#define REQ_SUB_SIZE(M) (((M)->header.data_size)+sizeof(req_sub_msg))
+#define REQ_SUB_SIZE(M) (((M)->header.data_size)+sizeof(sys_msg_header))
 
 typedef struct request_submit_reply_msg_t{
     sys_msg_header header; 
@@ -99,13 +99,21 @@ typedef struct consensus_msg_t{
     sys_msg_header header;
     char data[0];
 }__attribute__((packed))consensus_msg;
-#define CONSENSUS_MSG_SIZE(M) (sizeof(sys_msg_header)+M->header.data_size)
+#define CONSENSUS_MSG_SIZE(M) (sizeof(sys_msg_header)+(M)->header.data_size)
 
 typedef struct leader_election_msg_t{
     sys_msg_header header;
     lele_msg vc_msg;
 }__attribute__((packed))leader_election_msg;
 #define LEADER_ELECTION_MSG_SIZE (sizeof(leader_election_msg))
+
+typedef struct leader_election_edge_msg_t{
+    sys_msg_header header;
+    lele_msg vc_msg;
+    char data[0];
+}__attribute__((packed))lele_edge_msg;
+#define LEADER_ELECTION_EDGE_MSG_SIZE(M) (sizeof(sys_msg_header)+(M)->header.data_size)
+
 
 //sys_msg* package_sys_msg(sys_msg_code,int,void*);
 

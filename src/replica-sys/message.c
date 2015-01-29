@@ -74,33 +74,33 @@ void* build_lele_msg(node_id_t node_id,lele_mod* mod,lele_msg_type type,void* ar
                 ret_msg->vc_msg.type = LELE_PREPARE;
                 ret_msg->vc_msg.pnum = mod->next_pnum;
                 ret_msg->vc_msg.content = -1;
-                ret_msg->vc_msg.tail_data.p_pnum = -1;
+                ret_msg->vc_msg.p_pnum = -1;
                 break;
             case LELE_PREPARE_ACK:
                 ret_msg->vc_msg.type = LELE_PREPARE_ACK;
                 ret_msg->vc_msg.pnum = mod->acceptor.accepted_pnum;
                 ret_msg->vc_msg.content = mod->acceptor.content;
-                ret_msg->vc_msg.tail_data.p_pnum = mod->acceptor.highest_seen_pnum;
+                ret_msg->vc_msg.p_pnum = mod->acceptor.highest_seen_pnum;
                 break;
             case LELE_ACCEPT:
                 ret_msg->vc_msg.type = LELE_ACCEPT;
                 ret_msg->vc_msg.pnum = corr_msg->pnum;
                 ret_msg->vc_msg.content = corr_msg->content;
-                ret_msg->vc_msg.tail_data.p_pnum= -1;
+                ret_msg->vc_msg.p_pnum= -1;
                 break;
             //caution
             case LELE_ACCEPT_ACK:
                 ret_msg->vc_msg.type = LELE_ACCEPT_ACK;
                 ret_msg->vc_msg.pnum = mod->acceptor.accepted_pnum;
                 ret_msg->vc_msg.content = mod->acceptor.content;
-                ret_msg->vc_msg.tail_data.last_req = -1;
+                ret_msg->vc_msg.last_req = -1;
                 // this should be fixed by the outside func
                 break;
             case LELE_ANNOUNCE:
                 ret_msg->vc_msg.type = LELE_ANNOUNCE;
                 ret_msg->vc_msg.pnum = corr_msg->pnum;
                 ret_msg->vc_msg.content = corr_msg->content;
-                ret_msg->vc_msg.tail_data.last_req = corr_msg->tail_data.last_req;
+                ret_msg->vc_msg.last_req = corr_msg->last_req;
                 break;
             case LELE_HIGHER_NODE:
                 break;
