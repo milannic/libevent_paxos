@@ -13,6 +13,9 @@
     SYS_LOG(my_node,"Component Received TERMINATION SIGNAL,NOW QUIT.\n")\
     event_base_loopexit((my_node)->base,NULL);}}while(0);
 
+
+#define BECOME_ACTIVE(M) do{(M)->state=NODE_ACTIVE;}while(0);
+
 //for debug
 //
 struct timeval first_proposer_lele = {1,0};
@@ -86,9 +89,10 @@ static void leader_election_learner_do(node*,lele_mod*,lele_msg*);
 static void leader_election_finalize(node*,lele_mod*,lele_msg*);
 static void leader_election_handle_announce(node*,lele_mod*,lele_msg*);
 static void leader_election_initialize_edge_mod(node*,lele_mod*);
+static void leader_election_mod_collection(node*,lele_mod*);
 static void update_view(node*,view*);
 static void become_leader(node*);
-static void giveup_leader(node*);
+static void become_secondary(node*);
 static void replica_sync(node*);
 
 //free related function
@@ -233,7 +237,6 @@ static void expected_leader_ping_period(int fd,short what,void* arg){
     return;
 }
 
-
 static void leader_ping_period(int fd,short what,void* arg){
     node* my_node = arg; 
     SYS_LOG(my_node,"Leader Tries To Ping Other Nodes\n");
@@ -267,19 +270,27 @@ static int initialize_leader_ping(node* my_node){
             return 1;
         }
     }
-    event_add(my_node->ev_leader_ping,&my_node->config.ping_timeval);
+    if(NULL!=my_node->ev_expect_ping){
+        evtimer_del(my_node->ev_expect_ping);
+    }
+    evtimer_del(my_node->ev_expect_ping);
+    evtimer_add(my_node->ev_leader_ping,&my_node->config.ping_timeval);
     CHECK_EXIT
     return 0;
 }
 
 static int initialize_expect_ping(node* my_node){
-    if(NULL==my_node->ev_leader_ping){
-        my_node->ev_leader_ping = evtimer_new(my_node->base,expected_leader_ping_period,(void*)my_node);
+    if(NULL==my_node->ev_expect_ping){
+        my_node->ev_expect_ping = evtimer_new(my_node->base,expected_leader_ping_period,(void*)my_node);
         if(my_node->ev_leader_ping==NULL){
             return 1;
         }
     }
-    event_add(my_node->ev_leader_ping,&my_node->config.expect_ping_timeval);
+    if(NULL!=my_node->ev_leader_ping){
+        evtimer_del(my_node->ev_leader_ping);
+    }
+    evtimer_del(my_node->ev_expect_ping);
+    evtimer_add(my_node->ev_leader_ping,&my_node->config.expect_ping_timeval);
     CHECK_EXIT
     return 0;
 }
@@ -323,33 +334,65 @@ initialize_leader_make_progress_exit:
 
 
 
-static void update_view(node* my_node,view* new_view){
+static void update_view(node* my_node,view* new_view_info){
+    DEBUG_ENTER
     SYS_LOG(my_node,"Node %d Entered Update View\n",
             my_node->node_id);
-    if(my_node->cur_view.view_id == 0){ // initial situation
-    int old_leader = isLeader(my_node);
-    memcpy(&my_node->cur_view,new_view,sizeof(view));
-    int new_leader = isLeader(my_node);
-    if(old_leader!=new_leader){
-        if(new_leader){
+    // only cross one view
+    if(my_node->cur_view.view_id+1==new_view_info->view_id){
+        if(new_view_info->view_id!=1){
+            view_stamp temp_vs;
+            temp_vs.view_id = new_view_info->view_id;
+            temp_vs.req_id = 0;
+            db_key_type record_no = vstol(&temp_vs);
+            int cnt = 0;
+            while(store_record(my_node->db_ptr,sizeof(record_no),&record_no,
+                        sizeof(view),&new_view_info)){
+                cnt++;
+                assert(cnt<10&&"Database Writing Failed 10 Times,Critical Error.");
+            }    
+
+            temp_vs.view_id--;
+            temp_vs.req_id = new_view_info->req_id+1;
+            record_no = vstol(&temp_vs);
+            //cnt = 0;
+            delete_record(my_node->db_ptr,sizeof(record_no),&record_no);
+            //assert(cnt<10&&"Database Writing Failed 10 Times,Critical Error.");
+        }
+        my_node->cur_view.view_id = new_view_info->view_id;
+        my_node->cur_view.leader_id = new_view_info->leader_id;
+        my_node->cur_view.req_id = new_view_info->req_id;
+        BECOME_ACTIVE(my_node)
+        if(isLeader(my_node)){
             become_leader(my_node);
         }else{
-            giveup_leader(my_node);
+            become_secondary(my_node);
         }
+        SYS_LOG(my_node,"Node %d 's Current View Changed To %u \n",
+            my_node->node_id,my_node->cur_view.view_id);
     }
-    SYS_LOG(my_node,"Node %d 's Current View Changed To %u \n",
-        my_node->node_id,my_node->cur_view.view_id);
-    }
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
 
 static void become_leader(node* my_node){
+    DEBUG_ENTER
+    consensus_update_role(my_node->consensus_comp);
+    initialize_leader_ping(my_node);
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
-static void giveup_leader(node* my_node){
+static void become_secondary(node* my_node){
+    DEBUG_ENTER
+    consensus_update_role(my_node->consensus_comp);
+    initialize_expect_ping(my_node);
+    DEBUG_LEAVE
+    CHECK_EXIT
+    return;
 }
+
 static void replica_sync(node* my_node){
     return;
 }
@@ -444,7 +487,7 @@ send_for_consensus_comp_exit:
 }
 
 static void handle_ping_ack(node* my_node,ping_ack_msg* msg){
-    if(my_node->cur_view.view_id < msg->view.view_id){
+    if(my_node->cur_view.view_id == msg->view.view_id+1){
         update_view(my_node,&msg->view);
     }else{
         SYS_LOG(my_node,
@@ -457,9 +500,9 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
     SYS_LOG(my_node,
             "Received Ping Req Msg In Node %u From Node %u.",
         my_node->node_id,msg->node_id);
-    if(my_node->cur_view.view_id < msg->view.view_id){
+    if(my_node->cur_view.view_id+1 == msg->view.view_id){
         update_view(my_node,&msg->view);
-    }else if(my_node->cur_view.view_id > msg->view.view_id){
+    }else if(my_node->cur_view.view_id == msg->view.view_id+1){
         if(my_node->peer_pool[msg->node_id].active){
             void* ping_ack = build_ping_ack(my_node->node_id,&my_node->cur_view);
             if(NULL!=ping_ack){
@@ -468,16 +511,20 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
             }
         } 
         goto handle_ping_req_exit;
-    }
-    if(my_node->cur_view.view_id == msg->view.view_id){
+    }else if(my_node->cur_view.view_id == msg->view.view_id){
+        // get re-connected to the leader, then give up leader election, if it hasn't finished
+        if(my_node->state==NODE_INLELE){
+            BECOME_ACTIVE(my_node)
+            leader_election_mod_collection(my_node,my_node->election_mod);
+        }
         if(!isLeader(my_node)){
             if(timeval_comp(&my_node->last_ping_msg,&msg->timestamp)<0){
                 memcpy(&my_node->last_ping_msg,&msg->timestamp,
                         sizeof(struct timeval));
             }
-            if(NULL!=my_node->ev_leader_ping){
-                evtimer_del(my_node->ev_leader_ping);
-                evtimer_add(my_node->ev_leader_ping,&my_node->config.expect_ping_timeval);
+            if(NULL!=my_node->ev_expect_ping){
+                evtimer_del(my_node->ev_expect_ping);
+                evtimer_add(my_node->ev_expect_ping,&my_node->config.expect_ping_timeval);
             }
         }else{
             // leader should not receive the ping req, otherwise the sender is
@@ -928,41 +975,73 @@ leader_election_cal_edge_exit:
 
 static void leader_election_handle_close(node* my_node,lele_mod* mod,lele_msg* msg){
     DEBUG_ENTER;
+    view new_view_info;
+    new_view_info.view_id = msg->next_view;
+    new_view_info.leader_id = msg->content;
+    new_view_info.req_id = msg->last_req;
+    if(mod->next_view==new_view_info.view_id){
+        update_view(my_node,&new_view_info);
+        leader_election_mod_collection(my_node,mod);
+    }
     DEBUG_LEAVE;
     CHECK_EXIT;
     return;
 }
 
-static leader_election_msg* leader_election_build_close(node* my_node,lele_mod* mod,view_id_t view_id){
+static leader_election_msg* leader_election_build_close(node* my_node,lele_mod* mod,view_id_t view_id,view* new_view_info){
     DEBUG_ENTER
-    leader_election_msg* ret = NULL;
+    leader_election_msg* ret = (leader_election_msg*)malloc(LEADER_ELECTION_MSG_SIZE);
+    if(ret==NULL){goto leader_election_build_close_exit;}
+    ret->header.type = LEADER_ELECTION_MSG;
+    ret->header.data_size = LELE_MSG_SIZE;
+    if(new_view_info==NULL){
+        view_stamp vs_temp;
+        vs_temp.view_id = view_id;
+        vs_temp.req_id = 0;
+        db_key_type record_no = vstol(&vs_temp);
+        size_t data_size;
+        retrieve_record(my_node->db_ptr,sizeof(record_no),
+                &record_no,&data_size,(void**)&new_view_info);
+    }
+    if(new_view_info!=NULL){
+        ret->vc_msg.type = LELE_FIN;
+        ret->vc_msg.next_view = new_view_info->view_id;
+        ret->vc_msg.node_id = new_view_info->leader_id;
+        ret->vc_msg.last_req = new_view_info->req_id;
+    }else{
+        free(ret);
+        ret = NULL;
+    }
+leader_election_build_close_exit:
     DEBUG_LEAVE
     CHECK_EXIT
     return ret;
 }
 
+static void leader_election_mod_collection(node* my_node,lele_mod* mod){
+    DEBUG_ENTER
+    DEBUG_LEAVE
+}
+
 static void leader_election_leader_close(node* my_node,lele_mod* mod){
     DEBUG_ENTER;
     leader_election_msg* sent_msg = NULL;
-    view_stamp temp_vs;
-    temp_vs.view_id = mod->next_view;
-    temp_vs.req_id = 0;
-    db_key_type record_no = vstol(&temp_vs);
-    acceptor_record* record_data = malloc(ACCEPTOR_REC_SIZE);
-    if(NULL==record_data){
-       goto leader_election_leader_close_exit;
+    view new_view_info;
+    new_view_info.view_id = mod->next_view;
+    new_view_info.leader_id = mod->new_leader;
+    if(mod->edge.cur_empty_slots!=0){
+        new_view_info.req_id = mod->edge.req_edge[0]-1;
+    }else{
+        new_view_info.req_id = mod->edge.end;
     }
-    memcpy(record_data,&my_node->election_mod->acceptor,ACCEPTOR_REC_SIZE);
-    if(store_record(my_node->db_ptr,sizeof(record_no),&record_no,
-                ACCEPTOR_REC_SIZE,record_data)){
-       goto leader_election_leader_close_exit;
-    }    
-    sent_msg = leader_election_build_close(my_node,mod,mod->next_view);
+    update_view(my_node,&new_view_info);
+    sent_msg = leader_election_build_close(my_node,mod,mod->next_view,&new_view_info);
     if(sent_msg!=NULL){
         send_to_other_nodes(my_node,sent_msg,
                 LEADER_ELECTION_MSG_SIZE,"Leader Election Close Msg");
         free(sent_msg);
     }
+    leader_election_mod_collection(my_node,mod);
 leader_election_leader_close_exit:
     DEBUG_LEAVE;
     CHECK_EXIT;
@@ -1173,7 +1252,7 @@ static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_ms
         // sender is lagged
         if(msg->next_view==my_node->cur_view.view_id){
             leader_election_msg* sent_msg = NULL;
-            sent_msg = leader_election_build_close(my_node,mod,msg->next_view);
+            sent_msg = leader_election_build_close(my_node,mod,msg->next_view,NULL);
             if(sent_msg!=NULL){
                 send_to_one_node(my_node,msg->node_id,sent_msg,
                         LEADER_ELECTION_MSG_SIZE,"Leader Election Close Msg");
@@ -1181,7 +1260,7 @@ static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_ms
             }
         }// else we are behind, we just set the node to be inactive and wait for the ping msg from the leader
     }else{
-        if(NODE_INLELE==my_node->state){
+        if(NODE_INLELE==my_node->state || NODE_POSTLELE==my_node->state){
             switch(msg->type){
                 case LELE_PREPARE:
                     leader_election_acceptor_do(my_node,mod,msg);
@@ -1253,7 +1332,9 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
             }
             break;
         case LEADER_ELECTION_MSG:
-            handle_leader_election_msg(my_node,(leader_election_msg*)msg_buf);
+            if(my_node->state==NODE_INLELE || my_node->state==NODE_POSTLELE){
+                handle_leader_election_msg(my_node,(leader_election_msg*)msg_buf);
+            }
             break;
         default:
             SYS_LOG(my_node,"Unknown Msg Type %d\n",
@@ -1350,7 +1431,7 @@ int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*u
 //            SIGQUIT,node_singal_handler,my_node);
 //    evsignal_add(my_node->signal_handler,NULL);
     
-    my_node->state = NODE_ACTIVE;
+    BECOME_ACTIVE(my_node)
     my_node->msg_cb = handle_msg;
     connect_peers(my_node);
     my_node->consensus_comp = NULL;
@@ -1387,11 +1468,13 @@ node* system_initialize(node_id_t node_id,const char* start_mode,const char* con
     if(*start_mode=='s'){
         my_node->cur_view.view_id = 1;
         my_node->cur_view.leader_id = my_node->node_id;
+        my_node->cur_view.req_id = 0;
         my_node->ev_leader_ping = NULL;
     }else{
         my_node->cur_view.view_id = 0;
         my_node->cur_view.leader_id = 9999;
         my_node->ev_leader_ping = NULL;
+        my_node->cur_view.req_id = 0;
     }
     
     my_node->config.make_progress_timeval.tv_sec = 1;

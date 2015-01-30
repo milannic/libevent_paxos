@@ -28,6 +28,7 @@ void* build_ping_req(int node_id, view* cur_view){
     ping_msg->node_id = node_id;
     ping_msg->view.view_id = cur_view->view_id;
     ping_msg->view.leader_id = cur_view->leader_id;
+    ping_msg->view.req_id = cur_view->req_id;
     gettimeofday(&ping_msg->timestamp,NULL);
 build_ping_req_exit:
     return ping_msg;
@@ -42,6 +43,7 @@ void* build_ping_ack(int node_id,view* cur_view){
     ping_msg->node_id = node_id;
     ping_msg->view.view_id = cur_view->view_id;
     ping_msg->view.leader_id = cur_view->leader_id;
+    ping_msg->view.req_id = cur_view->req_id;
     gettimeofday(&ping_msg->timestamp,NULL);
 build_ping_ack_exit:
     return ping_msg;

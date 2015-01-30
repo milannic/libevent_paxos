@@ -88,6 +88,7 @@ typedef struct node_t{
     msg_handler msg_cb;
     struct event* signal_handler;
     struct event* ev_leader_ping;
+    struct event* ev_expect_ping;
     struct event* ev_make_progress;
     struct timeval last_ping_msg;
 

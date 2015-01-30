@@ -179,6 +179,7 @@ int main ( int argc, char *argv[] )
     uint64_t record_no = 1234567;
     char* data = (char*)(malloc)(6);
     int ret = delete_record(my_db,sizeof(record_no),&record_no);
+    printf("1st Delete Return Value is %d.\n",ret);
     data[0] = 'a';
     data[1] = 'e';
     data[2] = 'd';
@@ -194,6 +195,7 @@ int main ( int argc, char *argv[] )
         free(record_data);
     }
     ret = delete_record(my_db,sizeof(record_no),&record_no);
+    printf("2nd Delete Return Value is %d.\n",ret);
     record_data = NULL;
     retrieve_record(my_db,sizeof(record_no),&record_no,&data_size,(void**)&record_data);
     if(record_data!=NULL){
