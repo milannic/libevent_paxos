@@ -21,9 +21,17 @@
 #include "../util/common-header.h"
 
 typedef uint64_t db_key_type;
-
 struct node_t;
 struct consensus_component_t;
+
+
+typedef struct view_boundary_t{
+    view_id_t view_id;
+    req_id_t req_id;
+    node_id_t leader_id;
+}view_boundary;
+#define VIEW_BOUNDARY_SIZE (sizeof(view_boundary))
+
 
 typedef void (*up_call)(struct node_t*,size_t,void*,int);
 typedef void (*user_cb)(size_t data_size,void* data,void* arg);

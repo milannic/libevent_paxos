@@ -21,6 +21,7 @@
 #include "../consensus/consensus.h"
 #include "message.h"
 #include "../db/db-interface.h"
+#include "./replica.h"
 
 typedef struct peer_t{
     int peer_id;
@@ -98,8 +99,8 @@ typedef struct node_t{
     //database* my_db
 }node;
 
-struct node_t* system_initialize(node_id_t node_id,const char* start_mode,const char* config_path,const char* log_path,int deliver_mode,void(*user_cb)(int data_size,void* data,void* arg),void* db_ptr,void* arg);
-void system_run(struct node_t* replica);
-void system_exit(struct node_t* replica);
+//struct node_t* system_initialize(int node_id,const char* start_mode,const char* config_path,const char* log_path,int deliver_mode,void(*user_cb)(size_t data_size,void* data,void* arg),void* db_ptr,void* arg);
+//void system_run(struct node_t* replica);
+//void system_exit(struct node_t* replica);
 
 #endif

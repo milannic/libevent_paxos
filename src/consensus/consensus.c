@@ -28,10 +28,6 @@ typedef struct request_record_t{
 }__attribute__((packed))request_record;
 #define REQ_RECORD_SIZE(M) (sizeof(request_record)+(M->data_size))
 
-typedef struct view_boundary_t{
-    view_stamp last_boundary;
-}view_boundary;
-#define VIEW_BOUNDARY_SIZE (sizeof(view_boundary))
 
 typedef struct consensus_component_t{ con_role my_role;
     uint32_t node_id;
@@ -622,6 +618,7 @@ static void try_to_execute(consensus_component* comp){
     }
     db_key_type start = vstol(comp->highest_committed_vs)+1;
     db_key_type end;
+    view_stamp temp_boundary;
     view_boundary* boundary_record = NULL;
     size_t data_size;
     if(comp->highest_committed_vs->view_id!=comp->highest_to_commit_vs->view_id){
@@ -635,7 +632,9 @@ static void try_to_execute(consensus_component* comp){
            send_missing_req(comp,&bound); 
            goto try_to_execute_exit;
         }
-        end = vstol(&boundary_record->last_boundary);
+        temp_boundary.view_id = boundary_record->view_id;
+        temp_boundary.req_id = boundary_record->req_id;
+        end = vstol(&temp_boundary);
     }else{
         end = vstol(comp->highest_to_commit_vs);
     }
@@ -661,8 +660,10 @@ static void try_to_execute(consensus_component* comp){
         record_data = NULL;
     }
     if(NULL!=boundary_record){
+        temp_boundary.view_id = boundary_record->view_id;
+        temp_boundary.req_id = boundary_record->req_id;
         db_key_type op1 = vstol(comp->highest_committed_vs);
-        db_key_type op2 = vstol(&boundary_record->last_boundary);
+        db_key_type op2 = vstol(&temp_boundary);
         if(op1==op2){
             cross_view(comp->highest_committed_vs);
         }
