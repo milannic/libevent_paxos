@@ -1,6 +1,9 @@
 #include "../include/util/common-header.h"
 #include "../include/replica-sys/node.h"
 #include "../include/config-comp/config-comp.h"
+#include "../include/proxy/proxy.h"
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/stat.h>
 
 static int exit_flag = 0;
@@ -112,12 +115,23 @@ static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg){
 
 static void connect_peer(peer* peer_node){
     node* my_node = peer_node->my_node;
-    peer_node->my_buff_event = bufferevent_socket_new(peer_node->base,-1,BEV_OPT_CLOSE_ON_FREE);
+
+    evutil_socket_t fd;
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    peer_node->my_buff_event = bufferevent_socket_new(peer_node->base,fd,BEV_OPT_CLOSE_ON_FREE);
+
+    //peer_node->my_buff_event = bufferevent_socket_new(peer_node->base,-1,BEV_OPT_CLOSE_ON_FREE);
     bufferevent_setcb(peer_node->my_buff_event,peer_node_on_read,NULL,peer_node_on_event,peer_node);
     bufferevent_enable(peer_node->my_buff_event,EV_READ|EV_WRITE|EV_PERSIST);
     bufferevent_socket_connect(peer_node->my_buff_event,(struct sockaddr*)peer_node->peer_address,peer_node->sock_len);
+
+    int enable = 1;
+    if(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
+        printf("Peers-side: TCP_NODELAY SETTING ERROR!\n");
+
     CHECK_EXIT;
 };
+
 
 static void peer_node_on_timeout(int fd,short what,void* arg){
     peer* p = arg;
@@ -355,15 +369,31 @@ static void replica_on_error_cb(struct bufferevent* bev,short ev,void *arg){
         // the connection has been closed;
         // do the cleaning
     }
+    if (ev&BEV_EVENT_TIMEOUT) {
+        printf("replica_on_error_cb: timeout\n");
+    }
     CHECK_EXIT
     return;
 }
 
 static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd,struct sockaddr *address,int socklen,void *arg){
+
+    //struct timeval start_t;
+    //gettimeofday(&start_t,NULL);
+    //printf("Warning: replica_on_accept timestamp  %lu.%06lu\n", start_t.tv_sec, start_t.tv_usec);
+
+    int enable = 1;
+    if(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void*)&enable, sizeof(enable)) < 0)
+        printf("Consensus-side: TCP_NODELAY SETTING ERROR!\n");
+
     node* my_node = arg;
     SYS_LOG(my_node, "A New Connection Is Established.\n");
     struct bufferevent* new_buff_event = bufferevent_socket_new(my_node->base,fd,BEV_OPT_CLOSE_ON_FREE);
+    // bufferevent_setwatermark(new_buff_event, EV_READ, 72, 0);
     bufferevent_setcb(new_buff_event,replica_on_read,NULL,replica_on_error_cb,(void*)my_node);
+    // set a read timeout of 1000 us
+    // struct timeval tv = {0, 10000};
+    // bufferevent_set_timeouts(new_buff_event, &tv, NULL);
     bufferevent_enable(new_buff_event,EV_READ|EV_PERSIST|EV_WRITE);
     CHECK_EXIT
     return;
@@ -466,6 +496,14 @@ static void handle_consensus_msg(node* my_node,consensus_msg* msg){
 
 static void handle_request_submit(node* my_node,
         req_sub_msg* msg,struct bufferevent* evb){
+    //struct timeval end_t;
+    //long  difference;
+    //printf("%lu.%06lu\n", ((proxy_send_msg*)msg->data)->header.received_time.tv_sec, ((proxy_send_msg*)msg->data)->header.received_time.tv_usec);
+    //gettimeofday(&end_t,NULL);
+    //difference = (end_t.tv_sec*1000000+end_t.tv_usec ) - (((proxy_send_msg*)msg->data)->header.received_time.tv_sec*1000000+((proxy_send_msg*)msg->data)->header.received_time.tv_usec);
+    //if(difference > 10000) {
+    //   printf("Warning from proxy to consensus: %ld,  timestamp: %lu.%06lu\n", difference, end_t.tv_sec, end_t.tv_usec);
+    //}
     SYS_LOG(my_node,"Node %d Received Consensus Submit Request\n",
             my_node->node_id);
     SYS_LOG(my_node,"The Data Size Is %lu \n",

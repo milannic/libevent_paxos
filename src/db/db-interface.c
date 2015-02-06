@@ -99,6 +99,11 @@ void close_db(db* db_p,uint32_t mode){
 }
 
 int store_record(db* db_p,size_t key_size,void* key_data,size_t data_size,void* data){
+    //struct timeval start_t;
+    //struct timeval end_t;
+    //long  difference;
+    //gettimeofday(&start_t,NULL);
+
     int ret = 1;
     if((NULL==db_p)||(NULL==db_p->bdb_ptr)){
         goto db_store_return;
@@ -120,6 +125,14 @@ int store_record(db* db_p,size_t key_size,void* key_data,size_t data_size,void* 
         //b_db->err(b_db,ret,"DB->Put");
     }
 db_store_return:
+        /*
+        gettimeofday(&end_t,NULL);
+        difference = (end_t.tv_sec*1000000+end_t.tv_usec ) - (start_t.tv_sec*1000000+start_t.tv_usec);
+        if(difference > 10000) {
+            printf("Warning store_record: %ld\n", difference);
+
+        }
+        */
     return ret;
 }
 
