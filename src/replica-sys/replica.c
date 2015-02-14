@@ -273,7 +273,6 @@ static int initialize_leader_ping(node* my_node){
     if(NULL!=my_node->ev_expect_ping){
         evtimer_del(my_node->ev_expect_ping);
     }
-    evtimer_del(my_node->ev_expect_ping);
     evtimer_add(my_node->ev_leader_ping,&my_node->config.ping_timeval);
     CHECK_EXIT
     return 0;
