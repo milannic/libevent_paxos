@@ -289,6 +289,7 @@ static int initialize_expect_ping(node* my_node){
         evtimer_del(my_node->ev_leader_ping);
     }
 
+    evtimer_del(my_node->ev_expect_ping);
     evtimer_add(my_node->ev_expect_ping,&my_node->config.expect_ping_timeval);
     CHECK_EXIT
     return 0;
