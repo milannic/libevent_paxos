@@ -281,15 +281,15 @@ static int initialize_leader_ping(node* my_node){
 static int initialize_expect_ping(node* my_node){
     if(NULL==my_node->ev_expect_ping){
         my_node->ev_expect_ping = evtimer_new(my_node->base,expected_leader_ping_period,(void*)my_node);
-        if(my_node->ev_leader_ping==NULL){
+        if(my_node->ev_expect_ping==NULL){
             return 1;
         }
     }
     if(NULL!=my_node->ev_leader_ping){
         evtimer_del(my_node->ev_leader_ping);
     }
-    evtimer_del(my_node->ev_expect_ping);
-    evtimer_add(my_node->ev_leader_ping,&my_node->config.expect_ping_timeval);
+
+    evtimer_add(my_node->ev_expect_ping,&my_node->config.expect_ping_timeval);
     CHECK_EXIT
     return 0;
 }
