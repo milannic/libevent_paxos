@@ -498,7 +498,7 @@ static void handle_ping_ack(node* my_node,ping_ack_msg* msg){
 
 static void handle_ping_req(node* my_node,ping_req_msg* msg){
     SYS_LOG(my_node,
-            "Received Ping Req Msg In Node %u From Node %u.",
+            "Received Ping Req Msg In Node %u From Node %u.\n",
         my_node->node_id,msg->node_id);
     if(my_node->cur_view.view_id+1 == msg->view.view_id){
         update_view(my_node,&msg->view);
@@ -583,7 +583,7 @@ static void refresh_leader_election(node* my_node,lele_mod* mod){
 
 static void initialize_leader_election(node* my_node){
     DEBUG_ENTER
-    SYS_LOG(my_node,"Initialize One Instance Of Leader Election In Node %d.n",
+    SYS_LOG(my_node,"Initialize One Instance Of Leader Election In Node %d.\n",
             my_node->node_id);
     my_node->state = NODE_INLELE;
     lele_mod* mod = NULL;
@@ -1303,13 +1303,16 @@ static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_ms
 
 static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
     //debu!k!5
+    DEBUG_ENTER
     void* msg_buf = (char*)malloc(SYS_MSG_HEADER_SIZE+data_size);
     if(NULL==msg_buf){
+        SYS_LOG(my_node,"Message is null.\n");
         goto handle_msg_exit;
     }
     struct evbuffer* evb = bufferevent_get_input(bev);
     evbuffer_remove(evb,msg_buf,SYS_MSG_HEADER_SIZE+data_size);
     sys_msg_header* msg_header = msg_buf;
+    SYS_LOG(my_node,"Message type is %d\n", msg_header->type);
     switch(msg_header->type){
         case PING_ACK:
             if(my_node->state!=NODE_POSTLELE){
@@ -1332,6 +1335,7 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
             }
             break;
         case LEADER_ELECTION_MSG:
+            SYS_LOG(my_node,"Receive leader election message. \n");
             if(my_node->state==NODE_INLELE || my_node->state==NODE_POSTLELE){
                 handle_leader_election_msg(my_node,(leader_election_msg*)msg_buf);
             }
@@ -1344,6 +1348,7 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
 
 handle_msg_exit:
     if(NULL!=msg_buf){free(msg_buf);}
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
@@ -1361,14 +1366,25 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
             (unsigned)len);
     while(len>=SYS_MSG_HEADER_SIZE){
         buf = (sys_msg_header*)malloc(SYS_MSG_HEADER_SIZE);
-        if(NULL==buf){return;}
+        if(NULL==buf){
+          err_log("replica.c : Cannnot allocate buffer .\n");
+          return;
+        }
         evbuffer_copyout(input,buf,SYS_MSG_HEADER_SIZE);
         int data_size = buf->data_size;
+        SYS_LOG(my_node,"data_type is %u.\n", (unsigned)buf->type);
+        SYS_LOG(my_node,"data_size is %u.\n", (unsigned)data_size);
         if(len>=(SYS_MSG_HEADER_SIZE+data_size)){
+           SYS_LOG(my_node,"Begin to read data from buffer.\n");
            my_node->msg_cb(my_node,bev,data_size); 
            counter++;
         }else{
-            break;
+          if((unsigned)buf->type > 100){
+            // remove the corrupted data in the input buffer
+            SYS_LOG(my_node,"Clean up the corruptted data.\n");
+            evbuffer_drain(input, len);
+          }
+          break;
         }
         free(buf);
         buf=NULL;
@@ -1386,6 +1402,7 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
 int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*user_cb)(size_t data_size,void* data,void* arg),void* db_ptr,void* arg){
     
     int flag = 1;
+    my_node->sys_log = 1;
     gettimeofday(&my_node->last_ping_msg,NULL);
     if(my_node->cur_view.leader_id==my_node->node_id){
         if(initialize_leader_ping(my_node)){
