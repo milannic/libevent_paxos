@@ -1379,11 +1379,6 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
            my_node->msg_cb(my_node,bev,data_size); 
            counter++;
         }else{
-          if((unsigned)buf->type > 100){
-            // remove the corrupted data in the input buffer
-            SYS_LOG(my_node,"Clean up the corruptted data.\n");
-            evbuffer_drain(input, len);
-          }
           break;
         }
         free(buf);
