@@ -151,6 +151,7 @@ static int send_to_one_node(node* my_node,node_id_t target,void* data,size_t dat
 static void peer_node_on_read(struct bufferevent* bev,void* arg){return;};
 
 static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg){
+    DEBUG_ENTER
     peer* peer_node = (peer*)arg;
     node* my_node = peer_node->my_node;
     if(ev&BEV_EVENT_CONNECTED){
@@ -163,10 +164,11 @@ static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg){
         }
         peer_node->my_buff_event = NULL;
         int err = EVUTIL_SOCKET_ERROR();
-		SYS_LOG(my_node,"%s (%d)\n",evutil_socket_error_to_string(err),peer_node->peer_id);
+		    SYS_LOG(my_node,"%s (%d)\n",evutil_socket_error_to_string(err),peer_node->peer_id);
         bufferevent_free(bev);
         event_add(peer_node->reconnect,&my_node->config.reconnect_timeval);
     }
+    DEBUG_LEAVE
     CHECK_EXIT;
     return;
 };
@@ -227,7 +229,8 @@ static void expected_leader_ping_period(int fd,short what,void* arg){
         struct timeval temp;
         timeval_add(last,&my_node->config.expect_ping_timeval,&temp);
         if(timeval_comp(&temp,&cur)>=0){
-            event_add(my_node->ev_leader_ping,&my_node->config.expect_ping_timeval);
+          event_free(my_node->ev_expect_ping);
+          initialize_expect_ping(my_node);
         }else{
             SYS_LOG(my_node,
                     "Node %d Haven't Heard From The Leader\n",
@@ -256,6 +259,7 @@ static void leader_ping_period(int fd,short what,void* arg){
           /*hexdump(ping_req, PING_REQ_SIZE);*/
           /*fflush(stdout);*/
           send_to_other_nodes(my_node,ping_req,PING_REQ_SIZE,"Ping Req Msg");
+          free(ping_req);
         }else{
             goto add_ping_event;
         }
@@ -263,8 +267,6 @@ static void leader_ping_period(int fd,short what,void* arg){
         if(NULL!=my_node->ev_leader_ping){
             event_add(my_node->ev_leader_ping,&my_node->config.ping_timeval);
         }
-        if(NULL!=ping_req)
-          free(ping_req);
     }
     CHECK_EXIT
     return;
@@ -287,8 +289,10 @@ static int initialize_leader_ping(node* my_node){
 
 static int initialize_expect_ping(node* my_node){
     if(NULL==my_node->ev_expect_ping){
-        my_node->ev_expect_ping = evtimer_new(my_node->base,expected_leader_ping_period,(void*)my_node);
+        my_node->ev_expect_ping = evtimer_new(my_node->base,expected_leader_ping_period,
+                                              (void*)my_node);
         if(my_node->ev_expect_ping==NULL){
+            SYS_LOG(my_node, "Can't initialize expected_leader_ping_period event.\n");
             return 1;
         }
     }
@@ -452,13 +456,23 @@ static int free_node(node* my_node){
 }
 
 
-static void replica_on_error_cb(struct bufferevent* bev,short ev,void *arg){
+static void replica_on_error_cb(struct bufferevent* bev, short error, void *arg){
     node* my_node = arg;
-    SYS_LOG(my_node, "An error occured to the replica.\n");
-    if(ev&BEV_EVENT_EOF){
-        // the connection has been closed;
-        // do the cleaning
+    SYS_LOG(my_node, "An error occured to event replica_on_read.\n");
+    if (error & BEV_EVENT_EOF) {
+        SYS_LOG(my_node, "BEV_EVENT_EOF\n");
+        /* connection has been closed, do any clean up here */
+        /* ... */
+    } else if (error & BEV_EVENT_ERROR) {
+        SYS_LOG(my_node, "BEV_EVENT_ERROR\n");
+        /* check errno to see what error occurred */
+        /* ... */
+    } else if (error & BEV_EVENT_TIMEOUT) {
+        SYS_LOG(my_node, "BEV_EVENT_TIMEOUT\n");
+        /* must be a timeout event handle, handle it */
+        /* ... */
     }
+    /*bufferevent_free(bev);*/
     CHECK_EXIT
     return;
 }
@@ -514,8 +528,7 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
       my_node->node_id,msg->node_id);
   if(my_node->cur_view.view_id+1 == msg->view.view_id){
     update_view(my_node,&msg->view);
-  }
-  else if(my_node->cur_view.view_id == msg->view.view_id+1){
+  } else if(my_node->cur_view.view_id == msg->view.view_id+1){
     if(my_node->peer_pool[msg->node_id].active){
       void* ping_ack = build_ping_ack(my_node->node_id,&my_node->cur_view);
       if(NULL!=ping_ack){
@@ -524,8 +537,7 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
       }
     } 
     goto handle_ping_req_exit;
-  }
-  else if(my_node->cur_view.view_id == msg->view.view_id){
+  } else if(my_node->cur_view.view_id == msg->view.view_id){
     // get re-connected to the leader, then give up leader election, if it hasn't finished
     if(my_node->state==NODE_INLELE){
       BECOME_ACTIVE(my_node)
@@ -671,7 +683,7 @@ static void leader_election_on_timeout(int fd,short what,void* arg){
             }
         }
         evtimer_add(mod->slient_period,&wait_for_net_lele);
-    }else if(my_node->state==NODE_INLELE){
+    } else if(my_node->state==NODE_INLELE){
         leader_election_proposer_do(my_node,mod,NULL);
         evtimer_add(mod->slient_period,&wait_for_net_lele);
     }
@@ -722,6 +734,7 @@ static int proposer_check_prepare(node* my_node,lele_mod* mod,lele_msg* ret_msg)
 // send accept msg
 static void leader_election_proposer_phase_two(node* my_node,lele_mod* mod,lele_msg* msg){
     DEBUG_ENTER
+    SYS_LOG(my_node, "Enter leader election phase 2.\n");
     assert(msg->pnum!=-1&&
             "Now that we come to this place, we must have a valid propose number");
     if(msg->content==-1){
@@ -821,7 +834,7 @@ static void leader_election_acceptor_do(node* my_node,lele_mod* mod,lele_msg* ms
               free(sent_msg);
             }
         }
-    }else if(msg->type==LELE_ACCEPT){
+    } else if(msg->type==LELE_ACCEPT){
         if(msg->pnum>=mod->acceptor.highest_seen_pnum){
             int ret = 1;
             mod->acceptor.highest_seen_pnum = msg->pnum;
@@ -1100,7 +1113,7 @@ static void leader_election_handle_announce_ack(node* my_node,lele_mod* mod,lele
         while(i<mod->edge.cur_empty_slots&&j<msg->vc_msg.pnum){
             if(mod->edge.req_edge[i]<ptr[j]){
                 mod->edge.req_edge[i] = 0;
-            }else if(mod->edge.req_edge[i]==ptr[j]){
+            } else if(mod->edge.req_edge[i]==ptr[j]){
                 j++;
             }else{
                 i--;
@@ -1118,7 +1131,7 @@ static void leader_election_handle_announce_ack(node* my_node,lele_mod* mod,lele
                 mod->edge.req_edge[mod->edge.cur_empty_slots++] = ptr[j];
                 j++;
             }
-        }else if(j==msg->vc_msg.pnum){
+        } else if(j==msg->vc_msg.pnum){
             while(mod->edge.req_edge[i]<=msg->vc_msg.last_req&&
                     i<mod->edge.cur_empty_slots){
                 mod->edge.req_edge[i] = 0;
@@ -1318,16 +1331,13 @@ static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_ms
 
 static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
     //debu!k!5
-    DEBUG_ENTER
     void* msg_buf = (char*)malloc(SYS_MSG_HEADER_SIZE+data_size);
     if(NULL==msg_buf){
-        SYS_LOG(my_node,"Message is null.\n");
         goto handle_msg_exit;
     }
     struct evbuffer* evb = bufferevent_get_input(bev);
     evbuffer_remove(evb,msg_buf,SYS_MSG_HEADER_SIZE+data_size);
     sys_msg_header* msg_header = msg_buf;
-    SYS_LOG(my_node,"Message type is %d\n", msg_header->type);
     switch(msg_header->type){
         case PING_ACK:
             if(my_node->state!=NODE_POSTLELE){
@@ -1363,7 +1373,6 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
 
 handle_msg_exit:
     if(NULL!=msg_buf){free(msg_buf);}
-    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
