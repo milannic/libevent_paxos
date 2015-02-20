@@ -650,7 +650,11 @@ proxy_node* proxy_init(uint16_t node_id,const char* start_mode,const char* confi
     }
     
     // set up base
-	struct event_base* base = event_base_new();
+    // Enable libevent debugging mode for 
+    // 1. Uninitialize events
+    // 2. Reinitialize a pending struct event 
+    /*event_enable_debug_mode();*/
+	  struct event_base* base = event_base_new();
 
     if(NULL==base){
         goto proxy_exit_error;

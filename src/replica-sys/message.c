@@ -20,6 +20,7 @@
 
 void* build_ping_req(int node_id, view* cur_view){
     ping_req_msg* ping_msg = (ping_req_msg*)malloc(PING_REQ_SIZE);
+    memset(ping_msg, 0, PING_REQ_SIZE);
     if(NULL==ping_msg){
         goto build_ping_req_exit;
     }

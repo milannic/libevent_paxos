@@ -130,7 +130,7 @@ static int send_to_other_nodes(node* my_node,void* data,size_t data_size,char* c
             struct bufferevent* buff = my_node->peer_pool[i].my_buff_event;
             bufferevent_write(buff,data,data_size);
             SYS_LOG(my_node,
-                    "Send %s To Node %u\n",comment,i);
+              "Send %s To Node %u\n",comment,i);
         }
     }
     return 0;
@@ -143,7 +143,7 @@ static int send_to_one_node(node* my_node,node_id_t target,void* data,size_t dat
         struct bufferevent* buff = my_node->peer_pool[target].my_buff_event;
         bufferevent_write(buff,data,data_size);
         SYS_LOG(my_node,
-                "Send %s To Node %u.\n",comment,target);
+          "Send %s To Node %u.\n",comment,target);
     }
     return 0;
 }
@@ -177,7 +177,9 @@ static void connect_peer(peer* peer_node){
     peer_node->my_buff_event = bufferevent_socket_new(peer_node->base,-1,BEV_OPT_CLOSE_ON_FREE);
     bufferevent_setcb(peer_node->my_buff_event,peer_node_on_read,NULL,peer_node_on_event,peer_node);
     bufferevent_enable(peer_node->my_buff_event,EV_READ|EV_WRITE|EV_PERSIST);
-    bufferevent_socket_connect(peer_node->my_buff_event,(struct sockaddr*)peer_node->peer_address,peer_node->sock_len);
+    bufferevent_socket_connect(peer_node->my_buff_event,(struct sockaddr*)peer_node->peer_address,
+      peer_node->sock_len);
+
     CHECK_EXIT;
 };
 
@@ -249,8 +251,11 @@ static void leader_ping_period(int fd,short what,void* arg){
     }else{
         void* ping_req = build_ping_req(my_node->node_id,&my_node->cur_view);
         if(NULL!=ping_req){
-            free(ping_req);
-            send_to_other_nodes(my_node,ping_req,PING_REQ_SIZE,"Ping Req Msg");
+          /*SYS_LOG(my_node,"PING_REQ_SIZE = %u\n", PING_REQ_SIZE);*/
+          /*printf("Leader PING msg\n"); */
+          /*hexdump(ping_req, PING_REQ_SIZE);*/
+          /*fflush(stdout);*/
+          send_to_other_nodes(my_node,ping_req,PING_REQ_SIZE,"Ping Req Msg");
         }else{
             goto add_ping_event;
         }
@@ -258,6 +263,8 @@ static void leader_ping_period(int fd,short what,void* arg){
         if(NULL!=my_node->ev_leader_ping){
             event_add(my_node->ev_leader_ping,&my_node->config.ping_timeval);
         }
+        if(NULL!=ping_req)
+          free(ping_req);
     }
     CHECK_EXIT
     return;
@@ -447,6 +454,7 @@ static int free_node(node* my_node){
 
 static void replica_on_error_cb(struct bufferevent* bev,short ev,void *arg){
     node* my_node = arg;
+    SYS_LOG(my_node, "An error occured to the replica.\n");
     if(ev&BEV_EVENT_EOF){
         // the connection has been closed;
         // do the cleaning
@@ -458,7 +466,8 @@ static void replica_on_error_cb(struct bufferevent* bev,short ev,void *arg){
 static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd,struct sockaddr *address,int socklen,void *arg){
     node* my_node = arg;
     SYS_LOG(my_node, "A New Connection Is Established.\n");
-    struct bufferevent* new_buff_event = bufferevent_socket_new(my_node->base,fd,BEV_OPT_CLOSE_ON_FREE);
+    struct bufferevent* new_buff_event = bufferevent_socket_new(my_node->base,fd,
+      BEV_OPT_CLOSE_ON_FREE);
     bufferevent_setcb(new_buff_event,replica_on_read,NULL,replica_on_error_cb,(void*)my_node);
     bufferevent_enable(new_buff_event,EV_READ|EV_PERSIST|EV_WRITE);
     CHECK_EXIT
@@ -472,11 +481,14 @@ static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,in
         goto send_for_consensus_comp_exit;
     }
     // means send to every node except me
+    /*SYS_LOG(my_node,"CONSENSUS_MSG_SIZE = %u\n", CONSENSUS_MSG_SIZE(msg));*/
+    /*printf("Leader Consensus msg:\n");*/
+    /*hexdump(msg, CONSENSUS_MSG_SIZE(msg));*/
     if(target<0){
-        send_to_other_nodes(my_node,msg,
-                CONSENSUS_MSG_SIZE(msg),"Consensus Msg");
+      send_to_other_nodes(my_node,msg,
+          CONSENSUS_MSG_SIZE(msg),"Consensus Msg");
     }else{
-        send_to_one_node(my_node,target,msg,CONSENSUS_MSG_SIZE(msg),"Consensus Msg");
+      send_to_one_node(my_node,target,msg,CONSENSUS_MSG_SIZE(msg),"Consensus Msg");
     }
 send_for_consensus_comp_exit:
     if(msg!=NULL){
@@ -497,46 +509,48 @@ static void handle_ping_ack(node* my_node,ping_ack_msg* msg){
 }
 
 static void handle_ping_req(node* my_node,ping_req_msg* msg){
-    SYS_LOG(my_node,
-            "Received Ping Req Msg In Node %u From Node %u.\n",
-        my_node->node_id,msg->node_id);
-    if(my_node->cur_view.view_id+1 == msg->view.view_id){
-        update_view(my_node,&msg->view);
-    }else if(my_node->cur_view.view_id == msg->view.view_id+1){
-        if(my_node->peer_pool[msg->node_id].active){
-            void* ping_ack = build_ping_ack(my_node->node_id,&my_node->cur_view);
-            if(NULL!=ping_ack){
-                send_to_one_node(my_node,msg->node_id,ping_ack,PING_ACK_SIZE,"Lagged Ping Ack Msg");
-                free(ping_ack);
-            }
-        } 
-        goto handle_ping_req_exit;
-    }else if(my_node->cur_view.view_id == msg->view.view_id){
-        // get re-connected to the leader, then give up leader election, if it hasn't finished
-        if(my_node->state==NODE_INLELE){
-            BECOME_ACTIVE(my_node)
-            leader_election_mod_collection(my_node,my_node->election_mod);
-        }
-        if(!isLeader(my_node)){
-            if(timeval_comp(&my_node->last_ping_msg,&msg->timestamp)<0){
-                memcpy(&my_node->last_ping_msg,&msg->timestamp,
-                        sizeof(struct timeval));
-            }
-            if(NULL!=my_node->ev_expect_ping){
-                evtimer_del(my_node->ev_expect_ping);
-                evtimer_add(my_node->ev_expect_ping,&my_node->config.expect_ping_timeval);
-            }
-        }else{
-            // leader should not receive the ping req, otherwise the sender is
-            // lagged behind,otherwise the leader is outdated which will be
-            // treated as a smaller cur view than what in the msg but when they have 
-            // the same view id, which can be ignored
-            SYS_LOG(my_node,"Received Ping Req From %u In View %u\n",
-                    msg->node_id,msg->view.view_id);
-        }
+  SYS_LOG(my_node,
+      "Received Ping Req Msg In Node %u From Node %u.\n",
+      my_node->node_id,msg->node_id);
+  if(my_node->cur_view.view_id+1 == msg->view.view_id){
+    update_view(my_node,&msg->view);
+  }
+  else if(my_node->cur_view.view_id == msg->view.view_id+1){
+    if(my_node->peer_pool[msg->node_id].active){
+      void* ping_ack = build_ping_ack(my_node->node_id,&my_node->cur_view);
+      if(NULL!=ping_ack){
+        send_to_one_node(my_node,msg->node_id,ping_ack,PING_ACK_SIZE,"Lagged Ping Ack Msg");
+        free(ping_ack);
+      }
+    } 
+    goto handle_ping_req_exit;
+  }
+  else if(my_node->cur_view.view_id == msg->view.view_id){
+    // get re-connected to the leader, then give up leader election, if it hasn't finished
+    if(my_node->state==NODE_INLELE){
+      BECOME_ACTIVE(my_node)
+        leader_election_mod_collection(my_node,my_node->election_mod);
     }
+    if(!isLeader(my_node)){
+      if(timeval_comp(&my_node->last_ping_msg,&msg->timestamp)<0){
+        memcpy(&my_node->last_ping_msg,&msg->timestamp,
+            sizeof(struct timeval));
+      }
+      if(NULL!=my_node->ev_expect_ping){
+        evtimer_del(my_node->ev_expect_ping);
+        evtimer_add(my_node->ev_expect_ping,&my_node->config.expect_ping_timeval);
+      }
+    }else{
+      // leader should not receive the ping req, otherwise the sender is
+      // lagged behind,otherwise the leader is outdated which will be
+      // treated as a smaller cur view than what in the msg but when they have 
+      // the same view id, which can be ignored
+      SYS_LOG(my_node,"Received Ping Req From %u In View %u\n",
+          msg->node_id,msg->view.view_id);
+    }
+  }
 handle_ping_req_exit:
-    CHECK_EXIT
+  CHECK_EXIT
     return;
 }
 
@@ -650,10 +664,10 @@ static void leader_election_on_timeout(int fd,short what,void* arg){
     if(my_node->state==NODE_POSTLELE){
         if(mod->new_leader!=my_node->node_id){
             if(NULL!=mod->announce_ack_msg){
-            lele_edge_msg* msg = mod->announce_ack_msg;
-                send_to_one_node(my_node,mod->new_leader,
-                    msg,LEADER_ELECTION_EDGE_MSG_SIZE(msg),
-                    "Announce Ack Msg");
+              lele_edge_msg* msg = mod->announce_ack_msg;
+              send_to_one_node(my_node,mod->new_leader,
+                  msg,LEADER_ELECTION_EDGE_MSG_SIZE(msg),
+                  "Announce Ack Msg");
             }
         }
         evtimer_add(mod->slient_period,&wait_for_net_lele);
@@ -736,23 +750,23 @@ static void leader_election_proposer_do(node* my_node,lele_mod* mod,lele_msg* ms
         evtimer_del(mod->slient_period);
         evtimer_add(mod->slient_period,&wait_for_net_lele);
         if(sent_msg!=NULL){
-            send_to_other_nodes(my_node,sent_msg,LEADER_ELECTION_MSG_SIZE,"Prepare Msg");
-            //update itself
-            if(mod->acceptor.highest_seen_pnum<sent_msg->vc_msg.pnum){
-                mod->acceptor.highest_seen_pnum = sent_msg->vc_msg.pnum;
-                mod->proposer_arr[my_node->node_id].p_pnum = sent_msg->vc_msg.pnum;
-                mod->proposer_arr[my_node->node_id].a_pnum = mod->acceptor.accepted_pnum;
-                mod->proposer_arr[my_node->node_id].content = mod->acceptor.content;
-                int ret = 1;
-                do{
-                    ret = acceptor_update_record(my_node);
-                }while(ret);
-                // if we have got more than half nodes' prepare ack // but it seems it is not possible
-                if(proposer_check_prepare(my_node,mod,&accept_req)){
-                    leader_election_proposer_phase_two(my_node,mod,&accept_req);
-                }
+          send_to_other_nodes(my_node,sent_msg,LEADER_ELECTION_MSG_SIZE,"Prepare Msg");
+          //update itself
+          if(mod->acceptor.highest_seen_pnum<sent_msg->vc_msg.pnum){
+            mod->acceptor.highest_seen_pnum = sent_msg->vc_msg.pnum;
+            mod->proposer_arr[my_node->node_id].p_pnum = sent_msg->vc_msg.pnum;
+            mod->proposer_arr[my_node->node_id].a_pnum = mod->acceptor.accepted_pnum;
+            mod->proposer_arr[my_node->node_id].content = mod->acceptor.content;
+            int ret = 1;
+            do{
+              ret = acceptor_update_record(my_node);
+            }while(ret);
+            // if we have got more than half nodes' prepare ack // but it seems it is not possible
+            if(proposer_check_prepare(my_node,mod,&accept_req)){
+              leader_election_proposer_phase_two(my_node,mod,&accept_req);
             }
-            free(sent_msg);
+          }
+          free(sent_msg);
         }
     }else{ // then it means we've got the PREPARE_ACK msg;
         assert((msg->type==LELE_PREPARE_ACK)&&"We Get There Just Because We've Got Prepare ACK Msg.\n");
@@ -802,9 +816,9 @@ static void leader_election_acceptor_do(node* my_node,lele_mod* mod,lele_msg* ms
             sent_msg = build_lele_msg(my_node->node_id,
                     mod,LELE_PREPARE_ACK,NULL);
             if(NULL!=sent_msg){
-                send_to_one_node(my_node,msg->node_id,
-                        sent_msg,LEADER_ELECTION_MSG_SIZE,"Prepare Ack Msg");
-                free(sent_msg);
+              send_to_one_node(my_node,msg->node_id,
+                  sent_msg,LEADER_ELECTION_MSG_SIZE,"Prepare Ack Msg");
+              free(sent_msg);
             }
         }
     }else if(msg->type==LELE_ACCEPT){
@@ -825,11 +839,12 @@ static void leader_election_acceptor_do(node* my_node,lele_mod* mod,lele_msg* ms
             //sent_msg->vc_msg.tail_data.last_req = 
             //   my_node->highest_to_commit.req_id;
             // update it self learner record
+
             if(NULL!=sent_msg){
-                leader_election_learner_do(my_node,mod,&sent_msg->vc_msg);
-                send_to_other_nodes(my_node,
-                        sent_msg,LEADER_ELECTION_MSG_SIZE,"Accept Ack Msg");
-                free(sent_msg);
+              leader_election_learner_do(my_node,mod,&sent_msg->vc_msg);
+              send_to_other_nodes(my_node,
+                  sent_msg,LEADER_ELECTION_MSG_SIZE,"Accept Ack Msg");
+              free(sent_msg);
             }
         }
     }else{
@@ -964,8 +979,8 @@ static void leader_election_cal_edge(node* my_node,lele_mod* mod){
     msg->vc_msg.content = mod->new_leader;
     msg->vc_msg.node_id = my_node->node_id;
     send_to_one_node(my_node,msg->vc_msg.content,
-            msg,LEADER_ELECTION_EDGE_MSG_SIZE(msg),
-            "Announce Ack Msg");
+        msg,LEADER_ELECTION_EDGE_MSG_SIZE(msg),
+        "Announce Ack Msg");
     mod->announce_ack_msg = msg;
     evtimer_del(mod->slient_period);
     evtimer_add(mod->slient_period,&wait_for_net_lele);
@@ -1037,9 +1052,9 @@ static void leader_election_leader_close(node* my_node,lele_mod* mod){
     update_view(my_node,&new_view_info);
     sent_msg = leader_election_build_close(my_node,mod,mod->next_view,&new_view_info);
     if(sent_msg!=NULL){
-        send_to_other_nodes(my_node,sent_msg,
-                LEADER_ELECTION_MSG_SIZE,"Leader Election Close Msg");
-        free(sent_msg);
+      send_to_other_nodes(my_node,sent_msg,
+          LEADER_ELECTION_MSG_SIZE,"Leader Election Close Msg");
+      free(sent_msg);
     }
     leader_election_mod_collection(my_node,mod);
 leader_election_leader_close_exit:
@@ -1219,8 +1234,8 @@ static void leader_election_learner_do(node* my_node,lele_mod* mod,lele_msg* msg
                 //leader_election_enter_post_stage(my_node,mod,&temp);
                 sent_msg = build_lele_msg(my_node->node_id,mod,LELE_ANNOUNCE,&temp);
                 if(NULL!=sent_msg){
-                    send_to_other_nodes(my_node,sent_msg,
-                            LEADER_ELECTION_MSG_SIZE,"Leader Election Announce Msg");
+                  send_to_other_nodes(my_node,sent_msg,
+                      LEADER_ELECTION_MSG_SIZE,"Leader Election Announce Msg");
                 }
                 // i am the new leader
                 leader_election_handle_announce(my_node,mod,&sent_msg->vc_msg);
@@ -1254,9 +1269,9 @@ static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_ms
             leader_election_msg* sent_msg = NULL;
             sent_msg = leader_election_build_close(my_node,mod,msg->next_view,NULL);
             if(sent_msg!=NULL){
-                send_to_one_node(my_node,msg->node_id,sent_msg,
-                        LEADER_ELECTION_MSG_SIZE,"Leader Election Close Msg");
-                free(sent_msg);
+              send_to_one_node(my_node,msg->node_id,sent_msg,
+                  LEADER_ELECTION_MSG_SIZE,"Leader Election Close Msg");
+              free(sent_msg);
             }
         }// else we are behind, we just set the node to be inactive and wait for the ping msg from the leader
     }else{
@@ -1372,10 +1387,16 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
         }
         evbuffer_copyout(input,buf,SYS_MSG_HEADER_SIZE);
         int data_size = buf->data_size;
-        SYS_LOG(my_node,"data_type is %u.\n", (unsigned)buf->type);
-        SYS_LOG(my_node,"data_size is %u.\n", (unsigned)data_size);
+        /*SYS_LOG(my_node,"data_type is %u.\n", (unsigned)buf->type);*/
+        /*SYS_LOG(my_node,"data_size is %u.\n", (unsigned)data_size);*/
+        /*printf("MSG TYPE : %u\n", (unsigned)buf->type);*/
+        /*if((unsigned)buf->type < 100)*/
+        /*hexdump(buf, (unsigned)data_size + SYS_MSG_HEADER_SIZE);*/
+        /*else*/
+        /*hexdump(buf, 80);*/
+        /*fflush(stdout);*/
         if(len>=(SYS_MSG_HEADER_SIZE+data_size)){
-           SYS_LOG(my_node,"Begin to read data from buffer.\n");
+          /*SYS_LOG(my_node,"Begin to read data from buffer.\n");*/
            my_node->msg_cb(my_node,bev,data_size); 
            counter++;
         }else{
@@ -1397,7 +1418,6 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
 int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*user_cb)(size_t data_size,void* data,void* arg),void* db_ptr,void* arg){
     
     int flag = 1;
-    my_node->sys_log = 1;
     gettimeofday(&my_node->last_ping_msg,NULL);
     if(my_node->cur_view.leader_id==my_node->node_id){
         if(initialize_leader_ping(my_node)){
@@ -1468,7 +1488,7 @@ node* system_initialize(node_id_t node_id,const char* start_mode,const char* con
         goto exit_error;
     }
     // set up base
-	struct event_base* base = event_base_new();
+	  struct event_base* base = event_base_new();
     if(NULL==base){
         goto exit_error;
     }
@@ -1541,4 +1561,53 @@ void system_run(struct node_t* my_node){
 
 void system_exit(struct node_t* my_node){
     free_node(my_node);
+}
+
+#ifndef HEXDUMP_COLS
+#define HEXDUMP_COLS 8
+#endif
+ 
+void hexdump(void *mem, unsigned int len)
+{
+  unsigned int i, j;
+
+  for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
+  {
+    /* print offset */
+    if(i % HEXDUMP_COLS == 0)
+    {
+      printf("0x%06x: ", i);
+    }
+
+    /* print hex data */
+    if(i < len)
+    {
+      printf("%02x ", 0xFF & ((char*)mem)[i]);
+    }
+    else /* end of block, just aligning for ASCII dump */
+    {
+      printf("   ");
+    }
+
+    /* print ASCII dump */
+    if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
+    {
+      for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
+      {
+        if(j >= len) /* end of block, not really printing */
+        {
+          putchar(' ');
+        }
+        else if(isprint(((char*)mem)[j])) /* printable char */
+        {
+          putchar(0xFF & ((char*)mem)[j]);        
+        }
+        else /* other char */
+        {
+          putchar('.');
+        }
+      }
+      putchar('\n');
+    }
+  }
 }
