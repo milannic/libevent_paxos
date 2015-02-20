@@ -732,7 +732,7 @@ proxy_node* proxy_init(uint16_t node_id,const char* start_mode,const char* confi
                 config_path,log_path,1,fake_update_state,proxy->db_ptr,proxy);
     }else{
         proxy->con_node = system_initialize(node_id,start_mode,
-                config_path,log_path,0,update_state,NULL,proxy);
+                config_path,log_path,0,update_state,proxy->db_ptr,proxy);
     }
 
     if(NULL==proxy->con_node){

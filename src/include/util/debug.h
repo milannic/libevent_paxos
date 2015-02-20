@@ -52,6 +52,7 @@
 
 #define DEBUG_ENTER debug_log("Entering %s\n",__PRETTY_FUNCTION__)
 #define DEBUG_LEAVE debug_log("Leaving %s\n",__PRETTY_FUNCTION__)
+#define DEBUG_LEAVE_ERR debug_log("Leaving %s with error\n",__PRETTY_FUNCTION__)
 
 #define DEBUG_POINT(x,n) {if(x->sys_log_file){rec_log(((x)->sys_log_file),"Debug Point " #n ".\n")}}
 

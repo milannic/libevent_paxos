@@ -730,15 +730,16 @@ static int acceptor_update_record(node* my_node){
     db_key_type record_no = my_node->election_mod->next_view;
     acceptor_record* record_data = malloc(ACCEPTOR_REC_SIZE);
     if(NULL==record_data){
-        DEBUG_LEAVE
+        DEBUG_LEAVE_ERR
         return 1;
     }
     memcpy(record_data,&my_node->election_mod->acceptor,ACCEPTOR_REC_SIZE);
     if(store_record(my_node->db_ptr,sizeof(record_no),&record_no,
-                ACCEPTOR_REC_SIZE,record_data)){
-        DEBUG_LEAVE
+                    ACCEPTOR_REC_SIZE,record_data)){
+        err_log("store_record failed.\n");
+        DEBUG_LEAVE_ERR
         return 1;
-    }    
+    }
     DEBUG_LEAVE
     return 0;
 }
