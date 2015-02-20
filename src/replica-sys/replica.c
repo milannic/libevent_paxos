@@ -175,6 +175,7 @@ static void peer_node_on_event(struct bufferevent* bev,short ev,void* arg){
 
 
 static void connect_peer(peer* peer_node){
+    DEBUG_ENTER
     node* my_node = peer_node->my_node;
     peer_node->my_buff_event = bufferevent_socket_new(peer_node->base,-1,BEV_OPT_CLOSE_ON_FREE);
     bufferevent_setcb(peer_node->my_buff_event,peer_node_on_read,NULL,peer_node_on_event,peer_node);
@@ -182,18 +183,22 @@ static void connect_peer(peer* peer_node){
     bufferevent_socket_connect(peer_node->my_buff_event,(struct sockaddr*)peer_node->peer_address,
       peer_node->sock_len);
 
+    DEBUG_LEAVE
     CHECK_EXIT;
 };
 
 static void peer_node_on_timeout(int fd,short what,void* arg){
+    DEBUG_ENTER
     peer* p = arg;
     node* my_node = p->my_node;
     connect_peer(p);
+    DEBUG_LEAVE
     CHECK_EXIT;
 };
 
 
 static void connect_peers(node* my_node){
+    DEBUG_ENTER
     for(uint32_t i=0;i<my_node->group_size;i++){
         if(i!=my_node->node_id){
             peer* peer_node = my_node->peer_pool+i;
@@ -201,35 +206,38 @@ static void connect_peers(node* my_node){
             connect_peer(peer_node);
         }
     }
+    DEBUG_LEAVE
     CHECK_EXIT;
 }
 
 
 static void lost_connection_with_leader(node* my_node){
+    DEBUG_ENTER
     SYS_LOG(my_node,"Node %u Lost Connection With The Leader\n",
             my_node->node_id);
     initialize_leader_election(my_node);
     SYS_LOG(my_node,"Node %u Will Start A Leader Election\n",
             my_node->node_id);
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
 
 static void expected_leader_ping_period(int fd,short what,void* arg){
+    DEBUG_ENTER
     node* my_node = arg;
+    SYS_LOG(my_node, "expected_leader_ping event triggered.\n");
     if(my_node->node_id==my_node->cur_view.leader_id){
         if(NULL!=my_node->ev_leader_ping){
-            event_free(my_node->ev_leader_ping);
             initialize_leader_ping(my_node);
         }
-    }else{
+    } else{
         struct timeval* last = &my_node->last_ping_msg;
         struct timeval cur;
         gettimeofday(&cur,NULL);
         struct timeval temp;
         timeval_add(last,&my_node->config.expect_ping_timeval,&temp);
         if(timeval_comp(&temp,&cur)>=0){
-          event_free(my_node->ev_expect_ping);
           initialize_expect_ping(my_node);
         }else{
             SYS_LOG(my_node,
@@ -238,11 +246,13 @@ static void expected_leader_ping_period(int fd,short what,void* arg){
             lost_connection_with_leader(my_node);
         }
     }
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
 
 static void leader_ping_period(int fd,short what,void* arg){
+    DEBUG_ENTER
     node* my_node = arg; 
     SYS_LOG(my_node,"Leader Tries To Ping Other Nodes\n");
     // at first check whether I am the leader
@@ -268,11 +278,13 @@ static void leader_ping_period(int fd,short what,void* arg){
             event_add(my_node->ev_leader_ping,&my_node->config.ping_timeval);
         }
     }
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 };
 
 static int initialize_leader_ping(node* my_node){
+    DEBUG_ENTER
     if(NULL==my_node->ev_leader_ping){
         my_node->ev_leader_ping = evtimer_new(my_node->base,leader_ping_period,(void*)my_node);
         if(my_node->ev_leader_ping==NULL){
@@ -283,11 +295,13 @@ static int initialize_leader_ping(node* my_node){
         evtimer_del(my_node->ev_expect_ping);
     }
     evtimer_add(my_node->ev_leader_ping,&my_node->config.ping_timeval);
+    DEBUG_LEAVE
     CHECK_EXIT
     return 0;
 }
 
 static int initialize_expect_ping(node* my_node){
+    DEBUG_ENTER
     if(NULL==my_node->ev_expect_ping){
         my_node->ev_expect_ping = evtimer_new(my_node->base,expected_leader_ping_period,
                                               (void*)my_node);
@@ -302,11 +316,14 @@ static int initialize_expect_ping(node* my_node){
 
     evtimer_del(my_node->ev_expect_ping);
     evtimer_add(my_node->ev_expect_ping,&my_node->config.expect_ping_timeval);
+    SYS_LOG(my_node, "Reinitialize expect_ping event.\n");
+    DEBUG_LEAVE
     CHECK_EXIT
     return 0;
 }
 
 static void make_progress_on(int fd,short what,void* arg){
+    DEBUG_ENTER
     node* my_node = arg; 
     SYS_LOG(my_node,"Leader Tries To Make Progress.\n");
     // at first check whether I am the leader
@@ -324,11 +341,13 @@ static void make_progress_on(int fd,short what,void* arg){
         event_add(my_node->ev_make_progress,&my_node->config.make_progress_timeval);
     }
 make_progress_on_exit:
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
 
 static int initialize_leader_make_progress(node* my_node){
+    DEBUG_ENTER
     int ret = 0;
     if(NULL==my_node->ev_make_progress){
         my_node->ev_make_progress = evtimer_new(my_node->base,make_progress_on,(void*)my_node);
@@ -339,6 +358,7 @@ static int initialize_leader_make_progress(node* my_node){
     }
     event_add(my_node->ev_make_progress,&my_node->config.make_progress_timeval);
 initialize_leader_make_progress_exit:
+    DEBUG_LEAVE
     CHECK_EXIT;
     return ret;
 }
@@ -409,6 +429,7 @@ static void replica_sync(node* my_node){
 }
 
 static void free_peer(peer* peer_node){
+    DEBUG_ENTER
     if(NULL!=peer_node){
         if(NULL!=peer_node->my_buff_event){
             bufferevent_free(peer_node->my_buff_event);
@@ -421,13 +442,17 @@ static void free_peer(peer* peer_node){
         }
         free(peer_node);
     }
+    DEBUG_LEAVE
     return;
 }
 
 static void free_peers(node* my_node){
+    DEBUG_ENTER
     for(uint32_t i=0;i<my_node->group_size;i++){
         free_peer(my_node->peer_pool+i);
     }
+    DEBUG_LEAVE
+    return;
 }
 
 static int isLeader(node* my_node){
@@ -490,6 +515,7 @@ static void replica_on_accept(struct evconnlistener* listener,evutil_socket_t fd
 
 // consensus part
 static void send_for_consensus_comp(node* my_node,size_t data_size,void* data,int target){
+    DEBUG_ENTER
     consensus_msg* msg = build_consensus_msg(data_size,data);
     if(NULL==msg){
         goto send_for_consensus_comp_exit;
@@ -508,6 +534,7 @@ send_for_consensus_comp_exit:
     if(msg!=NULL){
         free(msg);
     }
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
@@ -523,6 +550,7 @@ static void handle_ping_ack(node* my_node,ping_ack_msg* msg){
 }
 
 static void handle_ping_req(node* my_node,ping_req_msg* msg){
+  DEBUG_ENTER
   SYS_LOG(my_node,
       "Received Ping Req Msg In Node %u From Node %u.\n",
       my_node->node_id,msg->node_id);
@@ -562,22 +590,26 @@ static void handle_ping_req(node* my_node,ping_req_msg* msg){
     }
   }
 handle_ping_req_exit:
+  DEBUG_LEAVE
   CHECK_EXIT
-    return;
+  return;
 }
 
 static void handle_consensus_msg(node* my_node,consensus_msg* msg){
+    DEBUG_ENTER
     SYS_LOG(my_node,"Node %d Received Consensus Message\n",
             my_node->node_id);
     if(NULL!=my_node->consensus_comp){
         consensus_handle_msg(my_node->consensus_comp,msg->header.data_size,(void*)msg+SYS_MSG_HEADER_SIZE);
     }
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
 
 static void handle_request_submit(node* my_node,
-        req_sub_msg* msg,struct bufferevent* evb){
+                                  req_sub_msg* msg,struct bufferevent* evb){
+    DEBUG_ENTER
     SYS_LOG(my_node,"Node %d Received Consensus Submit Request\n",
             my_node->node_id);
     SYS_LOG(my_node,"The Data Size Is %lu \n",
@@ -588,6 +620,7 @@ static void handle_request_submit(node* my_node,
                 my_node->consensus_comp,msg->header.data_size,
                 (void*)msg+SYS_MSG_HEADER_SIZE,&return_vs);
     }
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
@@ -693,16 +726,20 @@ static void leader_election_on_timeout(int fd,short what,void* arg){
 }
 
 static int acceptor_update_record(node* my_node){
+    DEBUG_ENTER
     db_key_type record_no = my_node->election_mod->next_view;
     acceptor_record* record_data = malloc(ACCEPTOR_REC_SIZE);
     if(NULL==record_data){
+        DEBUG_LEAVE
         return 1;
     }
     memcpy(record_data,&my_node->election_mod->acceptor,ACCEPTOR_REC_SIZE);
     if(store_record(my_node->db_ptr,sizeof(record_no),&record_no,
                 ACCEPTOR_REC_SIZE,record_data)){
+        DEBUG_LEAVE
         return 1;
     }    
+    DEBUG_LEAVE
     return 0;
 }
 
@@ -1016,7 +1053,8 @@ static void leader_election_handle_close(node* my_node,lele_mod* mod,lele_msg* m
     return;
 }
 
-static leader_election_msg* leader_election_build_close(node* my_node,lele_mod* mod,view_id_t view_id,view* new_view_info){
+static leader_election_msg* leader_election_build_close(node* my_node,
+                            lele_mod* mod,view_id_t view_id,view* new_view_info){
     DEBUG_ENTER
     leader_election_msg* ret = (leader_election_msg*)malloc(LEADER_ELECTION_MSG_SIZE);
     if(ret==NULL){goto leader_election_build_close_exit;}
@@ -1324,13 +1362,14 @@ static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_ms
         //ignore this, because we can still communicate to the leader.
         //}
     }
-    CHECK_EXIT
     DEBUG_LEAVE
+    CHECK_EXIT
     return;
 }
 
 static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
     //debu!k!5
+    DEBUG_ENTER
     void* msg_buf = (char*)malloc(SYS_MSG_HEADER_SIZE+data_size);
     if(NULL==msg_buf){
         goto handle_msg_exit;
@@ -1360,10 +1399,13 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
             }
             break;
         case LEADER_ELECTION_MSG:
-            SYS_LOG(my_node,"Receive leader election message. \n");
+            SYS_LOG(my_node,"Receive leader election message.\n");
             if(my_node->state==NODE_INLELE || my_node->state==NODE_POSTLELE){
                 handle_leader_election_msg(my_node,(leader_election_msg*)msg_buf);
             }
+            SYS_LOG(my_node,"Leader election message dumped.\n");
+            /*event_base_dump_events(my_node->base, my_node->sys_log_file);*/
+            /*fflush(my_node->sys_log_file);*/
             break;
         default:
             SYS_LOG(my_node,"Unknown Msg Type %d\n",
@@ -1373,12 +1415,14 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
 
 handle_msg_exit:
     if(NULL!=msg_buf){free(msg_buf);}
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
 
 //general data handler by the user, test if there is enough data to read
 static void replica_on_read(struct bufferevent* bev,void* arg){
+    DEBUG_ENTER
     node* my_node = arg;
     sys_msg_header* buf = NULL;;
     struct evbuffer* input = bufferevent_get_input(bev);
@@ -1419,13 +1463,17 @@ static void replica_on_read(struct bufferevent* bev,void* arg){
         //STAT_LOG(my_node,"This Function Call Process %u Requests In Total.\n",counter);
     }
     if(NULL!=buf){free(buf);}
+    DEBUG_LEAVE
     CHECK_EXIT
     return;
 }
 
 
-int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*user_cb)(size_t data_size,void* data,void* arg),void* db_ptr,void* arg){
+int initialize_node(node* my_node,const char* log_path,int deliver_mode,
+                    void (*user_cb)(size_t data_size,void* data,void* arg),
+                    void* db_ptr,void* arg){
     
+    DEBUG_ENTER
     int flag = 1;
     gettimeofday(&my_node->last_ping_msg,NULL);
     if(my_node->cur_view.leader_id==my_node->node_id){
@@ -1435,8 +1483,7 @@ int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*u
         if(initialize_leader_make_progress(my_node)){
             goto initialize_node_exit;
         }
-    }
-    else{
+    } else{
         if(initialize_expect_ping(my_node)){
             goto initialize_node_exit;
         }
@@ -1480,17 +1527,23 @@ int initialize_node(node* my_node,const char* log_path,int deliver_mode,void (*u
     my_node->consensus_comp = init_consensus_comp(my_node,
             my_node->node_id,my_node->sys_log_file,my_node->sys_log,
             my_node->stat_log,my_node->db_name,deliver_mode,db_ptr,my_node->group_size,
-            &my_node->cur_view,&my_node->highest_to_commit,&my_node->highest_committed,&my_node->highest_seen,user_cb,send_for_consensus_comp,arg);
+            &my_node->cur_view,&my_node->highest_to_commit,&my_node->highest_committed,
+            &my_node->highest_seen,user_cb,send_for_consensus_comp,arg);
     if(NULL==my_node->consensus_comp){
         goto initialize_node_exit;
     }
     flag = 0;
 initialize_node_exit:
+    DEBUG_LEAVE
     return flag;
 }
 
-node* system_initialize(node_id_t node_id,const char* start_mode,const char* config_path,const char* log_path,int deliver_mode,void(*user_cb)(size_t data_size,void* data,void* arg),void* db_ptr,void* arg){
+node* system_initialize(node_id_t node_id,const char* start_mode,const char* config_path,
+                        const char* log_path,int deliver_mode,
+                        void(*user_cb)(size_t data_size,void* data,void* arg),
+                        void* db_ptr,void* arg){
 
+    DEBUG_ENTER
     node* my_node = (node*)malloc(sizeof(node));
     memset(my_node,0,sizeof(node));
     if(NULL==my_node){
@@ -1547,16 +1600,19 @@ node* system_initialize(node_id_t node_id,const char* start_mode,const char* con
         err_log("CONSENSUS MODULE : Cannot Set Up The Listener.\n");
         goto exit_error;
     }
-	return my_node;
+    DEBUG_LEAVE
+	  return my_node;
 
 exit_error:
     if(NULL!=my_node){
         free_node(my_node);
     }
+    DEBUG_LEAVE
     return NULL;
 }
 
 void system_run(struct node_t* my_node){
+    DEBUG_ENTER
     SYS_LOG(my_node,"Node %u Starts Running\n",
             my_node->node_id);
     sigset_t node_sig_set;
@@ -1566,10 +1622,13 @@ void system_run(struct node_t* my_node){
     ret++;
     signal(SIGUSR1,node_sys_sig_handler);
     event_base_dispatch(my_node->base);
+    DEBUG_LEAVE
 }
 
 void system_exit(struct node_t* my_node){
+    DEBUG_ENTER
     free_node(my_node);
+    DEBUG_LEAVE
 }
 
 #ifndef HEXDUMP_COLS
