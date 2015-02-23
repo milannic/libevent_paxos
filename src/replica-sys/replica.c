@@ -1253,7 +1253,7 @@ static void leader_election_initialize_edge_mod(node* my_node,lele_mod* mod){
         length = (DEFAULT_REQ_LENGTH)*5;
     }
     mod->edge.max_empty_slots = length;
-    if(mod->edge.req_edge!=NULL){
+    if(mod->edge.req_edge==NULL){
         free(mod->edge.req_edge);
         mod->edge.req_edge = (req_id_t*)(malloc(sizeof(req_id_t)*length));
     }
