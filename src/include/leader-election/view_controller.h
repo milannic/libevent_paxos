@@ -24,7 +24,8 @@
 // proposer and learner can be treated as an in-memory structure.
 //
 
-typedef uint32_t pnum_t;
+/*typedef uint32_t pnum_t;*/
+typedef int64_t pnum_t;
 typedef enum leader_election_msg_type_t{
     LELE_PREPARE = 0,
     LELE_PREPARE_ACK = 1,

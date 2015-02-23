@@ -633,6 +633,8 @@ static void refresh_leader_election(node* my_node,lele_mod* mod){
         // -1 means the proposer can pick up any value
         mod->proposer_arr[i].content = -1;
         mod->proposer_arr[i].a_pnum = -1;
+        // Rui : initialize the acceptor content 
+        mod->acceptor.content = -1;
     }
     DEBUG_LEAVE
     CHECK_EXIT
@@ -759,6 +761,8 @@ static int proposer_check_prepare(node* my_node,lele_mod* mod,lele_msg* ret_msg)
             }
             if(mod->proposer_arr[i].a_pnum > ret_msg->pnum){
                 ret_msg->content = mod->proposer_arr[i].content;
+                SYS_LOG(my_node, "Node %ld\n", i);
+                SYS_LOG(my_node, "Set ret_msg content to %ld.\n", ret_msg->content);
                 ret_msg->pnum = mod->proposer_arr[i].a_pnum;
             }
         }
@@ -773,14 +777,19 @@ static int proposer_check_prepare(node* my_node,lele_mod* mod,lele_msg* ret_msg)
 static void leader_election_proposer_phase_two(node* my_node,lele_mod* mod,lele_msg* msg){
     DEBUG_ENTER
     SYS_LOG(my_node, "Enter leader election phase 2.\n");
-    assert(msg->pnum!=-1&&
-            "Now that we come to this place, we must have a valid propose number");
+    assert(msg->pnum!=-1 &&
+          "Now that we come to this place, we must have a valid propose number");
     if(msg->content==-1){
         // we can propose any number to be the next leader
         msg->content = my_node->node_id;
     }
     leader_election_msg* sent_msg = build_lele_msg(
                 my_node->node_id,mod,LELE_ACCEPT,msg);
+    // Rui : Before send out the Accept Msg, update learner in the current node
+    mod->learner_arr[my_node->node_id].pnum = msg->pnum;
+    mod->learner_arr[my_node->node_id].content = msg->content;
+    SYS_LOG(my_node, "In LE Phase 2, content is %ld\n", msg->content);
+
     if(sent_msg!=NULL){
         send_to_other_nodes(my_node,sent_msg,LEADER_ELECTION_MSG_SIZE,"Accept Msg");
         free(sent_msg);
@@ -820,7 +829,8 @@ static void leader_election_proposer_do(node* my_node,lele_mod* mod,lele_msg* ms
           free(sent_msg);
         }
     }else{ // then it means we've got the PREPARE_ACK msg;
-        assert((msg->type==LELE_PREPARE_ACK)&&"We Get There Just Because We've Got Prepare ACK Msg.\n");
+        assert((msg->type==LELE_PREPARE_ACK)&&
+                "We Get There Just Because We've Got Prepare ACK Msg.\n");
         pnum_t origin = mod->next_pnum-my_node->group_size;
         // we only care about the recent PREPARE_ACK msg
         // and only care about the recent view
@@ -850,13 +860,22 @@ static void leader_election_acceptor_do(node* my_node,lele_mod* mod,lele_msg* ms
     assert(NULL!=msg&&"We Get Here Because We've Got Some Message.\n");
     leader_election_msg* sent_msg = NULL;
     if(msg->type==LELE_PREPARE){
+        SYS_LOG(my_node, "Received LELE_PREPARE msg from %u\n", msg->node_id);
+
         //optimization,
+        // Rui : This optimization will cause potential problems.
         if((msg->node_id)<(my_node->node_id)){
-            stop_propose(my_node,mod);
+          SYS_LOG(my_node, "Optimization, node %u will stop propose this turn.\n", 
+              my_node->node_id);
+          stop_propose(my_node,mod);
         }
+
         if(msg->pnum>mod->acceptor.highest_seen_pnum){
+            SYS_LOG(my_node, "Update my record by node %u\n", msg->node_id);
             int ret = 1;
             mod->acceptor.highest_seen_pnum = msg->pnum;
+            // Rui : Update the content of the acceptor
+            mod->acceptor.content = msg->content;
             do{
                 ret = acceptor_update_record(my_node);
                 if(ret){
@@ -867,12 +886,14 @@ static void leader_election_acceptor_do(node* my_node,lele_mod* mod,lele_msg* ms
             sent_msg = build_lele_msg(my_node->node_id,
                     mod,LELE_PREPARE_ACK,NULL);
             if(NULL!=sent_msg){
+              SYS_LOG(my_node, "Sending prepare_ack with content %ld\n", sent_msg->vc_msg.content);
               send_to_one_node(my_node,msg->node_id,
                   sent_msg,LEADER_ELECTION_MSG_SIZE,"Prepare Ack Msg");
               free(sent_msg);
             }
         }
     } else if(msg->type==LELE_ACCEPT){
+        SYS_LOG(my_node, "Received LELE_ACCEPT msg from %u\n", msg->node_id);
         if(msg->pnum>=mod->acceptor.highest_seen_pnum){
             int ret = 1;
             mod->acceptor.highest_seen_pnum = msg->pnum;
@@ -915,6 +936,7 @@ static int learner_check_accept(node* my_node,lele_mod* mod,lele_msg* ret_msg){
     ret_msg->content = -1;
     pnum_t base = 0;
     forlessp(i,0,my_node->group_size){
+        SYS_LOG(my_node, "Checking node %u\n", i);
         if(mod->learner_arr[i].pnum!=-1){
             inc = 0;
             base = mod->learner_arr[i].pnum;
@@ -922,7 +944,12 @@ static int learner_check_accept(node* my_node,lele_mod* mod,lele_msg* ret_msg){
             ret_msg->content = mod->learner_arr[i].content;
             forlessp(j,0,my_node->group_size){
                 if(mod->learner_arr[j].pnum==base){
+                    SYS_LOG(my_node, "Node %u say aye!\n", j);
                     inc++;
+                } else {
+                    SYS_LOG(my_node, "Node %u say nay!\n", j);
+                    SYS_LOG(my_node, "Learner_pnum : %ld, Base : %ld \n", 
+                            mod->learner_arr[j].pnum, base);
                 }
                 if(inc>=g_half_size){
                     goto learner_check_accept_exit;
@@ -963,6 +990,7 @@ static void leader_election_leader_cal_edge(node* my_node,lele_mod* mod){
 };
 
 static void leader_election_cal_edge(node* my_node,lele_mod* mod){
+    DEBUG_ENTER
     req_id_t start,end;
     lele_edge_msg* msg = NULL;
     int length=0;
@@ -1036,6 +1064,7 @@ static void leader_election_cal_edge(node* my_node,lele_mod* mod){
     evtimer_del(mod->slient_period);
     evtimer_add(mod->slient_period,&wait_for_net_lele);
 leader_election_cal_edge_exit:
+    DEBUG_LEAVE
     return;
 }
 
@@ -1117,6 +1146,7 @@ leader_election_leader_close_exit:
 
 static void leader_election_enter_post_stage(node* my_node,lele_mod* mod,lele_msg* msg){
     DEBUG_ENTER;
+    SYS_LOG(my_node, "Enter leader election post stage.\n");
     my_node->state = NODE_POSTLELE;
     my_node->election_mod->new_leader = msg->content;
     DEBUG_LEAVE;
@@ -1261,9 +1291,12 @@ static void leader_election_handle_announce(node* my_node,lele_mod* mod,lele_msg
     DEBUG_ENTER
     leader_election_enter_post_stage(my_node,mod,msg);
     //if I am the new leader
+    SYS_LOG(my_node, "New Leader : %u, My node_id : %u\n", mod->new_leader, my_node->node_id);
     if(mod->new_leader==my_node->node_id){
+        SYS_LOG(my_node, "I'm the leader.\n");
         leader_election_initialize_edge_mod(my_node,mod);
     }else{
+        SYS_LOG(my_node, "I'm not the leader.\n");
         leader_election_cal_edge(my_node,mod);
     }
     DEBUG_LEAVE;CHECK_EXIT;
@@ -1277,11 +1310,16 @@ static void leader_election_learner_do(node* my_node,lele_mod* mod,lele_msg* msg
     leader_election_msg* sent_msg = NULL;
     // double-check
     if(msg->type==LELE_ACCEPT_ACK){
+        SYS_LOG(my_node,"Node %d Received LELE_ACCEPT_ACK from node %u.\n",
+                my_node->node_id, msg->node_id);
+        SYS_LOG(my_node, "MSG : %u, NODE(Learner) : %ld\n", msg->pnum, 
+                mod->learner_arr[msg->node_id].pnum);
         if((msg->pnum)>(mod->learner_arr[msg->node_id].pnum)){
             mod->learner_arr[msg->node_id].pnum = msg->pnum;
             mod->learner_arr[msg->node_id].content = msg->content;
             //mod->learner_arr[msg->node_id].last_req = -1;
             lele_msg temp;
+            SYS_LOG(my_node, "Pass the first check.\n");
             if(learner_check_accept(my_node,mod,&temp)){
                 //leader_election_enter_post_stage(my_node,mod,&temp);
                 sent_msg = build_lele_msg(my_node->node_id,mod,LELE_ANNOUNCE,&temp);
@@ -1291,6 +1329,8 @@ static void leader_election_learner_do(node* my_node,lele_mod* mod,lele_msg* msg
                 }
                 // i am the new leader
                 leader_election_handle_announce(my_node,mod,&sent_msg->vc_msg);
+            } else {
+                SYS_LOG(my_node, "Fail the second check.\n");
             }
         }
     }else{
@@ -1310,17 +1350,20 @@ static void leader_election_finalize(node* my_node,lele_mod* mod,lele_msg* msg){
 
 static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_msg){
     DEBUG_ENTER
-    SYS_LOG(my_node,"Node %d Received Leader Election Msg.\n",
-            my_node->node_id);
+    SYS_LOG(my_node,"Node %d Received Leader Election Msg from node %u.\n",
+            my_node->node_id, buf_msg->vc_msg.node_id);
     lele_msg* msg = &buf_msg->vc_msg;
     lele_mod* mod = my_node->election_mod;
     assert(msg!=NULL&&"We get here because we've got the message.");
     if(msg->next_view!=my_node->cur_view.view_id+1){
+        SYS_LOG(my_node, "Sender is lagged. Next view : %u. Cur View : %u.\n",
+                msg->next_view, my_node->cur_view.view_id);
         // sender is lagged
         if(msg->next_view==my_node->cur_view.view_id){
             leader_election_msg* sent_msg = NULL;
             sent_msg = leader_election_build_close(my_node,mod,msg->next_view,NULL);
             if(sent_msg!=NULL){
+              SYS_LOG(my_node, "Sending LE Close message.\n");
               send_to_one_node(my_node,msg->node_id,sent_msg,
                   LEADER_ELECTION_MSG_SIZE,"Leader Election Close Msg");
               free(sent_msg);
@@ -1355,7 +1398,7 @@ static void handle_leader_election_msg(node* my_node,leader_election_msg* buf_ms
                     leader_election_proposer_do(my_node,my_node->election_mod,msg);
                     break;
                 default:
-                SYS_LOG(my_node,"Unknown Message Got.\n");
+                  SYS_LOG(my_node,"Unknown Message Got.\n");
                 break;
             }
         }
@@ -1403,8 +1446,9 @@ static void handle_msg(node* my_node,struct bufferevent* bev,size_t data_size){
             SYS_LOG(my_node,"Receive leader election message.\n");
             if(my_node->state==NODE_INLELE || my_node->state==NODE_POSTLELE){
                 handle_leader_election_msg(my_node,(leader_election_msg*)msg_buf);
+            } else {
+              SYS_LOG(my_node,"LE message dumped. Current state %u\n", my_node->state);
             }
-            SYS_LOG(my_node,"Leader election message dumped.\n");
             /*event_base_dump_events(my_node->base, my_node->sys_log_file);*/
             /*fflush(my_node->sys_log_file);*/
             break;

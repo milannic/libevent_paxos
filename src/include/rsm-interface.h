@@ -40,7 +40,7 @@ typedef struct client_msg_t{
 
 struct proxy_node_t;
 
-struct proxy_node_t* proxy_init(uint16_t node_id,const char* start_mode,const char* config_path,
+struct proxy_node_t* proxy_init(int64_t node_id,const char* start_mode,const char* config_path,
         const char* log_path,int fake_mode);
 void proxy_run(struct proxy_node_t* proxy);
 void proxy_exit(struct proxy_node_t* proxy);

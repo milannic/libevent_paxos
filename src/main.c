@@ -45,7 +45,7 @@ int main(int argc,char** argv){
     char* start_mode= NULL;
     char* config_path = NULL;
     char* log_dir = NULL;
-    int node_id = -1;
+    int64_t node_id = -1;
     int fake_mode = 1;
     int c;
 
