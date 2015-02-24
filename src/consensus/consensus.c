@@ -199,6 +199,8 @@ int consensus_submit_request(struct consensus_component_t* comp,
 
 void consensus_update_role(struct consensus_component_t* comp){
     if(comp->cur_view->leader_id!=comp->node_id){
+        SYS_LOG(comp, "I'm node %ld. The current leader is node %ld.\n",
+                comp->node_id, comp->cur_view->leader_id);
         comp->my_role = SECONDARY;
     }else{
         comp->my_role = LEADER;
@@ -252,12 +254,14 @@ static int leader_handle_submit_req(struct consensus_component_t* comp,
     view_stamp_inc(comp->highest_seen_vs);
     if(comp->group_size>1){
         accept_req* msg = build_accept_req(comp,REQ_RECORD_SIZE(record_data),record_data,&next);
+        SYS_LOG(comp, "group_size > 1, sending out consensus msg.\n");
         if(NULL==msg){
             goto handle_submit_req_exit;
         }
         comp->uc(comp->my_node,ACCEPT_REQ_SIZE(msg),msg,-1);
         free(msg);
     }else{
+        SYS_LOG(comp, "group_size <= 1, execute by myself.\n");
         try_to_execute(comp);
     }
 handle_submit_req_exit: 
@@ -306,10 +310,13 @@ static void handle_accept_req(consensus_component* comp,void* data){
     // if we this message is not from the current leader
     if(msg->msg_vs.view_id == comp->cur_view->view_id && 
             msg->node_id!=comp->cur_view->leader_id){
+        SYS_LOG(comp, "Msg come from node %ld, which is not the current leader %ld.\n",
+                msg->node_id, comp->cur_view->leader_id);
         goto handle_accept_req_exit;
     }
     // if we have committed the operation, then safely ignore it
     if(view_stamp_comp(&msg->msg_vs,comp->highest_committed_vs)<=0){
+        SYS_LOG(comp, "I've already committed the operation. I'll ignore this one.\n");
         goto handle_accept_req_exit;
     }else{
         // update highest seen request

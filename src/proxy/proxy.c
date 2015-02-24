@@ -326,7 +326,7 @@ void consensus_on_event(struct bufferevent* bev,short ev,void* arg){
         SYS_LOG(proxy,"Connected to Consensus.\n");
     }else if((ev & BEV_EVENT_EOF )||(ev&BEV_EVENT_ERROR)){
         int err = EVUTIL_SOCKET_ERROR();
-		SYS_LOG(proxy,"%s.\n",evutil_socket_error_to_string(err));
+		    SYS_LOG(proxy,"%s.\n",evutil_socket_error_to_string(err));
         bufferevent_free(bev);
         proxy->con_conn = NULL;
         event_add(proxy->re_con,&proxy->recon_period);

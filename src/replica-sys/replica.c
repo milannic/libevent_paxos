@@ -1070,10 +1070,13 @@ leader_election_cal_edge_exit:
 
 static void leader_election_handle_close(node* my_node,lele_mod* mod,lele_msg* msg){
     DEBUG_ENTER;
+    SYS_LOG(my_node, "Handle leader_election_close msg.\n");
     view new_view_info;
     new_view_info.view_id = msg->next_view;
     new_view_info.leader_id = msg->content;
     new_view_info.req_id = msg->last_req;
+    SYS_LOG(my_node, "The new leader id is %ld.\n", msg->content);
+    SYS_LOG(my_node, "The next view_id is %ld.\n", msg->next_view);
     if(mod->next_view==new_view_info.view_id){
         update_view(my_node,&new_view_info);
         leader_election_mod_collection(my_node,mod);
@@ -1104,6 +1107,7 @@ static leader_election_msg* leader_election_build_close(node* my_node,
         ret->vc_msg.next_view = new_view_info->view_id;
         ret->vc_msg.node_id = new_view_info->leader_id;
         ret->vc_msg.last_req = new_view_info->req_id;
+        ret->vc_msg.content = new_view_info->leader_id;
     }else{
         free(ret);
         ret = NULL;
@@ -1121,10 +1125,12 @@ static void leader_election_mod_collection(node* my_node,lele_mod* mod){
 
 static void leader_election_leader_close(node* my_node,lele_mod* mod){
     DEBUG_ENTER;
+    SYS_LOG(my_node, "I'm the leader, about to send lele_close msg.\n");
     leader_election_msg* sent_msg = NULL;
     view new_view_info;
     new_view_info.view_id = mod->next_view;
     new_view_info.leader_id = mod->new_leader;
+    SYS_LOG(my_node, "The new view_id is %ld\n", new_view_info.view_id);
     if(mod->edge.cur_empty_slots!=0){
         new_view_info.req_id = mod->edge.req_edge[0]-1;
     }else{
