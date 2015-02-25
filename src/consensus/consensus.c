@@ -202,10 +202,20 @@ void consensus_update_role(struct consensus_component_t* comp){
         SYS_LOG(comp, "I'm node %ld. The current leader is node %ld.\n",
                 comp->node_id, comp->cur_view->leader_id);
         comp->my_role = SECONDARY;
+        comp->highest_seen_vs->view_id = comp->cur_view->view_id;
+        comp->highest_seen_vs->req_id = 0;
+        comp->highest_to_commit_vs->view_id = comp->cur_view->view_id;
+        comp->highest_to_commit_vs->req_id = 0;
+        comp->highest_committed_vs->view_id = comp->cur_view->view_id;
+        comp->highest_committed_vs->req_id = 0;
     }else{
         comp->my_role = LEADER;
         comp->highest_seen_vs->view_id = comp->cur_view->view_id;
         comp->highest_seen_vs->req_id = 0;
+        comp->highest_to_commit_vs->view_id = comp->cur_view->view_id;
+        comp->highest_to_commit_vs->req_id = 0;
+        comp->highest_committed_vs->view_id = comp->cur_view->view_id;
+        comp->highest_committed_vs->req_id = 0;
     }
     return;
 }
@@ -249,7 +259,7 @@ static int leader_handle_submit_req(struct consensus_component_t* comp,
     memcpy(record_data->data,data,data_size);
     if(store_record(comp->db_ptr,sizeof(record_no),&record_no,REQ_RECORD_SIZE(record_data),record_data)){
         goto handle_submit_req_exit;
-    }    
+    }
     ret = 0;
     view_stamp_inc(comp->highest_seen_vs);
     if(comp->group_size>1){
@@ -572,12 +582,33 @@ static void* build_forward_req(consensus_component* comp,
 // leader has another responsibility to update the highest request that can be executed,
 // and if the leader is also synchronous, it can execute the record in this stage
 static void leader_try_to_execute(consensus_component* comp){
-    db_key_type start = vstol(comp->highest_to_commit_vs)+1;
-    db_key_type end = vstol(comp->highest_seen_vs);
+    SYS_LOG(comp, "highest_seen_req_id %lu.\n", comp->highest_seen_vs->req_id);
+    SYS_LOG(comp, "highest_seen_view_id %lu.\n", comp->highest_seen_vs->view_id);
+    SYS_LOG(comp, "highest_to_commit_vs_req_id %lu.\n", comp->highest_to_commit_vs->req_id);
+    SYS_LOG(comp, "highest_to_commit_vs_view_id %lu.\n", comp->highest_to_commit_vs->view_id);
+    db_key_type start;
+    db_key_type end = vstol(comp->highest_seen_vs);;
+
+    size_t data_size;
+    view_stamp temp_boundary;
+    view_boundary* boundary_record = NULL;
+    if(comp->highest_seen_vs->view_id != comp->highest_to_commit_vs->view_id){
+        // address the boundary
+        
+        assert(comp->highest_to_commit_vs->view_id + 1 == comp->highest_seen_vs->view_id);
+        comp->highest_to_commit_vs->view_id += 1;
+        comp->highest_to_commit_vs->req_id = 0;
+        comp->highest_committed_vs->view_id = comp->highest_to_commit_vs->view_id;
+        comp->highest_committed_vs->req_id = comp->highest_to_commit_vs->req_id;
+        start = vstol(comp->highest_to_commit_vs); 
+    } else{
+        start = vstol(comp->highest_to_commit_vs)+1;
+    }
+
     int exec_flag = (!view_stamp_comp(comp->highest_committed_vs,comp->highest_to_commit_vs));
     request_record* record_data = NULL;
-    size_t data_size;
     SYS_LOG(comp,"The Leader Tries To Execute.\n");
+    SYS_LOG(comp,"The Start Value Is %lu.\n",start);
     SYS_LOG(comp,"The End Value Is %lu.\n",end);
     for(db_key_type index=start;index<=end;index++){
         retrieve_record(comp->db_ptr,sizeof(index),&index,&data_size,(void**)&record_data);
@@ -585,7 +616,7 @@ static void leader_try_to_execute(consensus_component* comp){
         if(reached_quorum(record_data,comp->group_size)){
             view_stamp temp = ltovs(index);
             SYS_LOG(comp,"Node %d : View Stamp %u : %u Has Reached Quorum.\n",
-            comp->node_id,temp.view_id,temp.req_id);
+                    comp->node_id,temp.view_id,temp.req_id);
             
             SYS_LOG(comp,"Before Node %d Inc Execute  %u : %u.\n",
                     comp->node_id,
@@ -629,6 +660,11 @@ static void try_to_execute(consensus_component* comp){
     view_boundary* boundary_record = NULL;
     size_t data_size;
     if(comp->highest_committed_vs->view_id!=comp->highest_to_commit_vs->view_id){
+        
+        SYS_LOG(comp, "highest_to_commit_vs_req_id %lu.\n", comp->highest_to_commit_vs->req_id);
+        SYS_LOG(comp, "highest_to_commit_vs_view_id %lu.\n", comp->highest_to_commit_vs->view_id);
+        SYS_LOG(comp, "highest_committed_vs_req_id %lu.\n", comp->highest_committed_vs->req_id);
+        SYS_LOG(comp, "highest_committed_vs_view_id %lu.\n", comp->highest_committed_vs->view_id);
         //address the boundary
         view_stamp bound;
         bound.view_id = comp->highest_committed_vs->view_id+1;
@@ -636,17 +672,19 @@ static void try_to_execute(consensus_component* comp){
         db_key_type bound_record_no = vstol(&bound);
         retrieve_record(comp->db_ptr,sizeof(bound_record_no),&bound_record_no,&data_size,(void**)&boundary_record);
         if(NULL==boundary_record){
+           SYS_LOG(comp, "Missing bounday_record.\n");
            send_missing_req(comp,&bound); 
            goto try_to_execute_exit;
         }
         temp_boundary.view_id = boundary_record->view_id;
         temp_boundary.req_id = boundary_record->req_id;
+        SYS_LOG(comp, "boundary_record_req_id %lu.\n", boundary_record->req_id);
+        SYS_LOG(comp, "boundary_record_view_id %lu.\n", boundary_record->view_id);
         end = vstol(&temp_boundary);
     }else{
         end = vstol(comp->highest_to_commit_vs);
     }
-    SYS_LOG(comp,"The End Value Is %lu.\n",
-           end);
+    SYS_LOG(comp,"The End Value Is %lu.\n", end);
     request_record* record_data = NULL;
     // we can only execute thins in sequence
     int exec_flag = 1;

@@ -133,9 +133,9 @@ int retrieve_record(db* db_p,size_t key_size,void* key_data,size_t* data_size,vo
     int ret=1;
     if(NULL==db_p || NULL==db_p->bdb_ptr){
         if(db_p == NULL){
-          err_log("DB store_record : db_p is null.\n");
+          err_log("DB retrieve_record : db_p is null.\n");
         } else{
-          err_log("DB store_recor : db_p->bdb_ptr is null.\n");
+          err_log("DB retrieve_record : db_p->bdb_ptr is null.\n");
         }
         goto db_retrieve_return;
     }

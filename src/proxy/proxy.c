@@ -216,6 +216,7 @@ static void do_action_send(size_t data_size,void* data,void* arg){
         if(NULL==ret->p_s){
             goto do_action_send_exit;
         }else{
+            SYS_LOG(proxy, "Proxy sends request to the real server.\n");
             bufferevent_write(ret->p_s,msg->data,msg->data_size);
         }
     }
