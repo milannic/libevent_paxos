@@ -865,9 +865,9 @@ static void leader_election_acceptor_do(node* my_node,lele_mod* mod,lele_msg* ms
         //optimization,
         // Rui : This optimization will cause potential problems.
         if((msg->node_id)<(my_node->node_id)){
-          SYS_LOG(my_node, "Optimization, node %u will stop propose this turn.\n", 
-              my_node->node_id);
-          stop_propose(my_node,mod);
+            SYS_LOG(my_node, "Optimization, node %u will stop propose this turn.\n", 
+                    my_node->node_id);
+            stop_propose(my_node,mod);
         }
 
         if(msg->pnum>mod->acceptor.highest_seen_pnum){

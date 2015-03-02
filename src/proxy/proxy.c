@@ -482,6 +482,7 @@ static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
         SYS_LOG(proxy,"Client %lu Connects.\n",pair->key);
 
     }else if((what & BEV_EVENT_EOF) || ( what & BEV_EVENT_ERROR)){
+        SYS_LOG(proxy,"BEV_EVENT_EOF or BEV_EVENT_ERROR.\n");
         gettimeofday(&recv_time,NULL);
         req_sub_msg* close_msg = build_req_sub_msg(pair->key,pair->counter++,P_CLOSE,0,NULL);
         ((proxy_close_msg*)close_msg->data)->header.received_time = recv_time;
@@ -495,7 +496,8 @@ static void client_side_on_err(struct bufferevent* bev,short what,void* arg){
 }
 
 
-static req_sub_msg* build_req_sub_msg(hk_t s_key,counter_t counter,int type,size_t data_size,void* data){
+static req_sub_msg* build_req_sub_msg(hk_t s_key,counter_t counter,
+        int type, size_t data_size, void* data){
     req_sub_msg* msg = NULL;
     switch(type){
         case P_CONNECT:
